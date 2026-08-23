@@ -141,8 +141,26 @@ public final class SetupWizardFx extends Application {
     private Button nextButton;
     private Label navHint;
 
+    private Runnable onFinish;
+
     public static void main(String[] args) {
         launch(args);
+    }
+
+    /**
+     * 마지막 페이지의 [닫기]를 눌렀을 때 할 일. 지정하지 않으면 앱을 종료합니다.
+     * 앱이 설정 없이 시작해 마법사를 먼저 띄운 경우, 여기서 본 화면으로 넘어갑니다.
+     */
+    public void setOnFinish(Runnable action) {
+        this.onFinish = action;
+    }
+
+    private void finish() {
+        if (onFinish == null) {
+            Platform.exit();
+        } else {
+            onFinish.run();
+        }
     }
 
     @Override
@@ -457,7 +475,7 @@ public final class SetupWizardFx extends Application {
                 }
             }
             case PAGE_RUN -> runSetup();
-            case PAGE_DONE -> Platform.exit();
+            case PAGE_DONE -> finish();
             default -> showPage(currentPage + 1);
         }
     }
