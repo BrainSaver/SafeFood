@@ -26,16 +26,10 @@
         <javafx.plugin.version>0.0.8</javafx.plugin.version>
         <compiler.plugin.version>3.13.0</compiler.plugin.version>
         <surefire.plugin.version>3.2.5</surefire.plugin.version>
-        <jar.plugin.version>3.4.1</jar.plugin.version>
-        <dependency.plugin.version>3.7.1</dependency.plugin.version>
-        <clean.plugin.version>3.4.0</clean.plugin.version>
+        <shade.plugin.version>3.6.0</shade.plugin.version>
 
-        <!-- 실행 파일(exe) 빌드 설정: mvn clean package -Pexe -->
-        <app.name>SafeFood</app.name>
-        <app.version>1.0</app.version>
+        <!-- java -jar 로 실행할 때의 시작 클래스 (Application을 상속하지 않아야 합니다) -->
         <app.main.class>com.safefood.MainLauncher</app.main.class>
-        <!-- 업그레이드 식별자 — 절대 바꾸지 마세요. 바꾸면 기존 설치를 덮어쓰지 못하고 따로 깔립니다. -->
-        <app.upgrade.uuid>4BB53F4D-B659-49F4-A2B0-A4B545CA2E9B</app.upgrade.uuid>
     </properties>
 
     <dependencies>
@@ -102,6 +96,46 @@
                     <mainClass>com.safefood.view.indexUi</mainClass>
                 </configuration>
             </plugin>
+
+            <!-- mvn package → target/safefood.jar 하나에 의존성까지 전부 넣습니다.
+                 java -jar target/safefood.jar 로 어디서나 실행됩니다. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>${shade.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>${app.main.class}</mainClass>
+                                </transformer>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <!-- JavaFX jar의 module-info가 섞이면 실행이 막힙니다 -->
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
@@ -134,172 +168,6 @@
                         <configuration>
                             <mainClass>com.safefood.setup.SetupWizardFx</mainClass>
                         </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!-- 실행 파일(exe) 만들기: mvn clean package -Pexe
-             결과물은 target/dist/SafeFood/ 폴더이며 SafeFood.exe와 전용 런타임이 함께 들어갑니다.
-             자세한 사용법·주의사항은 docs/Packaging.md를 보세요. -->
-        <profile>
-            <id>exe</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <version>${jar.plugin.version}</version>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/app</outputDirectory>
-                        </configuration>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-clean-plugin</artifactId>
-                        <version>${clean.plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>remove-previous-dist</id>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>clean</goal>
-                                </goals>
-                                <configuration>
-                                    <excludeDefaultDirectories>true</excludeDefaultDirectories>
-                                    <filesets>
-                                        <fileset>
-                                            <directory>${project.build.directory}/dist</directory>
-                                        </fileset>
-                                        <fileset>
-                                            <directory>${project.build.directory}/app</directory>
-                                        </fileset>
-                                    </filesets>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-dependency-plugin</artifactId>
-                        <version>${dependency.plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>copy-runtime-libs</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>copy-dependencies</goal>
-                                </goals>
-                                <configuration>
-                                    <outputDirectory>${project.build.directory}/app</outputDirectory>
-                                    <includeScope>runtime</includeScope>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>jpackage</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>${java.home}/bin/jpackage</executable>
-                                    <arguments>
-                                        <argument>--type</argument>
-                                        <argument>app-image</argument>
-                                        <argument>--name</argument>
-                                        <argument>${app.name}</argument>
-                                        <argument>--app-version</argument>
-                                        <argument>${app.version}</argument>
-                                        <argument>--vendor</argument>
-                                        <argument>SafeFood Team</argument>
-                                        <argument>--input</argument>
-                                        <argument>${project.build.directory}/app</argument>
-                                        <argument>--main-jar</argument>
-                                        <argument>${project.build.finalName}.jar</argument>
-                                        <argument>--main-class</argument>
-                                        <argument>${app.main.class}</argument>
-                                        <argument>--icon</argument>
-                                        <argument>${project.basedir}/data/public/icon/safefood.ico</argument>
-                                        <argument>--dest</argument>
-                                        <argument>${project.build.directory}/dist</argument>
-                                        <argument>--java-options</argument>
-                                        <argument>-Dfile.encoding=UTF-8</argument>
-                                        <argument>--java-options</argument>
-                                        <argument>-Dstdout.encoding=UTF-8</argument>
-                                        <argument>--java-options</argument>
-                                        <argument>-Dstderr.encoding=UTF-8</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                </plugins>
-            </build>
-        </profile>
-
-        <!-- 설치 파일 만들기: mvn clean package -Pexe,installer
-             exe 프로파일이 만든 폴더를 그대로 감싸 설치 마법사를 만듭니다 (WiX Toolset v3 필요).
-             자세한 내용은 docs/Development.md를 보세요. -->
-        <profile>
-            <id>installer</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>build-installer</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>${java.home}/bin/jpackage</executable>
-                                    <!-- jpackage는 candle.exe·light.exe를 PATH에서 찾습니다.
-                                         WiX 설치 관리자는 PATH를 건드리지 않고 WIX 변수만 남깁니다. -->
-                                    <environmentVariables>
-                                        <PATH>${env.PATH};${env.WIX}bin</PATH>
-                                    </environmentVariables>
-                                    <arguments>
-                                        <argument>--type</argument>
-                                        <argument>exe</argument>
-                                        <argument>--app-image</argument>
-                                        <argument>${project.build.directory}/dist/${app.name}</argument>
-                                        <argument>--name</argument>
-                                        <argument>${app.name}</argument>
-                                        <argument>--app-version</argument>
-                                        <argument>${app.version}</argument>
-                                        <argument>--vendor</argument>
-                                        <argument>SafeFood Team</argument>
-                                        <!-- MSI는 코드 페이지 1252라 한글을 넣으면 light.exe가 311로 실패합니다. -->
-                                        <argument>--description</argument>
-                                        <argument>Allergy-aware food recommendation</argument>
-                                        <argument>--dest</argument>
-                                        <argument>${project.build.directory}/installer</argument>
-                                        <argument>--win-upgrade-uuid</argument>
-                                        <argument>${app.upgrade.uuid}</argument>
-                                        <argument>--win-per-user-install</argument>
-                                        <argument>--win-dir-chooser</argument>
-                                        <argument>--win-menu</argument>
-                                        <argument>--win-menu-group</argument>
-                                        <argument>${app.name}</argument>
-                                        <argument>--win-shortcut</argument>
-                                        <argument>--win-shortcut-prompt</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                        </executions>
                     </plugin>
                 </plugins>
             </build>

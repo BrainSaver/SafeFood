@@ -1,17 +1,12 @@
 package com.safefood.network;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Properties;
+import com.safefood.AppConfig;
 
 /**
- * 프로젝트 루트 {@code config.properties}의 {@code socket.*} 값.
+ * {@code config.properties}의 {@code socket.*} 값.
  *
- * <p>파일이 없거나 값이 비어 있으면 기본값(localhost:5000)을 씁니다.
- * 이 파일은 Setup Wizard가 만들며, 루트에 두는 이유는 README에 정리돼 있습니다.
+ * <p>값이 없으면 기본값(localhost:5000)을 씁니다. 설정을 어디서 읽는지는
+ * {@link AppConfig}가 정합니다 — 배포본은 jar 안에 묻힌 설정, 개발 환경은 프로젝트 루트 파일입니다.
  */
 public final class SocketConfig {
 
@@ -29,28 +24,14 @@ public final class SocketConfig {
      * <p>참여자 쪽은 이 값을 보지 않습니다 — 접속 주소는 초대 코드에서 꺼냅니다.
      */
     public static String host() {
-        String value = load().getProperty("socket.host", "").trim();
-        return value.isEmpty() ? DEFAULT_HOST : value;
+        return AppConfig.trimmed("socket.host", DEFAULT_HOST);
     }
 
     public static int port() {
         try {
-            return Integer.parseInt(load().getProperty("socket.port", "").trim());
+            return Integer.parseInt(AppConfig.trimmed("socket.port", String.valueOf(DEFAULT_PORT)));
         } catch (NumberFormatException e) {
             return DEFAULT_PORT;
         }
-    }
-
-    private static Properties load() {
-        Properties props = new Properties();
-        Path file = Path.of("config.properties");
-        if (Files.exists(file)) {
-            try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-                props.load(reader);
-            } catch (IOException e) {
-                System.err.println("[socket] config.properties를 읽지 못했습니다: " + e.getMessage());
-            }
-        }
-        return props;
     }
 }

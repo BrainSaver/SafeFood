@@ -30,7 +30,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 기능 설계서 | v2.0 | 기능 48개(A/R/G/S/L/M/H), 구현 우선순위 1~3차, 소켓 프로토콜, 추천·병합 알고리즘 |
 | 데이터베이스 설계서 | v2.0 | 테이블 22개 · 외래 키 31개, 컬럼 정의, ENUM, 시드 데이터, 쿼리 시나리오 |
 | UI 설계서 | v2.0 | 화면 14종(SC-01~SC-14), 화면 전이, 색상 팔레트, 공통 컴포넌트 규칙 |
-| [Development.md](docs/Development.md) | — | **개발 문서** — 환경 설정 마법사 · `data/` 파일 모드 · 그룹 추천 로직 · 배포 |
+| [Development.md](docs/Development.md) | — | **개발 문서** — 환경 설정 마법사 · `data/` 파일 모드 · 그룹 추천 로직 · 실행 파일 만들기 |
 
 기능 ID(`A-01`, `G-03` …)와 화면 ID(`SC-04` …)로 세 문서가 서로를 참조합니다.
 커밋 메시지와 브랜치 이름에도 기능 ID를 쓰면 추적하기 쉽습니다.
@@ -147,8 +147,9 @@ SafeFood/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/safefood/
-│   │   │   ├── Main.java                  # 진입점 (엔트리 포인트)
-│   │   │   ├── MainLauncher.java          # 배포용 시작 클래스 (Application 미상속)
+│   │   │   ├── Main.java                  # 진입점 — DB 확인 후 앱 또는 설정 마법사로 분기
+│   │   │   ├── MainLauncher.java          # java -jar 시작 클래스 (Application 미상속)
+│   │   │   ├── AppConfig.java             # config.properties 읽기 · reload()
 │   │   │   ├── dto/                       # UserDto, MenuDto, RestaurantDto ...
 │   │   │   ├── dao/                       # 저장소 접근 (JDBC 또는 data/ 파일)
 │   │   │   │   ├── DatabaseUtil           # config.properties → JDBC 커넥션
@@ -332,12 +333,11 @@ socket.port=5000
 mvn compile exec:java
 ```
 
-JAR로 묶어서 실행하려면 클래스패스에 의존성을 함께 지정합니다.
+JAR로 묶어서 실행할 수도 있습니다. 의존성이 전부 들어가 클래스패스를 따로 잡을 필요가 없습니다.
 
 ```bash
-mvn clean package                    # target/safefood.jar 생성
-mvn dependency:build-classpath -Dmdep.outputFile=cp.txt
-java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
+mvn clean package
+java -jar target/safefood.jar
 ```
 
 자주 쓰는 Maven 명령입니다.
@@ -347,12 +347,11 @@ java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
 | `mvn clean` | `target/` 삭제 |
 | `mvn compile` | `src/main/java` 컴파일 → `target/classes` |
 | `mvn test` | `src/test/java` 테스트 실행 |
-| `mvn package` | JAR 생성 → `target/safefood.jar` |
+| `mvn package` | 단일 실행 JAR 생성 → `target/safefood.jar` |
+| `java -jar target/safefood.jar` | 만들어진 JAR 실행 (의존성 포함) |
 | `mvn compile exec:java` | 앱 실행 (`com.safefood.Main`) |
-| `mvn javafx:run -Pwizard-fx` | Setup Wizard 실행 (창) |
-| `mvn compile exec:java -Pwizard` | Setup Wizard 실행 (콘솔) |
-| `mvn clean package -Pexe` | 실행 파일 폴더 생성 → `target/dist/SafeFood/` |
-| `mvn clean package -Pexe,installer` | 설치 파일 생성 → `target/installer/SafeFood-1.0.exe` |
+| `mvn javafx:run -Pwizard-fx` | Setup Wizard만 따로 실행 (창) |
+| `mvn compile exec:java -Pwizard` | Setup Wizard만 따로 실행 (콘솔) |
 
 그룹 추천은 **방장이 방을 만들면 그 앱이 곧 서버**라서, 서버를 따로 켜지 않습니다.
 같은 앱을 인원수만큼 띄우고 한 명이 방을 만들면, 나머지는 그 주소로 참여하면 됩니다.
@@ -369,22 +368,33 @@ mvn compile exec:java
 
 <br>
 
-### 6. 배포 (선택)
-
-자바가 설치되지 않은 PC에도 전달할 수 있습니다. 전용 런타임을 함께 묶습니다.
+### 6. 실행 파일 만들기 (선택)
 
 ```bash
-mvn clean package -Pexe,installer
+mvn clean package
 ```
 
-`target/installer/SafeFood-1.0.exe` — 더블클릭하면 설치 마법사가 뜨고,
-시작 메뉴 바로가기와 **설정 > 앱** 제거 항목까지 만들어집니다.
-설치 파일을 만들려면 WiX Toolset v3이 필요합니다 (`winget install WiXToolset.WiXToolset`).
+`target/safefood.jar` **하나**(약 14MB)에 JavaFX와 JDBC 드라이버까지 전부 들어갑니다.
+JDK 21이 있는 PC라면 어디서나 이렇게 실행됩니다.
 
-> ⚠️ `config.properties`는 결과물에 **자동으로 들어가지 않습니다.**
-> DB 비밀번호가 들어 있어 일부러 빼 두었습니다. 설치 폴더에 직접 넣으세요.
+```bash
+java -jar target/safefood.jar
+```
 
-자세한 내용은 [개발 문서 — 배포](docs/Development.md#-배포--실행-파일과-설치-파일)를 보세요.
+앱은 켜지면서 **DB가 준비됐는지 먼저 확인합니다.**
+
+```
+DB 정상  ────────────────────→ 로그인 화면
+설정 없음 / 연결 실패 ─→ 설정 마법사 ─[닫기]→ 로그인 화면
+```
+
+받는 사람은 설정 파일을 미리 만들 필요가 없습니다. 처음 켜면 마법사가 뜨고,
+`config.properties`를 만든 뒤 같은 창에서 앱으로 넘어갑니다.
+
+> ⚠️ jar를 전달할 때 `config.properties`는 **같이 주지 마세요.** DB 계정·비밀번호가 들어 있습니다.
+> 팀 서버 DB를 함께 쓴다면 접속 정보만 알려 주고 마법사에서 입력하게 하세요.
+
+자세한 내용은 [개발 문서 — 실행 파일 만들기](docs/Development.md#-실행-파일-만들기)를 보세요.
 
 <br>
 
@@ -958,7 +968,7 @@ CREATE TABLE feedback (
 - [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
 - [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅
 - [x] 그룹 추천 후보 3개 — DB 연동, 알레르기 판정, 후보 부족 처리
-- [x] 실행 파일 · 설치 파일 빌드 (`-Pexe`, `-Pexe,installer`)
+- [x] 단일 실행 JAR 빌드 + 시작할 때 DB 확인 → 마법사/앱 자동 분기
 - [x] 역할 분담
 - [ ] 지도 API 선택(Kakao / Naver) 및 키 발급
 - [ ] 메뉴 데이터 확충 — 현재 29개라 알레르기가 겹치면 후보가 금방 고갈됨

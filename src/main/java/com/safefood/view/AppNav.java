@@ -13,6 +13,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -23,6 +24,7 @@ import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -36,6 +38,10 @@ public final class AppNav {
 
     private static final String BASE = "/com/safefood/view/";
     private static final String CSS = BASE + "app.css";
+
+    /** 창·작업표시줄 아이콘. 예전에는 실행 파일에 박혀 있었지만 이제 앱이 직접 붙입니다. */
+    private static final String ICON = BASE + "logo.png";
+    private static Image appIcon;
 
     /** 토스트가 쌓이는 층. 모든 Scene 의 루트 StackPane 이 하나씩 갖습니다. */
     private static final String TOAST_LAYER_ID = "toast-layer";
@@ -59,6 +65,26 @@ public final class AppNav {
         stage = primaryStage;
         stage.setMinWidth(1000);
         stage.setMinHeight(640);
+        applyIcon(stage);
+    }
+
+    /**
+     * 창에 앱 아이콘을 붙입니다. 시작 화면·설정 마법사·다이얼로그처럼
+     * {@link #init}보다 먼저 뜨거나 따로 만든 창에서도 직접 부르면 됩니다.
+     */
+    public static void applyIcon(Stage target) {
+        if (appIcon == null) {
+            try (InputStream source = AppNav.class.getResourceAsStream(ICON)) {
+                if (source != null) {
+                    appIcon = new Image(source);
+                }
+            } catch (IOException e) {
+                System.err.println("[ui] 앱 아이콘을 읽지 못했습니다: " + e.getMessage());
+            }
+        }
+        if (appIcon != null && !target.getIcons().contains(appIcon)) {
+            target.getIcons().add(appIcon);
+        }
     }
 
     public static Parent load(String fxml) {

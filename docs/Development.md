@@ -9,7 +9,7 @@
 |----|------|
 | [1. 개발 환경 설정](#-개발-환경-설정) | Setup Wizard, `data/` 파일 모드, 스키마 변경 절차 |
 | [2. 그룹 추천](#-그룹-추천) | 조건 병합, 알레르기 판정, 점수·후보 선정 |
-| [3. 배포](#-배포--실행-파일과-설치-파일) | 실행 파일(`SafeFood.exe`)과 설치 파일 만들기 |
+| [3. 실행 파일 만들기](#-실행-파일-만들기) | 단일 jar 빌드, 시작할 때의 DB 확인 · 마법사 분기 |
 
 <br>
 <br>
@@ -178,7 +178,7 @@ data/
 │   ├── restaurant.txt             # 가게 마스터 (선택)
 │   ├── menu.txt                   # 메뉴 마스터 (선택)
 │   ├── menu_allergy.txt           # 메뉴별 알레르기 (선택)
-│   └── icon/                      # 앱 아이콘 (logo.png, safefood.ico)
+│   └── icon/                      # 앱 아이콘 (logo.png)
 └── private/                       # 커밋 금지
     ├── users.txt                  # [개인] 회원·게스트
     ├── preferences.txt            # [개인] 취향·예산·거리
@@ -760,182 +760,94 @@ mvn -q compile
 
 ---
 
-# 📦 배포 — 실행 파일과 설치 파일
 
-> 자바가 없는 PC에서도 돌아가는 **SafeFood.exe**와, 일반 앱처럼 설치되는 **설치 마법사** 만들기
+# 📦 실행 파일 만들기
 
-결과물은 두 가지입니다. 팀 내부에서 빠르게 돌려볼 때는 폴더, 다른 사람에게 전달할 때는 설치 파일을 쓰세요.
-
-| | 명령 | 결과물 | 크기 |
-|---|------|--------|------|
-| **폴더** | `mvn clean package -Pexe` | `target/dist/SafeFood/` | 약 165MB |
-| **설치 파일** | `mvn clean package -Pexe,installer` | `target/installer/SafeFood-1.0.exe` | 약 67MB |
-
-<br>
-
-## 빌드 준비물
-
-- **JDK 21** — `jpackage`는 JDK에만 들어 있고 JRE에는 없습니다
-- **WiX Toolset v3** — 설치 파일을 만들 때만 필요합니다
+> `java -jar safefood.jar` 하나로 끝 — 의존성까지 전부 들어 있는 단일 실행 jar
 
 ```bash
-winget install WiXToolset.WiXToolset
+mvn clean package
 ```
 
-> WiX 설치 관리자는 의존성으로 **Windows 기능 `NetFx3`(.NET Framework 3.5)를 함께 켭니다.**
-> WiX v4 이상은 `jpackage`(JDK 21)가 지원하지 않으니 **v3**를 설치하세요.
+결과물은 **`target/safefood.jar`** 하나(약 14MB)입니다.
+MySQL Connector/J와 JavaFX가 안에 들어 있어 클래스패스를 따로 잡을 필요가 없습니다.
 
-WiX는 `C:\Program Files (x86)\WiX Toolset v3.14`에 설치되고 `WIX` 환경 변수만 남기는데,
-`jpackage`는 `candle.exe`·`light.exe`를 **PATH에서** 찾습니다.
-그래서 `pom.xml`의 `installer` 프로파일이 실행 시점에만 PATH를 붙여 줍니다.
-
-```xml
-<environmentVariables>
-    <PATH>${env.PATH};${env.WIX}bin</PATH>
-</environmentVariables>
+```bash
+java -jar target/safefood.jar
 ```
 
-시스템 PATH를 건드리지 않으므로, WiX를 같은 방법으로 설치한 팀원이면 추가 설정 없이 그대로 됩니다.
+> JDK 21이 설치된 PC에서 돌아갑니다. 자바가 없는 PC용 실행 파일(`.exe`)과 설치 마법사는
+> 만들었다가 걷어냈습니다 — 배포물이 165MB로 커지고 WiX·jpackage 설정을 계속 들고 가야 해서,
+> 수업 프로젝트 범위에서는 단일 jar 쪽이 관리하기 낫다고 판단했습니다.
 
 <br>
 
-## 폴더 배포 (`-Pexe`)
+## 시작할 때의 분기
+
+앱은 켜지자마자 **DB가 준비됐는지 확인하고 갈 길을 정합니다.**
 
 ```
-target/dist/SafeFood/
-├── SafeFood.exe          ← 실행 파일
-├── app/                  ← safefood.jar + 의존성 jar + 실행 설정
-├── runtime/              ← 전용 자바 런타임 (jlink로 추린 것)
-└── config.properties     ← 직접 넣어야 합니다
+java -jar safefood.jar
+   │
+   ├─ "연결 확인 중" 화면 표시 (백그라운드 스레드로 확인)
+   │
+   ├─ DB 정상  ──────────────────────→ 로그인 화면
+   │
+   └─ 설정 없음 / 연결 실패 ─→ 설정 마법사 ─[닫기]→ 로그인 화면
 ```
 
-압축해서 전달하면 받는 사람은 자바 설치 없이 `SafeFood.exe`를 더블클릭하면 됩니다.
-대신 바로가기도, 제거 기능도 없습니다. `target/`은 `.gitignore` 대상이라 저장소에는 안 들어갑니다.
+받는 사람은 설정 파일을 미리 만들 필요가 없습니다. 처음 켜면 마법사가 뜨고,
+마법사가 `config.properties`를 쓴 다음 **같은 창에서 바로 앱으로 넘어갑니다.**
 
-<br>
+### 준비됐다고 판단하는 기준
 
-## 설치 파일 (`-Pexe,installer`)
+[`DatabaseUtil.isReady()`](../src/main/java/com/safefood/dao/DatabaseUtil.java)가 셋을 확인합니다.
 
-`SafeFood-1.0.exe` **한 개 파일**만 전달하면 됩니다. 받는 사람이 더블클릭하면
-일반 앱과 똑같은 설치 마법사가 뜹니다.
+| 확인 | 실패하면 |
+|------|----------|
+| `config.properties`에 `db.url`이 있는가 | 마법사 |
+| 4초 안에 연결되고 `isValid`인가 | 마법사 |
+| `user` 테이블이 있는가 | 마법사 |
 
-`exe` 프로파일이 만든 폴더를 `jpackage --app-image`로 그대로 감싸므로,
-앱을 두 번 빌드하지 않습니다.
+테이블까지 보는 이유는, **DB에는 붙는데 스키마가 비어 있는 경우**가 있기 때문입니다.
+연결만 확인하면 이때 앱이 켜졌다가 로그인에서 깨집니다.
 
-### 설치 마법사가 하는 일
+확인은 별도 스레드에서 돌고, 그동안 화면에는 "데이터베이스 연결을 확인하는 중입니다…"가 뜹니다.
+연결이 안 되는 주소면 최대 4초 정도 걸립니다.
 
-| 항목 | 내용 |
+### 관련 코드
+
+| 파일 | 역할 |
 |------|------|
-| 설치 위치 | `%LOCALAPPDATA%\SafeFood` — 마법사에서 변경 가능 (`--win-dir-chooser`) |
-| 관리자 권한 | **필요 없습니다** (`--win-per-user-install`) |
-| 시작 메뉴 | `SafeFood` 그룹에 바로가기 생성 |
-| 바탕화면 | 설치 중 체크박스로 선택 (`--win-shortcut-prompt`) |
-| 설정 > 앱 | `SafeFood 1.0 / SafeFood Team`으로 등록 — 여기서 제거 |
-| 업그레이드 | `app.upgrade.uuid`가 같으면 기존 버전을 덮어씁니다 |
+| [`MainLauncher`](../src/main/java/com/safefood/MainLauncher.java) | `java -jar`의 시작 클래스 — `Application`을 상속하지 않습니다 |
+| [`Main`](../src/main/java/com/safefood/Main.java) | 연결 확인 → 로그인 화면 또는 마법사로 분기 |
+| [`AppConfig`](../src/main/java/com/safefood/AppConfig.java) | `config.properties` 읽기 · `reload()` |
+| `SetupWizardFx.setOnFinish` | [닫기]를 눌렀을 때 할 일 — 지정하지 않으면 종료 |
 
-바로가기의 **시작 위치**는 설치 폴더로 잡힙니다. 앱이 `config.properties`를
-현재 작업 디렉터리에서 찾기 때문에 이 설정이 필요합니다.
-
-### 제거
-
-**설정 > 앱**에서 SafeFood를 찾아 제거합니다.
-설치 폴더 · 시작 메뉴 · 바탕화면 바로가기 · 등록 정보가 모두 지워집니다.
+마법사가 끝나면 `AppConfig.reload()`로 방금 쓴 설정을 다시 읽고,
+같은 `Stage`에 로그인 화면을 올립니다. 창이 새로 뜨지 않습니다.
 
 <br>
 
-## ⚠️ config.properties는 직접 넣어야 합니다
+## 왜 fat jar인가
 
-**빌드도 설치 마법사도 자동으로 넣지 않습니다.** DB 계정과 비밀번호가 들어 있어서,
-결과물에 자동으로 포함하면 그대로 외부로 나갈 수 있기 때문입니다.
-
-설치본을 쓸 때는 설치 폴더에 넣습니다.
-
-```
-C:\Users\<사용자>\AppData\Local\SafeFood\config.properties
-```
-
-폴더 배포를 쓸 때는 `SafeFood.exe`와 같은 자리에 둡니다.
-
-```bash
-copy config.properties target\dist\SafeFood\
-```
-
-> 결과물을 외부에 공유하기 전에 `config.properties`가 들어 있는지 **반드시 확인하세요.**
-
-<br>
-
-## 🛡️ SmartScreen 경고
-
-설치 파일에 **코드 서명이 없어서** 처음 실행할 때 Windows가 경고를 띄웁니다.
-
-> Windows의 PC 보호 — 인식할 수 없는 앱의 실행을 차단했습니다
-
-**추가 정보 → 실행**을 누르면 진행됩니다. 이 경고를 없애려면 코드 서명 인증서가 필요한데
-유료라서(연 10만원대~) 수업 프로젝트 범위에서는 경고를 안내하는 쪽이 현실적입니다.
-
-받는 사람에게 미리 알려 주세요.
-
-<br>
-
-## 🔥 처음 실행할 때
-
-그룹 방을 만들면 소켓 서버가 열립니다(`config.properties`의 `socket.port`, 기본 5000).
-**Windows 방화벽 허용 창**이 뜨는데, 같은 네트워크의 팀원이 접속하려면 허용해야 합니다.
-
-<br>
-
-## 빌드 구조
-
-### `exe` 프로파일 — 폴더 만들기
-
-| 순서 | 플러그인 | 하는 일 |
-|------|----------|---------|
-| 1 | `maven-clean-plugin` | 이전 `target/dist`·`target/app` 삭제 (jpackage는 대상 폴더가 있으면 실패) |
-| 2 | `maven-jar-plugin` | `safefood.jar`를 `target/app`에 생성 |
-| 3 | `maven-dependency-plugin` | 런타임 의존성 jar를 `target/app`에 복사 |
-| 4 | `exec-maven-plugin` | `jpackage --type app-image` 실행 → `target/dist` |
-
-`target/app`의 jar가 전부 클래스패스에 올라갑니다. fat jar(shade)를 만들지 않는 이유는
-JavaFX jar의 `module-info.class`가 병합 과정에서 문제를 일으키기 때문입니다.
-
-### `installer` 프로파일 — 설치 파일 만들기
-
-`jpackage --type exe --app-image`로 `exe` 프로파일의 결과물을 감쌉니다.
-WiX가 MSI를 만들고, jpackage가 그걸 실행 파일로 포장합니다.
-
-### 설정 값
-
-앱 이름·버전·시작 클래스는 `pom.xml` 위쪽 `properties`에서 바꿉니다.
+`maven-shade-plugin`이 의존성을 하나로 합칩니다. 시작 클래스는 `MainLauncher`입니다.
 
 ```xml
-<app.name>SafeFood</app.name>
-<app.version>1.0</app.version>
-<app.main.class>com.safefood.MainLauncher</app.main.class>
-<app.upgrade.uuid>4BB53F4D-B659-49F4-A2B0-A4B545CA2E9B</app.upgrade.uuid>
+<mainClass>com.safefood.MainLauncher</mainClass>
 ```
 
-`app.main.class`가 `Main`이 아니라 `MainLauncher`인 이유는, `Application`을 상속한 클래스를
-직접 시작 클래스로 지정하면 JavaFX가 모듈 경로를 요구하기 때문입니다.
-`MainLauncher`는 `Application.launch(Main.class, args)`만 호출하는 우회용 클래스입니다.
+`Main`이 아니라 `MainLauncher`인 이유는, **`Application`을 상속한 클래스를 시작 클래스로 두면**
+JVM이 JavaFX가 모듈 경로에 있는지 검사해서 이렇게 거절하기 때문입니다.
 
-> ⚠️ **`app.upgrade.uuid`는 절대 바꾸지 마세요.** 이 값이 같아야 새 버전이 기존 설치를
-> 덮어씁니다. 바꾸면 1.0과 1.1이 따로 깔립니다.
-
-> 📌 **MSI는 코드 페이지 1252라 한글을 못 넣습니다.** `--description`에 한글을 쓰면
-> `light.exe`가 `311`로 실패합니다. 그래서 설명만 영문으로 두었습니다.
-
-<br>
-
-## 오류 로그 보기
-
-기본 설정은 **콘솔 창이 뜨지 않습니다.** GUI 앱이라 검은 창이 같이 뜨면 보기 안 좋기 때문인데,
-대신 `System.err` 출력(예: `[group] 추천 후보 조회 실패`)이 어디에도 남지 않습니다.
-
-디버깅용으로 콘솔이 필요하면 `exe` 프로파일의 jpackage 인자에 한 줄 추가하세요.
-
-```xml
-<argument>--win-console</argument>
+```text
+오류: 이 애플리케이션을 실행하는 데 필요한 JavaFX 런타임 구성요소가 누락되었습니다.
 ```
+
+`MainLauncher`는 `Application.launch(Main.class, args)`만 부르고 자신은 상속하지 않아 검사를 지나갑니다.
+Setup Wizard 쪽의 `SetupWizardFxLauncher`도 같은 이유로 있습니다.
+
+합칠 때 JavaFX jar의 `module-info.class`는 걸러 냅니다 — 섞이면 실행이 막힙니다.
 
 > 실행 중 아래 경고가 뜨는 것은 정상입니다. 클래스패스 방식으로 JavaFX를 올려서 나오는 안내입니다.
 >
@@ -945,24 +857,15 @@ WiX가 MSI를 만들고, jpackage가 그걸 실행 파일로 포장합니다.
 
 <br>
 
-## 아이콘
+## 전달할 때
 
-`data/public/icon/safefood.ico`를 씁니다. 같은 폴더의 `logo.png`(339×343)를
-256·128·64·48·32·16 여섯 크기로 담아 만든 파일이고, 저장소에 커밋돼 있습니다.
+`safefood.jar` 하나만 주면 됩니다. `config.properties`는 **넣지 마세요** —
+DB 계정·비밀번호가 들어 있고, 받는 사람은 마법사로 자기 것을 만들면 됩니다.
 
-아이콘을 바꾸려면 이 `.ico` 파일을 교체하면 됩니다.
-`jpackage`는 Windows에서 `.ico`만 받습니다 — PNG를 그대로 넘기면 빌드가 실패합니다.
+같은 팀 서버 DB를 함께 쓸 거라면 접속 정보를 따로 알려 주고,
+마법사의 MySQL 접속 단계에서 입력하게 하세요.
 
-<br>
-
-## 한계
-
-- **Windows 전용입니다.** `jpackage`는 실행한 OS용 결과물만 만듭니다.
-  macOS·Linux용은 해당 OS에서 따로 빌드해야 합니다.
-- **Setup Wizard는 포함되지 않습니다.** 본 앱(`MainLauncher`)만 들어갑니다.
-  DB와 `config.properties` 준비는 개발 환경에서 미리 끝내야 합니다.
-- **코드 서명이 없어 SmartScreen 경고가 뜹니다.**
-- 앱은 `data/` 폴더를 런타임에 읽지 않아서 결과물에 포함하지 않습니다.
+> 받는 사람에게 **JDK 21 이상**이 필요합니다. `java -version`으로 확인할 수 있습니다.
 
 <br>
 
@@ -970,8 +873,7 @@ WiX가 MSI를 만들고, jpackage가 그걸 실행 파일로 포장합니다.
 
 2026-08-24 기준, 아래를 실제로 확인했습니다.
 
-- `mvn clean package -Pexe,installer` → `SafeFood-1.0.exe` 67.1MB 생성
-- 설치 → `%LOCALAPPDATA%\SafeFood`에 배치, 시작 메뉴 `SafeFood` 그룹과 바탕화면 바로가기 생성
-  (시작 위치가 설치 폴더로 지정됨), 설정 > 앱에 `SafeFood 1.0 / SafeFood Team`으로 등록
-- 설치된 `SafeFood.exe` 실행 → 로그인 창 정상 표시
-- 제거 → 설치 폴더 · 시작 메뉴 · 바탕화면 바로가기 · 등록 정보 모두 삭제 확인
+- `mvn clean package` → `target/safefood.jar` 13.7MB 생성
+- 설정이 있고 DB가 붙는 폴더에서 `java -jar` → **로그인 창** 바로 표시
+- 설정이 없는 폴더에서 `java -jar` → **설정 마법사** 표시
+- 마법사 [닫기] → 같은 창이 로그인 화면으로 전환됨 (창 제목 `로그인`)

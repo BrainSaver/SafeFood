@@ -13,6 +13,8 @@
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Slider?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
@@ -25,7 +27,11 @@
     <top>
         <HBox spacing="18" alignment="CENTER_LEFT" styleClass="toolbar">
             <HBox spacing="9" alignment="CENTER_LEFT">
-                <Label text="S" styleClass="brand-mark"/>
+                <ImageView fitWidth="34" fitHeight="34" preserveRatio="true" smooth="true">
+                    <image>
+                        <Image url="@logo.png"/>
+                    </image>
+                </ImageView>
                 <Label text="SafeFood" styleClass="section-title"/>
             </HBox>
             <Region HBox.hgrow="ALWAYS"/>
