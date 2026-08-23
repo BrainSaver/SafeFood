@@ -1,5 +1,11 @@
 package com.safefood.network;
 
+import com.safefood.service.GroupRecommendService;
+import com.safefood.service.GroupRecommendService.GroupCandidate;
+import com.safefood.service.GroupRecommendService.GroupCondition;
+import com.safefood.service.GroupRecommendService.GroupResult;
+
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -27,11 +33,14 @@ public final class Room {
         }
     }
 
-    /** 추천 후보 임시 목록 — RecommendService(개인 추천 담당)가 생기면 병합 조건을 넘겨 교체합니다. */
+    private static final int CANDIDATE_COUNT = 3;
+
     private static final List<String[]> PLACEHOLDER_MENUS = List.of(
             new String[]{"김치찌개", "할머니손맛"},
             new String[]{"제육볶음", "백반집"},
             new String[]{"비빔밥", "한그릇"});
+
+    private final GroupRecommendService recommendService = new GroupRecommendService();
 
     private final String inviteCode;
 
@@ -42,6 +51,7 @@ public final class Room {
     private List<String> mergedLines = List.of();
     private List<String[]> candidates = List.of();   // {메뉴, 가게} — 번호는 순서 + 1
     private Message resultMessage;   // 확정 후에는 고정 — 재확정·재투표를 막는 기준
+    private boolean recommending;
     private boolean closed;
 
     Room(String inviteCode) {
@@ -123,10 +133,9 @@ public final class Room {
         }
     }
 
-    /** 전원 READY → 조건 병합 → 후보 발송. 병합은 README '그룹 추천 조건 병합 규칙'을 따릅니다. */
     private void startRecommendation() {
-        if (resultMessage != null) {
-            return;   // 이미 확정된 방 — 늦은 READY로 추천을 다시 돌리지 않습니다
+        if (resultMessage != null || recommending) {
+            return;
         }
         Set<String> allergyUnion = new LinkedHashSet<>();
         int spicyMin = 5;
@@ -143,14 +152,64 @@ public final class Room {
                         : String.join(" · ", allergyUnion) + " 제외"),
                 "매운맛 (최솟값) — " + spicyMin + "단계 이하",
                 "예산 (교집합) — " + (budgetMin == 0 ? "제한없음" : String.format("%,d원 이하", budgetMin)));
+        broadcast(Message.of(Message.Type.MERGED, mergedLines));
 
-        // TODO: 병합 조건으로 RecommendService를 호출해 실제 후보를 받도록 교체 (추천 담당 연결 지점)
-        candidates = PLACEHOLDER_MENUS;
+        recommending = true;
+        GroupCondition condition = new GroupCondition(allergyUnion, spicyMin, budgetMin);
+        Thread worker = new Thread(() -> runRecommendation(condition), "group-recommend");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void runRecommendation(GroupCondition condition) {
+        GroupResult result;
+        try {
+            result = recommendService.recommend(condition, CANDIDATE_COUNT);
+        } catch (RuntimeException e) {
+            System.err.println("[room] 후보 추천 실패, 대체 목록을 씁니다: " + e);
+            result = GroupResult.empty();
+        }
+
+        if (!result.hasMenuData()) {
+            applyCandidates(PLACEHOLDER_MENUS, null);
+        } else if (result.allBlockedByAllergy()) {
+            applyCandidates(List.of(), allergyDeadEndNotice(condition, result.scannedMenus()));
+        } else {
+            applyCandidates(toProtocolRows(result.candidates()), null);
+        }
+    }
+
+    private static List<String[]> toProtocolRows(List<GroupCandidate> found) {
+        List<String[]> rows = new ArrayList<>();
+        for (GroupCandidate candidate : found) {
+            rows.add(new String[]{protocolSafe(candidate.menu()), protocolSafe(candidate.restaurant())});
+        }
+        return List.copyOf(rows);
+    }
+
+    private static String allergyDeadEndNotice(GroupCondition condition, int scannedMenus) {
+        return "전원 알레르기(" + String.join("·", condition.allergies()) + ")를 모두 피하는 메뉴가 없어요"
+                + " — 등록된 메뉴 " + scannedMenus + "개가 전부 제외됐습니다."
+                + " 매운맛·예산을 바꿔도 결과는 같으니, 인원을 나누거나 메뉴 데이터를 늘려 주세요.";
+    }
+
+    private synchronized void applyCandidates(List<String[]> found, String notice) {
+        recommending = false;
+        if (closed || resultMessage != null) {
+            return;
+        }
+        candidates = found;
         votes.clear();
 
-        broadcast(Message.of(Message.Type.MERGED, mergedLines));
         broadcast(candidatesMessage());
         broadcast(voteStatusMessage());
+        if (notice != null) {
+            broadcast(Message.of(Message.Type.ERROR, notice));
+        }
+    }
+
+    private static String protocolSafe(String name) {
+        return name == null ? "" : name.replaceAll("[|,()]", " ").replaceAll("\\s+", " ").trim();
     }
 
     /** VOTE 처리 — 참여자당 1표, 다시 투표하면 표를 옮깁니다. 확정 후에는 받지 않습니다. */

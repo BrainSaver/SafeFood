@@ -25,6 +25,8 @@ import javafx.util.Duration;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 public final class AppNav {
@@ -46,6 +48,9 @@ public final class AppNav {
 
     private static Stage stage;
     private static Scene scene;
+
+    /** 지금 고른 앱 스타일 — {@link #theme()} 이 처음 불릴 때 저장된 값에서 채워집니다. */
+    private static Theme theme;
 
     private AppNav() {
     }
@@ -380,15 +385,74 @@ public final class AppNav {
         applyCss(alert.getDialogPane().getScene());
     }
 
+    // ══ 앱 스타일 (테마) ════════════════════════════════════════
+
+    /** 지금 쓰는 앱 스타일. 처음 물어볼 때 지난번에 고른 값을 읽어 옵니다. */
+    public static Theme theme() {
+        if (theme == null) {
+            theme = Theme.saved();
+        }
+        return theme;
+    }
+
+    /**
+     * 앱 스타일을 바꿉니다 — 지금 떠 있는 창 전부에 곧바로 반영되고, 다음 실행에도 남습니다.
+     *
+     * <p>화면을 다시 그리지 않아도 되는 이유: 테마 css 는 {@code .root} 의 색 토큰만 덮어쓰고,
+     * JavaFX 는 토큰이 바뀌면 그 색을 쓰던 노드를 알아서 다시 칠합니다.
+     */
+    public static void theme(Theme choice) {
+        if (choice == null || choice == theme()) {
+            return;
+        }
+        theme = choice;
+        choice.remember();
+
+        // 우리가 스타일을 입혀 둔 창만 골라 다시 칠합니다 — 툴팁·콤보박스 팝업처럼
+        // 우리 css 와 무관한 창까지 건드리지 않도록 base 를 갖고 있는지로 가릅니다
+        String base = sheet(CSS);
+        for (Window window : Window.getWindows()) {
+            Scene target = window.getScene();
+            if (target != null && base != null && target.getStylesheets().contains(base)) {
+                applyCss(target);
+            }
+        }
+    }
+
+    /**
+     * 기본 css 위에 테마 css 를 얹습니다. <b>순서가 뒤바뀌면 색이 바뀌지 않습니다</b> —
+     * 뒤에 오는 스타일시트가 같은 {@code .root} 토큰을 덮어쓰는 구조입니다.
+     *
+     * <p>더하지 않고 통째로 갈아 끼우는(setAll) 이유: 테마를 여러 번 바꾸면 스타일시트가
+     * 계속 쌓여서, 결국 맨 처음 고른 색이 맨 아래에 깔린 채로 남습니다.
+     */
     private static void applyCss(Scene target) {
         if (target == null) {
             return;
         }
-        URL css = AppNav.class.getResource(CSS);
-        if (css != null) {
-            target.getStylesheets().add(css.toExternalForm());
-        } else {
+        List<String> sheets = new ArrayList<>();
+
+        String base = sheet(CSS);
+        if (base == null) {
             System.err.println("[UI] " + CSS + "를 찾지 못했습니다. 스타일 없이 표시합니다.");
+        } else {
+            sheets.add(base);
         }
+
+        String css = theme().css();
+        if (css != null) {
+            String skin = sheet(BASE + css);
+            if (skin == null) {
+                System.err.println("[UI] " + BASE + css + "를 찾지 못했습니다. 기본 색으로 표시합니다.");
+            } else {
+                sheets.add(skin);
+            }
+        }
+        target.getStylesheets().setAll(sheets);
+    }
+
+    private static String sheet(String path) {
+        URL url = AppNav.class.getResource(path);
+        return url == null ? null : url.toExternalForm();
     }
 }
