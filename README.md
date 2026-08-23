@@ -30,8 +30,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 기능 설계서 | v2.0 | 기능 48개(A/R/G/S/L/M/H), 구현 우선순위 1~3차, 소켓 프로토콜, 추천·병합 알고리즘 |
 | 데이터베이스 설계서 | v2.0 | 테이블 22개 · 외래 키 31개, 컬럼 정의, ENUM, 시드 데이터, 쿼리 시나리오 |
 | UI 설계서 | v2.0 | 화면 14종(SC-01~SC-14), 화면 전이, 색상 팔레트, 공통 컴포넌트 규칙 |
-| [SetupWizard.md](docs/SetupWizard.md) | — | 개발 환경 설정 마법사 사용법, `data/` 파일 모드 |
-| [GroupRecommend.md](docs/GroupRecommend.md) | — | 그룹 후보 추천 — 조건 병합, 3단 알레르기 판정, 점수·후보 선정 |
+| [Development.md](docs/Development.md) | — | **개발 문서** — 환경 설정 마법사 · `data/` 파일 모드 · 그룹 추천 로직 · 배포 |
 
 기능 ID(`A-01`, `G-03` …)와 화면 ID(`SC-04` …)로 세 문서가 서로를 참조합니다.
 커밋 메시지와 브랜치 이름에도 기능 ID를 쓰면 추적하기 쉽습니다.
@@ -149,14 +148,19 @@ SafeFood/
 │   ├── main/
 │   │   ├── java/com/safefood/
 │   │   │   ├── Main.java                  # 진입점 (엔트리 포인트)
+│   │   │   ├── MainLauncher.java          # 배포용 시작 클래스 (Application 미상속)
 │   │   │   ├── dto/                       # UserDto, MenuDto, RestaurantDto ...
 │   │   │   ├── dao/                       # 저장소 접근 (JDBC 또는 data/ 파일)
+│   │   │   │   ├── DatabaseUtil           # config.properties → JDBC 커넥션
+│   │   │   │   ├── GroupMenuDao           # 그룹 추천 후보 (메뉴·가게·알레르기 1회 조회)
+│   │   │   │   └── ...                    # User · Menu · Allergy · Profile · History ...
 │   │   │   ├── service/                   # 비즈니스 로직
 │   │   │   │   ├── AuthService            # 로그인 / 회원가입
-│   │   │   │   ├── RecommendService       # 추천 알고리즘
+│   │   │   │   ├── RecommendService       # 개인 추천 알고리즘
+│   │   │   │   ├── GroupRecommendService  # 그룹 추천 (병합 조건 → 후보 3개)
+│   │   │   │   ├── GroupMergeService      # 그룹 조건 병합
 │   │   │   │   ├── AllergyService         # 알레르기 매칭 / 위험도 판정
-│   │   │   │   ├── GroupService           # 그룹 생성·참여, 조건 병합, 투표
-│   │   │   │   └── MapService             # 지도 API 호출
+│   │   │   │   └── ...                    # Profile · Favorite · History · Feedback ...
 │   │   │   ├── network/                   # 소켓 통신 (방장이 서버)
 │   │   │   │   ├── GroupServer            # 방장 앱이 여는 서버 (ServerSocket, 접속 수락)
 │   │   │   │   ├── ClientHandler          # 참여자 1명당 스레드
@@ -190,18 +194,14 @@ SafeFood/
 │   ├── public/                            # 앱에 필요한 공통 데이터 — 커밋 가능
 │   └── private/                           # 개인·팀 서버 데이터 — 커밋 금지
 ├── docs/
-│   └── SetupWizard.md                     # Setup Wizard 사용 설명
+│   └── Development.md                     # 개발 문서 (환경 설정 · 그룹 추천 · 배포)
 ├── target/                                # 빌드 산출물 — 커밋 금지 (Maven이 생성)
 ├── .gitignore
 └── README.md
 ```
 
-> 📦 **패키지(폴더)만 만들어 둔 상태입니다.**
-> `service/`·`network/` 아래 클래스 이름은 **앞으로 만들 예정 목록**이라 아직 파일이 없습니다.
-> 각 폴더의 `package-info.java`에 "여기엔 무엇을 넣는지"를 적어 뒀으니 작업 전에 한 번 읽어 보세요.
-
-> ⚠️ **`dto/`·`dao/`는 지금 저장소에 없습니다.** (8월 6일 커밋에서 삭제)
-> 위 계층 규칙(`view → service → dao`)을 유지하려면 두 패키지를 다시 만들어야 합니다.
+> 📦 각 폴더의 `package-info.java`에 "여기엔 무엇을 넣는지"를 적어 뒀으니
+> 작업 전에 한 번 읽어 보세요. `MapService`처럼 아직 만들지 않은 것도 있습니다.
 
 > 📌 **Java 파일은 반드시 `src/main/java/` 아래에 두세요.**
 > Maven은 이 경로만 소스로 인식합니다. 패키지 이름과 폴더 경로가 정확히 일치해야 하고
@@ -227,7 +227,7 @@ SafeFood/
 | `data/public/` | 앱이 **동작하는 데 필요한** 공통 데이터 (알레르기·기분 태그·메뉴 마스터 등) | ⭕ |
 | `data/private/` | **개인 데이터**(회원·취향·즐겨찾기·내 히스토리) + **팀 서버 데이터**(방장 쪽 그룹·투표·접속 기록 등) | ❌ |
 
-자세한 파일 목록·형식은 [Setup Wizard — data/ 폴더](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더)를 보세요.
+자세한 파일 목록·형식은 [개발 문서 — data/ 폴더](docs/Development.md#데이터베이스-미사용--data-폴더)를 보세요.
 
 <br>
 
@@ -262,7 +262,7 @@ Maven 프로젝트로 인식되면서 의존성을 자동으로 내려받습니�
 mvn clean compile
 ```
 
-> ⚡ **3~4단계는 [Setup Wizard](docs/SetupWizard.md)로 자동 처리할 수 있습니다.**
+> ⚡ **3~4단계는 [Setup Wizard](docs/Development.md)로 자동 처리할 수 있습니다.**
 >
 > ```bash
 > mvn javafx:run -Pwizard-fx
@@ -273,7 +273,7 @@ mvn clean compile
 > IntelliJ에서는 `src/main/java/com/safefood/setup/SetupWizardFxLauncher.java`(창) 또는
 > `SetupWizard.java`(콘솔)를 열고 ▶ 버튼을 눌러도 됩니다.
 > (창 화면을 ▶로 실행할 때 `SetupWizardFx`가 아니라 **Launcher**를 눌러야 하는 이유는
-> [SetupWizard.md](docs/SetupWizard.md#-실행-방법)에 적어 뒀습니다.)
+> [개발 문서](docs/Development.md#실행-방법)에 적어 뒀습니다.)
 > 아래 3~4단계는 **직접 하고 싶거나, 무엇이 만들어지는지 확인하고 싶을 때** 참고하세요.
 
 ### 3. 데이터 저장소 준비
@@ -300,7 +300,7 @@ CREATE DATABASE safefood DEFAULT CHARACTER SET utf8mb4;
 | `data/public/` | 앱에 필요한 공통 데이터 (알레르기·기분·메뉴 등) | ⭕ |
 | `data/private/` | 개인 데이터 + 팀 서버 데이터 (회원·취향 / 그룹·투표 등) | ❌ |
 
-형식·파일 목록은 [Setup Wizard.md](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더)를 참고하세요.
+형식·파일 목록은 [개발 문서](docs/Development.md#데이터베이스-미사용--data-폴더)를 참고하세요.
 
 ### 4. 설정 파일 작성
 
@@ -351,6 +351,8 @@ java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
 | `mvn compile exec:java` | 앱 실행 (`com.safefood.Main`) |
 | `mvn javafx:run -Pwizard-fx` | Setup Wizard 실행 (창) |
 | `mvn compile exec:java -Pwizard` | Setup Wizard 실행 (콘솔) |
+| `mvn clean package -Pexe` | 실행 파일 폴더 생성 → `target/dist/SafeFood/` |
+| `mvn clean package -Pexe,installer` | 설치 파일 생성 → `target/installer/SafeFood-1.0.exe` |
 
 그룹 추천은 **방장이 방을 만들면 그 앱이 곧 서버**라서, 서버를 따로 켜지 않습니다.
 같은 앱을 인원수만큼 띄우고 한 명이 방을 만들면, 나머지는 그 주소로 참여하면 됩니다.
@@ -364,7 +366,25 @@ mvn compile exec:java
 > IntelliJ에서는 `Main.java`의 `main` 메서드 옆 ▶ 버튼으로 바로 실행할 수 있습니다.
 > 클라이언트를 **여러 개 동시에** 띄우려면 실행 구성(Run/Debug Configurations)에서
 > `Modify options → Allow multiple instances`를 체크하세요.
-> <!-- 웹/GUI로 결정되면 이 부분을 해당 실행 방법으로 교체하세요 -->
+
+<br>
+
+### 6. 배포 (선택)
+
+자바가 설치되지 않은 PC에도 전달할 수 있습니다. 전용 런타임을 함께 묶습니다.
+
+```bash
+mvn clean package -Pexe,installer
+```
+
+`target/installer/SafeFood-1.0.exe` — 더블클릭하면 설치 마법사가 뜨고,
+시작 메뉴 바로가기와 **설정 > 앱** 제거 항목까지 만들어집니다.
+설치 파일을 만들려면 WiX Toolset v3이 필요합니다 (`winget install WiXToolset.WiXToolset`).
+
+> ⚠️ `config.properties`는 결과물에 **자동으로 들어가지 않습니다.**
+> DB 비밀번호가 들어 있어 일부러 빼 두었습니다. 설치 폴더에 직접 넣으세요.
+
+자세한 내용은 [개발 문서 — 배포](docs/Development.md#-배포--실행-파일과-설치-파일)를 보세요.
 
 <br>
 
@@ -386,7 +406,7 @@ v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 > MySQL을 쓰지 않을 때는 아래 테이블 대신 `data/` 파일을 씁니다.
 > - 마스터성 데이터 → `data/public/`
 > - 회원·취향·그룹·투표 등 → `data/private/`
-> ([Setup Wizard.md](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더) 참고)
+> ([개발 문서](docs/Development.md#데이터베이스-미사용--data-폴더) 참고)
 
 ### 회원 · 취향 · 알레르기
 
@@ -934,10 +954,14 @@ CREATE TABLE feedback (
 - [x] 기능 우선순위 확정 (기능 48개를 1·2·3차로 구분)
 - [x] 설계 문서 작성 (기능 · DB · UI 설계서 v2.0)
 - [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개)
-- [ ] `dto` · `dao` 패키지 다시 만들기 <!-- 8월 6일 커밋에서 삭제된 상태 -->
+- [x] `dto` · `dao` 패키지 다시 만들기
+- [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
+- [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅
+- [x] 그룹 추천 후보 3개 — DB 연동, 알레르기 판정, 후보 부족 처리
+- [x] 실행 파일 · 설치 파일 빌드 (`-Pexe`, `-Pexe,installer`)
+- [x] 역할 분담
 - [ ] 지도 API 선택(Kakao / Naver) 및 키 발급
-- [ ] 테이블 생성 (팀원별 Setup Wizard 실행)
-- [ ] 소켓 메시지 프로토콜 확정
-- [ ] 역할 분담
-- [ ] 기능 구현
+- [ ] 메뉴 데이터 확충 — 현재 29개라 알레르기가 겹치면 후보가 금방 고갈됨
+- [ ] 그룹 결과를 `group_candidate` · `group_vote`에 저장
+- [ ] 기능 구현 (남은 항목은 위 [주요 기능](#-주요-기능) 참고)
 - [ ] 발표 자료 준비
