@@ -31,6 +31,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 데이터베이스 설계서 | v2.0 | 테이블 22개 · 외래 키 31개, 컬럼 정의, ENUM, 시드 데이터, 쿼리 시나리오 |
 | UI 설계서 | v2.0 | 화면 14종(SC-01~SC-14), 화면 전이, 색상 팔레트, 공통 컴포넌트 규칙 |
 | [SetupWizard.md](docs/SetupWizard.md) | — | 개발 환경 설정 마법사 사용법, `data/` 파일 모드 |
+| [GroupRecommend.md](docs/GroupRecommend.md) | — | 그룹 후보 추천 — 조건 병합, 3단 알레르기 판정, 점수·후보 선정 |
 
 기능 ID(`A-01`, `G-03` …)와 화면 ID(`SC-04` …)로 세 문서가 서로를 참조합니다.
 커밋 메시지와 브랜치 이름에도 기능 ID를 쓰면 추적하기 쉽습니다.
@@ -170,6 +171,7 @@ SafeFood/
 │   │   │   │   ├── AppLauncher            # IntelliJ ▶ 실행용 시작 클래스
 │   │   │   │   ├── AppNav                 # FXML 불러오기 · 화면 전환 · Alert
 │   │   │   │   ├── Widgets · DemoData     # 동적 노드 · 임시 데이터
+│   │   │   │   ├── Theme                  # 앱 스타일 4종 (내 정보에서 고름 · 색 토큰만 교체)
 │   │   │   │   └── controller/            # 화면 하나당 컨트롤러 하나 (SC-01~SC-14)
 │   │   │   └── setup/                     # 개발 환경 설정 마법사 (DB·data/·설정 파일 자동 준비)
 │   │   │       ├── SetupWizardFx          # 창(JavaFX) 화면 — mvn javafx:run -Pwizard-fx
@@ -180,6 +182,7 @@ SafeFood/
 │   │   └── resources/                     # 빌드 시 target/classes로 복사되는 리소스
 │   │       └── com/safefood/
 │   │           ├── view/                  # 화면 FXML 13개 + app.css
+│   │           │   └── theme/             # 앱 스타일 css — app.css 뒤에 얹혀 색 토큰만 덮어씀
 │   │           └── setup/                 # setup-wizard.css
 │   └── test/
 │       └── java/com/safefood/             # 테스트 코드 (JUnit 5)

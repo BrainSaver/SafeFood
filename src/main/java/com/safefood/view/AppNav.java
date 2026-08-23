@@ -13,9 +13,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
@@ -23,6 +25,8 @@ import javafx.util.Duration;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 public final class AppNav {
@@ -44,6 +48,9 @@ public final class AppNav {
 
     private static Stage stage;
     private static Scene scene;
+
+    /** 지금 고른 앱 스타일 — {@link #theme()} 이 처음 불릴 때 저장된 값에서 채워집니다. */
+    private static Theme theme;
 
     private AppNav() {
     }
@@ -133,7 +140,79 @@ public final class AppNav {
         applyCss(modalScene);
         modal.setScene(modalScene);
         modal.setResizable(false);
+        followContent(modal, root);
         modal.showAndWait();
+    }
+
+    /**
+     * 내용이 길어지거나 짧아지면 창도 따라 커지고 작아지게 합니다.
+     *
+     * <p>⚠️ 이게 없으면: 다이얼로그는 크기를 못 바꾸게 두었기 때문에(setResizable(false))
+     * 처음 열릴 때 잰 크기 그대로 굳습니다. '같이 먹기'에서 방 만들기를 누르면 숨어 있던
+     * 초대 코드 영역이 나타나 내용이 100px 넘게 길어지는데, 창은 그대로라 넘친 부분이
+     * 잘립니다 — 그것도 토스트 층 StackPane 이 가운데 정렬이라 <b>위아래가 같이</b>.
+     * 화면 제목이 잘려 나가고 아래쪽 참여 칸이 사라지는 이유가 이것입니다.
+     *
+     * <p>오류 문구가 나타나거나(회원가입·정보 수정) 조건 편집이 펼쳐지는 화면도 같은 처지라,
+     * 각 화면에서 따로 부르지 않고 다이얼로그를 여는 이 자리에서 한 번에 걸어 둡니다.
+     */
+    private static void followContent(Stage dialog, Parent content) {
+        if (content instanceof Region region) {
+            new ContentFit(dialog, region).watch();
+        }
+    }
+
+    /**
+     * 다이얼로그 하나를 맡아, 내용이 원하는 크기가 달라질 때마다 창을 다시 맞춥니다.
+     *
+     * <p>견주는 값이 <b>창의 실제 크기가 아니라 마지막으로 맞춰 준 값</b>인 이유: 화면 배율이
+     * 100%가 아니면 창 크기가 요청한 값과 몇 px 어긋나게 잡힙니다. 실제 크기와 견주면 그 차이가
+     * 영원히 사라지지 않아, 배치가 일어날 때마다 창을 다시 잡는 되돌이에 빠집니다.
+     */
+    private static final class ContentFit {
+
+        private final Stage dialog;
+        private final Region content;
+
+        private double fittedWidth = -1;
+        private double fittedHeight = -1;
+
+        ContentFit(Stage dialog, Region content) {
+            this.dialog = dialog;
+            this.content = content;
+        }
+
+        void watch() {
+            // needsLayout 은 자식이 배치를 요청한 순간 켜집니다. 실제 크기는 그 배치가 끝나야
+            // 나오므로, 재는 일은 runLater 로 한 박자 미룹니다.
+            content.needsLayoutProperty().addListener((property, was, needsLayout) -> {
+                if (needsLayout) {
+                    Platform.runLater(this::refit);
+                }
+            });
+        }
+
+        private void refit() {
+            if (!dialog.isShowing()) {
+                return;
+            }
+            double width = content.prefWidth(-1);
+            double height = content.prefHeight(width);
+            if (Math.abs(width - fittedWidth) < 1 && Math.abs(height - fittedHeight) < 1) {
+                return;   // 지난번에 맞춰 준 그 크기 그대로입니다
+            }
+            fittedWidth = width;
+            fittedHeight = height;
+
+            double before = dialog.getHeight();
+            dialog.sizeToScene();
+
+            // 늘어난 만큼을 위아래로 나눠 가집니다 — 아래로만 자라면 창이 화면 밖으로 밀려납니다.
+            // 다만 지금 놓인 모니터의 위쪽 경계는 넘지 않게 (제목 표시줄이 잘리지 않도록).
+            double top = Screen.getScreensForRectangle(dialog.getX(), dialog.getY(),
+                    dialog.getWidth(), dialog.getHeight()).get(0).getVisualBounds().getMinY();
+            dialog.setY(Math.max(top, dialog.getY() - (dialog.getHeight() - before) / 2));
+        }
     }
 
     public static void close(Node nodeInDialog) {
@@ -276,6 +355,9 @@ public final class AppNav {
         layer.setAlignment(Pos.BOTTOM_CENTER);
         // 층 자체는 클릭을 가로채지 않고, 토스트 카드에만 클릭이 닿게 합니다
         layer.setPickOnBounds(false);
+        // 창 크기는 화면 내용만 정하게 — 층은 어차피 StackPane 을 가득 채우므로,
+        // 원하는 크기를 0으로 두어도 보이는 것은 그대로입니다
+        layer.setPrefSize(0, 0);
 
         return new StackPane(content, layer);
     }
@@ -303,15 +385,74 @@ public final class AppNav {
         applyCss(alert.getDialogPane().getScene());
     }
 
+    // ══ 앱 스타일 (테마) ════════════════════════════════════════
+
+    /** 지금 쓰는 앱 스타일. 처음 물어볼 때 지난번에 고른 값을 읽어 옵니다. */
+    public static Theme theme() {
+        if (theme == null) {
+            theme = Theme.saved();
+        }
+        return theme;
+    }
+
+    /**
+     * 앱 스타일을 바꿉니다 — 지금 떠 있는 창 전부에 곧바로 반영되고, 다음 실행에도 남습니다.
+     *
+     * <p>화면을 다시 그리지 않아도 되는 이유: 테마 css 는 {@code .root} 의 색 토큰만 덮어쓰고,
+     * JavaFX 는 토큰이 바뀌면 그 색을 쓰던 노드를 알아서 다시 칠합니다.
+     */
+    public static void theme(Theme choice) {
+        if (choice == null || choice == theme()) {
+            return;
+        }
+        theme = choice;
+        choice.remember();
+
+        // 우리가 스타일을 입혀 둔 창만 골라 다시 칠합니다 — 툴팁·콤보박스 팝업처럼
+        // 우리 css 와 무관한 창까지 건드리지 않도록 base 를 갖고 있는지로 가릅니다
+        String base = sheet(CSS);
+        for (Window window : Window.getWindows()) {
+            Scene target = window.getScene();
+            if (target != null && base != null && target.getStylesheets().contains(base)) {
+                applyCss(target);
+            }
+        }
+    }
+
+    /**
+     * 기본 css 위에 테마 css 를 얹습니다. <b>순서가 뒤바뀌면 색이 바뀌지 않습니다</b> —
+     * 뒤에 오는 스타일시트가 같은 {@code .root} 토큰을 덮어쓰는 구조입니다.
+     *
+     * <p>더하지 않고 통째로 갈아 끼우는(setAll) 이유: 테마를 여러 번 바꾸면 스타일시트가
+     * 계속 쌓여서, 결국 맨 처음 고른 색이 맨 아래에 깔린 채로 남습니다.
+     */
     private static void applyCss(Scene target) {
         if (target == null) {
             return;
         }
-        URL css = AppNav.class.getResource(CSS);
-        if (css != null) {
-            target.getStylesheets().add(css.toExternalForm());
-        } else {
+        List<String> sheets = new ArrayList<>();
+
+        String base = sheet(CSS);
+        if (base == null) {
             System.err.println("[UI] " + CSS + "를 찾지 못했습니다. 스타일 없이 표시합니다.");
+        } else {
+            sheets.add(base);
         }
+
+        String css = theme().css();
+        if (css != null) {
+            String skin = sheet(BASE + css);
+            if (skin == null) {
+                System.err.println("[UI] " + BASE + css + "를 찾지 못했습니다. 기본 색으로 표시합니다.");
+            } else {
+                sheets.add(skin);
+            }
+        }
+        target.getStylesheets().setAll(sheets);
+    }
+
+    private static String sheet(String path) {
+        URL url = AppNav.class.getResource(path);
+        return url == null ? null : url.toExternalForm();
     }
 }
