@@ -4,6 +4,8 @@ import com.safefood.dao.FavoriteDao;
 import com.safefood.dao.HistoryDao;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
+import com.safefood.dto.UserDto;
+import com.safefood.service.AuthService;
 import com.safefood.service.HistoryService;
 import com.safefood.service.RecommendService;
 import com.safefood.view.AppNav;
@@ -50,6 +52,7 @@ public class MainController {
     private final RecommendService recommendService = new RecommendService();
     private final HistoryDao historyDao = new HistoryDao();
     private final FavoriteDao favoriteDao = new FavoriteDao();
+    private final AuthService authService = new AuthService();
 
     // R-04 재추천 시 직전 노출 메뉴 누적 제외용 Set 및 순위 오프셋
     private final Set<Integer> excludedForReroll = new HashSet<>();
@@ -80,8 +83,9 @@ public class MainController {
      *
      * <p>콤보·칩은 FX 스레드에서만 읽을 수 있으므로, 조회를 띄우기 <b>전에</b> 값을 여기 떠 둡니다.
      */
-    private record Query(boolean member, int userId, String category, int budget, int spicy,
-                         List<String> moods, boolean excludeEaten, Set<Integer> excluded) {
+    private record Query(boolean member, int userId, String sessionToken, String category,
+                         int budget, int spicy, List<String> moods, boolean excludeEaten,
+                         Set<Integer> excluded) {
     }
 
     /** 백그라운드가 만들어 온 화면 한 판. 여기까지는 화면 요소가 하나도 없습니다. */
@@ -90,7 +94,8 @@ public class MainController {
                           Set<Integer> favorites,
                           String lastEatenMenu,
                           boolean recycled,
-                          boolean failed) {
+                          boolean failed,
+                          boolean evicted) {
     }
 
     @FXML
@@ -188,15 +193,17 @@ public class MainController {
         Set<Integer> frozen = Set.copyOf(excluded);
 
         if (Session.isMember()) {
-            return new Query(true, Session.currentUserId(), selectedCategory, budget, 5,
-                    selectedMoods, excludeEaten, frozen);
+            UserDto me = Session.getCurrentUser();
+            return new Query(true, Session.currentUserId(),
+                    me == null ? null : me.getSessionToken(),
+                    selectedCategory, budget, 5, selectedMoods, excludeEaten, frozen);
         }
 
         // 게스트 — 저장된 계정이 없으니 온보딩에서 받아 둔 취향만 씁니다
         PreferenceDto guestPref = Session.getGuestPreferences();
         int spicy = guestPref != null && guestPref.getSpicyLevel() > 0 ? guestPref.getSpicyLevel() : 5;
         int maxBudget = budget > 0 ? budget : (guestPref != null ? guestPref.getPriceMax() : 0);
-        return new Query(false, 0, selectedCategory, maxBudget, spicy, selectedMoods, false, frozen);
+        return new Query(false, 0, null, selectedCategory, maxBudget, spicy, selectedMoods, false, frozen);
     }
 
     /**
@@ -227,6 +234,10 @@ public class MainController {
      * 안내 문구와 카드별 찜 여부를 따로 다녀오느라 커넥션을 여섯 개 더 열었습니다.
      */
     private Loaded load(Query query) {
+        // 밀려난 세션이면 나머지 조회는 할 필요가 없습니다 — 커넥션 하나로 끝냅니다
+        if (query.member() && !authService.isSessionCurrent(query.userId(), query.sessionToken())) {
+            return new Loaded(List.of(), List.of(), Set.of(), null, false, false, true);
+        }
         try {
             List<RecommendService.RecommendResult> raw = fetch(query, query.excluded());
             boolean recycled = false;
@@ -247,11 +258,12 @@ public class MainController {
                     favorites,
                     lastEatenMenu(query),
                     recycled,
+                    false,
                     false);
         } catch (RuntimeException e) {
             // 알레르기를 확인하지 못한 채 그럴듯한 카드를 그리느니 실패를 그대로 알립니다
             System.err.println("[MainController] 추천 조회 실패: " + e.getMessage());
-            return new Loaded(List.of(), List.of(), Set.of(), null, false, true);
+            return new Loaded(List.of(), List.of(), Set.of(), null, false, true, false);
         }
     }
 
@@ -308,6 +320,13 @@ public class MainController {
             blockedBox.getChildren().clear();
         }
         currentDisplayedSafeResults = new ArrayList<>();
+
+        if (loaded.evicted()) {
+            // 카드를 그리지 않고 바로 나갑니다 — 남의 세션으로 화면을 채우면 안 됩니다
+            AppNav.logout();
+            AppNav.info("다른 기기에서 로그인하여 로그아웃되었습니다.");
+            return;
+        }
 
         renderExcludeNotice(loaded.lastEatenMenu());
 

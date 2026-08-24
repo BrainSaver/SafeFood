@@ -27,6 +27,23 @@ public final class Schema {
     public record Table(String name, String ddl) {
     }
 
+    /**
+     * 이미 만들어진 테이블에 <b>뒤늦게</b> 추가된 칼럼.
+     *
+     * <p>위의 DDL 은 전부 {@code CREATE TABLE IF NOT EXISTS} 라서, 테이블이 이미 있으면
+     * 구조를 손대지 않습니다. 그래서 칼럼을 새로 넣을 때는 DDL 만 고쳐 두면
+     * <b>새로 설치한 사람에게만</b> 반영되고 기존 DB 는 그대로 남습니다.
+     * 여기에 같이 적어 두면 설정 마법사가 기존 DB 에도 채워 넣습니다.
+     */
+    public record AddedColumn(String table, String column, String ddl) {
+    }
+
+    public static final List<AddedColumn> ADDED_COLUMNS = List.of(
+            // 중복 로그인 차단 — 로그인할 때마다 새 표를 발급하고, 표가 바뀌면 이전 기기는 물러납니다
+            new AddedColumn("user", "session_token",
+                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL")
+    );
+
     public static final List<Table> TABLES = List.of(
 
             // ── 회원 · 취향 · 알레르기 ──────────────────────
@@ -37,7 +54,8 @@ public final class Schema {
                         login_id    VARCHAR(30)  NOT NULL UNIQUE,
                         password    VARCHAR(255) NOT NULL,
                         nickname    VARCHAR(30)  NOT NULL,
-                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        session_token VARCHAR(36) NULL
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 

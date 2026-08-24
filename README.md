@@ -444,12 +444,17 @@ DB 정상  ────────────────────→ 로�
 ```sql
 -- 회원
 CREATE TABLE user (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    login_id    VARCHAR(30)  NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL,          -- 평문 저장 금지! 해시값 저장
-    nickname    VARCHAR(30)  NOT NULL,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    login_id      VARCHAR(30)  NOT NULL UNIQUE,
+    password      VARCHAR(255) NOT NULL,        -- 평문 저장 금지! PBKDF2 해시 (pbkdf2$sha256$...)
+    nickname      VARCHAR(30)  NOT NULL,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    session_token VARCHAR(36)  NULL             -- 중복 로그인 차단 (나중에 로그인한 쪽이 이김)
 );
+
+-- 이미 만들어 둔 DB 라면 아래를 한 번 실행하세요.
+-- (설정 마법사를 다시 돌려도 같은 일을 합니다 — Schema.ADDED_COLUMNS 참고)
+-- ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL;
 
 -- 취향 (회원당 1행)
 CREATE TABLE user_preference (
