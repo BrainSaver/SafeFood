@@ -18,16 +18,33 @@ import java.util.List;
  * 스키마를 수정한 뒤 반영하려면 해당 테이블을 직접 DROP 하고 다시 실행하거나, ALTER로 직접 반영하세요.
  * (설계서 10.1절에 v1.0 → v2.0 ALTER 문이 있습니다)
  */
-final class Schema {
+public final class Schema {
 
     private Schema() {
     }
 
     /** 외래 키 때문에 만드는 순서가 중요해서 List로 관리합니다. */
-    record Table(String name, String ddl) {
+    public record Table(String name, String ddl) {
     }
 
-    static final List<Table> TABLES = List.of(
+    /**
+     * 이미 만들어진 테이블에 <b>뒤늦게</b> 추가된 칼럼.
+     *
+     * <p>위의 DDL 은 전부 {@code CREATE TABLE IF NOT EXISTS} 라서, 테이블이 이미 있으면
+     * 구조를 손대지 않습니다. 그래서 칼럼을 새로 넣을 때는 DDL 만 고쳐 두면
+     * <b>새로 설치한 사람에게만</b> 반영되고 기존 DB 는 그대로 남습니다.
+     * 여기에 같이 적어 두면 설정 마법사가 기존 DB 에도 채워 넣습니다.
+     */
+    public record AddedColumn(String table, String column, String ddl) {
+    }
+
+    public static final List<AddedColumn> ADDED_COLUMNS = List.of(
+            // 중복 로그인 차단 — 로그인할 때마다 새 표를 발급하고, 표가 바뀌면 이전 기기는 물러납니다
+            new AddedColumn("user", "session_token",
+                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL")
+    );
+
+    public static final List<Table> TABLES = List.of(
 
             // ── 회원 · 취향 · 알레르기 ──────────────────────
 
@@ -37,7 +54,8 @@ final class Schema {
                         login_id    VARCHAR(30)  NOT NULL UNIQUE,
                         password    VARCHAR(255) NOT NULL,
                         nickname    VARCHAR(30)  NOT NULL,
-                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        session_token VARCHAR(36) NULL
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
@@ -48,6 +66,20 @@ final class Schema {
                         price_min    INT,
                         price_max    INT,
                         max_distance INT,
+                        PRIMARY KEY (user_id),
+                        FOREIGN KEY (user_id) REFERENCES `user`(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("user_location", """
+                    CREATE TABLE IF NOT EXISTS user_location (
+                        user_id    INT NOT NULL,
+                        label      VARCHAR(30),
+                        zonecode   VARCHAR(10),
+                        address    VARCHAR(255),
+                        latitude   DECIMAL(10, 7),
+                        longitude  DECIMAL(10, 7),
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         PRIMARY KEY (user_id),
                         FOREIGN KEY (user_id) REFERENCES `user`(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -80,6 +112,45 @@ final class Schema {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
+            // ── 음식 사전 · 재료 (공공데이터) ──────────────
+
+            new Table("food", """
+                    CREATE TABLE IF NOT EXISTS food (
+                        id       INT AUTO_INCREMENT PRIMARY KEY,
+                        food_cd  VARCHAR(20) NOT NULL UNIQUE,
+                        name     VARCHAR(100) NOT NULL,
+                        category VARCHAR(50)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("ingredient", """
+                    CREATE TABLE IF NOT EXISTS ingredient (
+                        id   INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL UNIQUE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("food_ingredient", """
+                    CREATE TABLE IF NOT EXISTS food_ingredient (
+                        food_id       INT NOT NULL,
+                        ingredient_id INT NOT NULL,
+                        quantity      VARCHAR(50),
+                        PRIMARY KEY (food_id, ingredient_id),
+                        FOREIGN KEY (food_id)       REFERENCES food(id),
+                        FOREIGN KEY (ingredient_id) REFERENCES ingredient(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("ingredient_allergy", """
+                    CREATE TABLE IF NOT EXISTS ingredient_allergy (
+                        ingredient_id INT NOT NULL,
+                        allergy_id    INT NOT NULL,
+                        PRIMARY KEY (ingredient_id, allergy_id),
+                        FOREIGN KEY (ingredient_id) REFERENCES ingredient(id),
+                        FOREIGN KEY (allergy_id)    REFERENCES allergy(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
             // ── 맛집 · 메뉴 ────────────────────────────────
 
             new Table("restaurant", """
@@ -107,7 +178,9 @@ final class Schema {
                         category      VARCHAR(20),
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
-                        FOREIGN KEY (restaurant_id) REFERENCES restaurant(id)
+                        food_id       INT,
+                        FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
+                        FOREIGN KEY (food_id)       REFERENCES food(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
@@ -116,6 +189,7 @@ final class Schema {
                         menu_id    INT NOT NULL,
                         allergy_id INT NOT NULL,
                         risk_level ENUM('CONTAINS', 'POSSIBLE', 'UNKNOWN') NOT NULL,
+                        ingredient VARCHAR(100),
                         PRIMARY KEY (menu_id, allergy_id),
                         FOREIGN KEY (menu_id)    REFERENCES menu(id),
                         FOREIGN KEY (allergy_id) REFERENCES allergy(id)
@@ -217,20 +291,7 @@ final class Schema {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
-            new Table("history", """
-                    CREATE TABLE IF NOT EXISTS history (
-                        id         INT AUTO_INCREMENT PRIMARY KEY,
-                        user_id    INT NOT NULL,
-                        menu_id    INT NOT NULL,
-                        group_id   INT,
-                        type       ENUM('RECOMMENDED', 'EATEN', 'VIEWED', 'BLOCKED') NOT NULL,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id)  REFERENCES `user`(id),
-                        FOREIGN KEY (menu_id)  REFERENCES menu(id),
-                        FOREIGN KEY (group_id) REFERENCES dining_group(id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                    """),
-
+            // history.feedback_id 가 feedback(id)를 가리키므로 feedback을 먼저 만듭니다.
             new Table("feedback", """
                     CREATE TABLE IF NOT EXISTS feedback (
                         id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -242,14 +303,45 @@ final class Schema {
                         FOREIGN KEY (user_id) REFERENCES `user`(id),
                         FOREIGN KEY (menu_id) REFERENCES menu(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("history", """
+                    CREATE TABLE IF NOT EXISTS history (
+                        id          INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id     INT NOT NULL,
+                        menu_id     INT NOT NULL,
+                        group_id    INT,
+                        type        ENUM('RECOMMENDED', 'EATEN', 'VIEWED', 'BLOCKED') NOT NULL,
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        feedback_id INT,
+                        FOREIGN KEY (user_id)     REFERENCES `user`(id),
+                        FOREIGN KEY (menu_id)     REFERENCES menu(id),
+                        FOREIGN KEY (group_id)    REFERENCES dining_group(id),
+                        FOREIGN KEY (feedback_id) REFERENCES feedback(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """)
     );
+
+    /**
+     * 이름으로 DDL 한 장을 꺼냅니다. 설정 마법사를 다시 돌리지 않은 데이터베이스에서
+     * <b>나중에 추가된 테이블</b>만 실행 중에 만들어 줄 때 씁니다 (LocationDao 참고).
+     *
+     * @throws IllegalArgumentException 그런 이름의 테이블이 없을 때
+     */
+    public static String ddlOf(String name) {
+        for (Table table : TABLES) {
+            if (table.name().equals(name)) {
+                return table.ddl();
+            }
+        }
+        throw new IllegalArgumentException(name + " 테이블은 스키마에 없습니다.");
+    }
 
     /**
      * 알레르기 마스터 데이터.
      * 식품의약품안전처가 고시한 알레르기 유발물질 표시 대상 품목을 기준으로 삼았습니다.
      */
-    static final List<String> ALLERGIES = List.of(
+    public static final List<String> ALLERGIES = List.of(
             "우유", "계란", "메밀", "땅콩", "대두", "밀", "호두", "잣",
             "새우", "게", "오징어", "조개류", "고등어", "복숭아", "토마토",
             "돼지고기", "쇠고기", "닭고기", "아황산류"

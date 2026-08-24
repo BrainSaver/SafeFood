@@ -77,6 +77,12 @@ public final class SetupService {
         try {
             DatabaseInitializer.Result result = initializer.createTables();
             out.ok("새로 만든 테이블 " + result.done() + "개 / 이미 있던 테이블 " + result.skipped() + "개");
+
+            // 이미 있던 테이블은 위에서 구조가 바뀌지 않으므로, 뒤늦게 추가된 칼럼을 여기서 채웁니다
+            DatabaseInitializer.Result columns = initializer.addMissingColumns();
+            if (columns.done() > 0) {
+                out.ok("추가한 칼럼 " + columns.done() + "개 / 이미 있던 칼럼 " + columns.skipped() + "개");
+            }
             return true;
         } catch (SQLException e) {
             out.fail(DatabaseInitializer.explain(e));

@@ -81,6 +81,41 @@ public final class DatabaseInitializer {
     }
 
     /**
+     * 뒤늦게 추가된 칼럼을 기존 테이블에 채워 넣습니다.
+     *
+     * <p>{@link #createTables()} 는 {@code CREATE TABLE IF NOT EXISTS} 라서 이미 있는 테이블의
+     * 구조를 바꾸지 않습니다. 그 틈을 메우는 자리입니다 — 이미 있는 칼럼은 건너뛰므로
+     * 마법사를 여러 번 돌려도 안전합니다.
+     */
+    Result addMissingColumns() throws SQLException {
+        int added = 0;
+        int skipped = 0;
+        try (Connection connection = DriverManager.getConnection(
+                     config.databaseUrl(), config.user(), config.password());
+             Statement statement = connection.createStatement()) {
+
+            for (Schema.AddedColumn column : Schema.ADDED_COLUMNS) {
+                if (columnExists(connection, column.table(), column.column())) {
+                    skipped++;
+                    continue;
+                }
+                statement.executeUpdate(column.ddl());
+                added++;
+                out.detail("+ " + column.table() + "." + column.column());
+            }
+        }
+        return new Result(added, skipped);
+    }
+
+    private boolean columnExists(Connection connection, String tableName, String columnName)
+            throws SQLException {
+        try (ResultSet columns = connection.getMetaData()
+                .getColumns(config.database(), null, tableName, columnName)) {
+            return columns.next();
+        }
+    }
+
+    /**
      * 알레르기·기분 마스터 데이터를 채웁니다.
      * 두 테이블 모두 name이 UNIQUE라서 INSERT IGNORE로 중복 삽입을 막을 수 있습니다.
      */

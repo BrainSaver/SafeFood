@@ -40,9 +40,16 @@ final class DataStoreInitializer {
      * <ul>
      *   <li>{@code allergy.txt} — name</li>
      *   <li>{@code mood.txt} — name</li>
+     *   <li>{@code food.txt} — id|food_cd|name|category (공공데이터 음식 사전. food_cd = 메뉴젠 음식코드)</li>
+     *   <li>{@code ingredient.txt} — id|name</li>
+     *   <li>{@code food_ingredient.txt} — food_id|ingredient_id|quantity</li>
+     *   <li>{@code ingredient_allergy.txt} — ingredient_id|allergy_id</li>
      *   <li>{@code restaurant.txt} —
      *       id|name|category|address|phone|open_time|close_time|latitude|longitude|rating|review_count</li>
-     *   <li>{@code menu.txt} — id|restaurant_id|name|price|category|spicy_level|description</li>
+     *   <li>{@code menu.txt} — id|restaurant_id|name|price|category|spicy_level|description|food_id
+     *       (food_id는 음식 사전과 연결된 메뉴만 값이 있고, 수기 메뉴는 빈 값)</li>
+     *   <li>{@code menu_allergy.txt} — menu_id|allergy_id|risk_level|ingredient
+     *       (risk_level = CONTAINS / POSSIBLE / UNKNOWN, ingredient = 원인 재료 표시용)</li>
      * </ul>
      */
     private static final Map<String, List<String>> PUBLIC_FILES = new LinkedHashMap<>();
@@ -54,6 +61,7 @@ final class DataStoreInitializer {
      * <ul>
      *   <li>{@code users.txt} — id|login_id|password|nickname|created_at</li>
      *   <li>{@code preferences.txt} — user_id|spicy_level|price_min|price_max|max_distance</li>
+     *   <li>{@code locations.txt} — user_id|label|zonecode|address|latitude|longitude|updated_at</li>
      *   <li>{@code user_allergies.txt} — user_id|allergy_id|severity (심각도 1~5, 기본 3)</li>
      *   <li>{@code categories.txt} — user_id|category</li>
      *   <li>{@code favorites.txt} — id|user_id|restaurant_id|menu_id|created_at</li>
@@ -68,6 +76,7 @@ final class DataStoreInitializer {
     private static final List<String> PRIVATE_FILES = List.of(
             "users.txt",
             "preferences.txt",
+            "locations.txt",
             "user_allergies.txt",
             "categories.txt",
             "favorites.txt",
@@ -81,8 +90,13 @@ final class DataStoreInitializer {
     static {
         PUBLIC_FILES.put("allergy.txt", Schema.ALLERGIES);
         PUBLIC_FILES.put("mood.txt", Schema.MOODS);
+        PUBLIC_FILES.put("food.txt", List.of());
+        PUBLIC_FILES.put("ingredient.txt", List.of());
+        PUBLIC_FILES.put("food_ingredient.txt", List.of());
+        PUBLIC_FILES.put("ingredient_allergy.txt", List.of());
         PUBLIC_FILES.put("restaurant.txt", List.of());
         PUBLIC_FILES.put("menu.txt", List.of());
+        PUBLIC_FILES.put("menu_allergy.txt", List.of());
     }
 
     private final Path projectRoot;

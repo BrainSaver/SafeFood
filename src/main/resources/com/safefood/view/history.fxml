@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  1i 나의 기록 — ListView + 콤보 필터를 날짜 타임라인 + 필터 칩으로 바꿨습니다.
+
+  줄이 어느 날 것인지 셀마다 날짜를 달던 것을, 날짜 머리글 아래로 묶어 한 번만 씁니다.
+  탭과 필터는 전부 코드에서 채웁니다 (tabSeg / filterRow).
+-->
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.safefood.view.controller.HistoryController">
+
+    <top>
+        <HBox spacing="18" alignment="CENTER_LEFT" styleClass="toolbar">
+            <HBox spacing="9" alignment="CENTER_LEFT">
+                <ImageView fitWidth="34" fitHeight="34" preserveRatio="true" smooth="true">
+                    <image>
+                        <Image url="@logo.png"/>
+                    </image>
+                </ImageView>
+                <Label text="SafeFood" styleClass="section-title"/>
+            </HBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="추천" styleClass="nav-button" onAction="#handleMain"/>
+            <Button text="내 정보" styleClass="nav-button" onAction="#handleProfile"/>
+            <Button text="기록" styleClass="nav-button, active"/>
+            <Button text="같이 먹기" styleClass="primary" onAction="#handleGroup"/>
+            <Label fx:id="userLabel" text="사용자님" styleClass="sub"/>
+            <Button text="로그아웃" styleClass="ghost-quiet" onAction="#handleLogout"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true">
+            <VBox alignment="TOP_CENTER" styleClass="screen">
+                <padding>
+                    <Insets top="8" right="28" bottom="30" left="28"/>
+                </padding>
+
+                <VBox maxWidth="760" spacing="16">
+
+                    <HBox spacing="12" alignment="CENTER_LEFT">
+                        <Label text="나의 기록" styleClass="page-title"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <HBox fx:id="tabSeg" alignment="CENTER_RIGHT"/>
+                    </HBox>
+
+                    <HBox fx:id="filterRow" spacing="6" alignment="CENTER_LEFT"/>
+
+                    <VBox fx:id="timelineBox" spacing="6"/>
+                </VBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+</BorderPane>

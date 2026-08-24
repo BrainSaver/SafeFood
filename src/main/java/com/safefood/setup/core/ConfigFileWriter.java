@@ -97,8 +97,11 @@ public final class ConfigFileWriter {
                 db.user=%s
                 db.password=%s
 
-                # 지도 API 키 (Kakao Developers 등에서 발급)
+                # 카카오 REST API 키 — 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다.
+                # (주소 검색은 카카오 우편번호 서비스라 키가 없어도 됩니다)
                 map.api.key=%s
+
+                menugen.api.key=
 
                 # 소켓 서버 주소 (그룹 실시간 통신)
                 socket.host=%s
@@ -138,7 +141,11 @@ public final class ConfigFileWriter {
                 db.user=
                 db.password=
 
+                # 카카오 REST API 키 — 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다.
+                # (주소 검색은 카카오 우편번호 서비스라 키가 없어도 됩니다. 키가 없으면 좌표 없이 주소만 등록됩니다)
                 map.api.key=
+
+                menugen.api.key=
 
                 socket.host=localhost
                 socket.port=%d

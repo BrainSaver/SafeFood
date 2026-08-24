@@ -141,8 +141,26 @@ public final class SetupWizardFx extends Application {
     private Button nextButton;
     private Label navHint;
 
+    private Runnable onFinish;
+
     public static void main(String[] args) {
         launch(args);
+    }
+
+    /**
+     * 마지막 페이지의 [닫기]를 눌렀을 때 할 일. 지정하지 않으면 앱을 종료합니다.
+     * 앱이 설정 없이 시작해 마법사를 먼저 띄운 경우, 여기서 본 화면으로 넘어갑니다.
+     */
+    public void setOnFinish(Runnable action) {
+        this.onFinish = action;
+    }
+
+    private void finish() {
+        if (onFinish == null) {
+            Platform.exit();
+        } else {
+            onFinish.run();
+        }
     }
 
     @Override
@@ -241,7 +259,7 @@ public final class SetupWizardFx extends Application {
         VBox list = new VBox(8,
                 bullet("1", "JDBC 드라이버 확인 — Maven이 이미 준비해 둡니다."),
                 bullet("2", "MySQL 접속 확인 — 연결되지 않으면 data/ 폴더 방식으로 갑니다."),
-                bullet("3", "데이터베이스 · 테이블 18개 생성"),
+                bullet("3", "데이터베이스 · 테이블 22개 생성"),
                 bullet("4", "알레르기 · 기분 태그 기본 데이터 삽입"),
                 bullet("5", "data/public · data/private 폴더와 기본 파일 준비"),
                 bullet("6", "config.properties 작성 + .gitignore 확인"));
@@ -457,7 +475,7 @@ public final class SetupWizardFx extends Application {
                 }
             }
             case PAGE_RUN -> runSetup();
-            case PAGE_DONE -> Platform.exit();
+            case PAGE_DONE -> finish();
             default -> showPage(currentPage + 1);
         }
     }

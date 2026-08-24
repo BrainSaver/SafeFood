@@ -1,17 +1,14 @@
 package com.safefood.view;
 
-import javafx.application.Application;
-import javafx.fxml.*;
-import javafx.scene.*;
-import javafx.stage.Stage;
+import com.safefood.Main;
 
-public class indexUi extends Application {
-
-    @Override
-    public void start(Stage stage){
-
-    }
+/**
+ * {@code mvn javafx:run} 진입점 (pom.xml의 javafx-maven-plugin이 이 클래스를 실행).
+ * 시작 로직은 {@link Main}과 같아서 상속만 합니다 — 시작 화면을 바꿀 때는 Main만 고치면 됩니다.
+ */
+public class indexUi extends Main {
 
     public static void main(String[] args) {
+        launch(indexUi.class, args);
     }
 }

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  1h 내 프로필 — 세로로 길던 카드 4장을 2열로 접고, 저장 버튼을 없앴습니다.
+
+  심각도는 따로 고르는 칸이 아니라 알레르기 칩 안에 들어갔고, 바뀐 값은 곧바로 저장됩니다
+  (슬라이더는 잠깐 멎은 뒤 한 번만).
+-->
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.safefood.view.controller.ProfileController">
+
+    <top>
+        <HBox spacing="18" alignment="CENTER_LEFT" styleClass="toolbar">
+            <HBox spacing="9" alignment="CENTER_LEFT">
+                <ImageView fitWidth="34" fitHeight="34" preserveRatio="true" smooth="true">
+                    <image>
+                        <Image url="@logo.png"/>
+                    </image>
+                </ImageView>
+                <Label text="SafeFood" styleClass="section-title"/>
+            </HBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="추천" styleClass="nav-button" onAction="#handleMain"/>
+            <Button text="내 정보" styleClass="nav-button, active"/>
+            <Button text="기록" styleClass="nav-button" onAction="#handleHistory"/>
+            <Button text="같이 먹기" styleClass="primary" onAction="#handleGroup"/>
+            <Label fx:id="userLabel" text="사용자님" styleClass="sub"/>
+            <Button text="로그아웃" styleClass="ghost-quiet" onAction="#handleLogout"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true">
+            <VBox alignment="TOP_CENTER" styleClass="screen">
+                <padding>
+                    <Insets top="8" right="28" bottom="30" left="28"/>
+                </padding>
+
+                <VBox maxWidth="900" spacing="18">
+
+                    <HBox spacing="12" alignment="CENTER_LEFT">
+                        <Label text="내 프로필" styleClass="page-title"/>
+                        <Label fx:id="autoSaveTag" text="변경사항 자동 저장" styleClass="tag, accent2"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="닉네임·비밀번호 변경" styleClass="ghost" onAction="#handleEditInfo"/>
+                    </HBox>
+
+                    <HBox spacing="20" alignment="TOP_LEFT">
+
+                        <!-- ── 보유 알레르기 ─────────────────────── -->
+                        <VBox styleClass="card, soft, elev" spacing="12" HBox.hgrow="ALWAYS"
+                              prefWidth="430">
+                            <Label text="보유 알레르기" styleClass="section-title"/>
+                            <FlowPane fx:id="ownedPane" styleClass="chip-area" hgap="8" vgap="8"/>
+
+                            <Region styleClass="rule"/>
+
+                            <!--
+                              추가하는 두 가지 길 — 아래 목록에서 눌러 고르거나, 이름을 입력해
+                              걸러서 넣거나. 예전에는 입력밖에 없어서, 무엇을 적을 수 있는지
+                              모르면 아무것도 추가하지 못했습니다.
+                            -->
+                            <Label text="목록에서 고르거나, 이름을 입력해 추가하세요"
+                                   styleClass="field-label"/>
+
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <TextField fx:id="searchField"
+                                           promptText="알레르기 검색 (예: 고등어)"
+                                           onAction="#handleAddAllergy" HBox.hgrow="ALWAYS"/>
+                                <Button text="＋ 추가" styleClass="outline"
+                                        onAction="#handleAddAllergy"/>
+                            </HBox>
+
+                            <ScrollPane fitToWidth="true" prefHeight="128" minHeight="128">
+                                <FlowPane fx:id="catalogPane" styleClass="chip-area"
+                                          hgap="8" vgap="8"/>
+                            </ScrollPane>
+
+                            <Label text="심각도가 높을수록 '혼입 가능' 메뉴 순위를 크게 낮춰요."
+                                   styleClass="micro" wrapText="true"/>
+                            <Label fx:id="allergyHint" styleClass="hint-bad" wrapText="true"
+                                   visible="false" managed="false"/>
+                        </VBox>
+
+                        <!-- ── 음식 취향 ─────────────────────────── -->
+                        <VBox styleClass="card, soft, elev" spacing="12" HBox.hgrow="ALWAYS"
+                              prefWidth="430">
+                            <Label text="음식 취향" styleClass="section-title"/>
+                            <FlowPane fx:id="categoryPane" styleClass="chip-area" hgap="6" vgap="6"/>
+
+                            <VBox spacing="2">
+                                <Label fx:id="priceLabel" styleClass="field-label"/>
+                                <Slider fx:id="priceMax" min="0" max="30000" value="15000"
+                                        majorTickUnit="1000" minorTickCount="0"
+                                        snapToTicks="true"/>
+                            </VBox>
+
+                            <VBox spacing="2">
+                                <Label fx:id="spicyLabel" styleClass="field-label"/>
+                                <Slider fx:id="spicySlider" min="0" max="5" value="3"
+                                        majorTickUnit="1" minorTickCount="0" snapToTicks="true"/>
+                            </VBox>
+
+                            <HBox spacing="10" alignment="CENTER_LEFT">
+                                <Label text="최대 거리" styleClass="field-label"/>
+                                <HBox fx:id="distanceSeg" alignment="CENTER_LEFT"/>
+                            </HBox>
+
+                            <Region styleClass="rule"/>
+
+                            <!--
+                              거리 조건은 '어디서부터' 재는지가 정해져야 쓸 수 있습니다.
+                              그 기준점이 여기서 등록하는 위치입니다 (입력 창은 location.fxml).
+                            -->
+                            <VBox spacing="6">
+                                <Label text="내 위치 (거리 기준점)" styleClass="field-label"/>
+                                <HBox spacing="8" alignment="CENTER_LEFT">
+                                    <!-- 주소가 길어도 버튼을 밀어내지 않도록, 남는 폭은 라벨이 갖고 줄바꿈합니다 -->
+                                    <Label fx:id="locationLabel" text="아직 등록한 위치가 없어요"
+                                           styleClass="sub" wrapText="true" maxWidth="Infinity"
+                                           HBox.hgrow="ALWAYS"/>
+                                    <Button fx:id="locationButton" text="위치 등록" styleClass="outline"
+                                            onAction="#handleRegisterLocation"/>
+                                </HBox>
+                                <Label text="추천의 최대 거리와 '같이 먹기'의 중간 지점이 이 곳을 기준으로 계산됩니다."
+                                       styleClass="micro" wrapText="true"/>
+                            </VBox>
+                        </VBox>
+                    </HBox>
+
+                    <!-- ── 앱 스타일 ─────────────────────────────── -->
+                    <VBox styleClass="card, soft, elev" spacing="12">
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label text="앱 스타일" styleClass="section-title"/>
+                            <Label fx:id="themeTag" styleClass="tag, accent"/>
+                        </HBox>
+                        <Label text="고르는 즉시 화면 전체에 적용되고, 다음에 열 때도 그대로예요. 계정이 아니라 이 PC에 저장돼서 게스트도 고를 수 있습니다."
+                               styleClass="micro" wrapText="true"/>
+                        <FlowPane fx:id="themePane" hgap="12" vgap="12"/>
+                    </VBox>
+                </VBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+</BorderPane>

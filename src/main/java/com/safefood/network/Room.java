@@ -1,0 +1,338 @@
+package com.safefood.network;
+
+import com.safefood.service.GroupRecommendService;
+import com.safefood.service.GroupRecommendService.GroupCandidate;
+import com.safefood.service.GroupRecommendService.GroupCondition;
+import com.safefood.service.GroupRecommendService.GroupResult;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 접속자 목록 · 브로드캐스트 · 투표 집계 — 방장 앱 안에만 존재하는 방 상태.
+ *
+ * <p>여러 {@link ClientHandler} 스레드가 동시에 호출하므로,
+ * 상태를 읽고 쓰는 모든 메서드는 {@code synchronized}로 보호합니다.
+ */
+public final class Room {
+
+    /** 참여자 1명의 서버 쪽 상태 (INFO로 받은 조건 포함) */
+    private static final class Member {
+        final String name;
+        List<String> allergies = List.of();
+        int spicyLevel = 5;   // 병합이 최솟값이라 초기값은 결과에 영향 없는 최대치
+        int budgetMax = 0;    // 0 = 제한없음
+        boolean ready;
+
+        Member(String name) {
+            this.name = name;
+        }
+    }
+
+    private static final int CANDIDATE_COUNT = 3;
+
+    private final GroupRecommendService recommendService = new GroupRecommendService();
+
+    private final String inviteCode;
+
+    // 입장 순서 유지(첫 번째 = 방장). synchronized 밖에서는 절대 만지지 않습니다.
+    private final Map<ClientHandler, Member> members = new LinkedHashMap<>();
+    private final Map<ClientHandler, Integer> votes = new LinkedHashMap<>();
+
+    private List<String> mergedLines = List.of();
+    private List<String[]> candidates = List.of();   // {메뉴, 가게} — 번호는 순서 + 1
+    private Message resultMessage;   // 확정 후에는 고정 — 재확정·재투표를 막는 기준
+    private boolean recommending;
+    private boolean closed;
+
+    Room(String inviteCode) {
+        this.inviteCode = inviteCode;
+    }
+
+    /**
+     * JOIN 처리 — 초대 코드가 맞는 사람만 받아들입니다 (README: 아무나 못 들어오게 막는 암호 역할).
+     * 늦게 들어온 참여자에게는 현재 명단·병합 결과·후보·득표를 먼저 재전송해 화면을 맞춥니다.
+     *
+     * <p>코드에는 접속 주소도 들어 있지만({@link InviteCode}) 여기서는 전체 문자열을 그대로 대조합니다 —
+     * 주소까지 일치해야 통과하므로 시크릿만 맞히는 것으로는 들어올 수 없습니다.
+     * 대소문자·구분선 차이는 {@link InviteCode#normalize}가 흡수합니다.
+     *
+     * @return 입장 성공 여부. 실패하면 ERROR를 보낸 뒤 false — 호출한 쪽에서 연결을 끊습니다.
+     */
+    synchronized boolean join(ClientHandler handler, String code, String name) {
+        if (closed) {
+            handler.send(Message.of(Message.Type.ERROR, "이미 종료된 방입니다."));
+            return false;
+        }
+        if (!inviteCode.equals(InviteCode.normalize(code))) {
+            handler.send(Message.of(Message.Type.ERROR, "존재하지 않는 초대 코드"));
+            return false;
+        }
+        if (name.isBlank()) {
+            handler.send(Message.of(Message.Type.ERROR, "이름을 입력해 주세요."));
+            return false;
+        }
+        if (members.values().stream().anyMatch(member -> member.name.equals(name))) {
+            handler.send(Message.of(Message.Type.ERROR, "이미 사용 중인 이름입니다: " + name));
+            return false;
+        }
+
+        int order = 0;
+        for (Member member : members.values()) {
+            handler.send(Message.of(Message.Type.JOINED, member.name, String.valueOf(++order)));
+            if (member.ready) {
+                handler.send(Message.of(Message.Type.READY, member.name));
+            }
+        }
+        if (!mergedLines.isEmpty()) {
+            handler.send(Message.of(Message.Type.MERGED, mergedLines));
+        }
+        if (!candidates.isEmpty()) {
+            handler.send(candidatesMessage());
+            handler.send(voteStatusMessage());
+        }
+        if (resultMessage != null) {
+            handler.send(resultMessage);
+        }
+
+        members.put(handler, new Member(name));
+        broadcast(Message.of(Message.Type.JOINED, name, String.valueOf(members.size())));
+        return true;
+    }
+
+    /** INFO 처리 — 알레르기 / 매운맛 / 예산을 참여자 상태에 기록합니다. */
+    synchronized void updateInfo(ClientHandler handler, List<String> allergies, int spicyLevel, int budgetMax) {
+        Member member = members.get(handler);
+        if (member == null) {
+            return;
+        }
+        member.allergies = List.copyOf(allergies);
+        member.spicyLevel = Math.max(0, Math.min(5, spicyLevel));
+        member.budgetMax = Math.max(0, budgetMax);
+    }
+
+    /** READY 처리 — 전원이 준비되면 조건을 병합하고 후보를 발송합니다. */
+    synchronized void markReady(ClientHandler handler) {
+        Member member = members.get(handler);
+        if (member == null || member.ready) {
+            return;
+        }
+        member.ready = true;
+        broadcast(Message.of(Message.Type.READY, member.name));
+        if (members.values().stream().allMatch(m -> m.ready)) {
+            startRecommendation();
+        }
+    }
+
+    private void startRecommendation() {
+        if (resultMessage != null || recommending) {
+            return;
+        }
+        Set<String> allergyUnion = new LinkedHashSet<>();
+        int spicyMin = 5;
+        int budgetMin = 0;
+        for (Member member : members.values()) {
+            allergyUnion.addAll(member.allergies);
+            spicyMin = Math.min(spicyMin, member.spicyLevel);
+            if (member.budgetMax > 0) {
+                budgetMin = budgetMin == 0 ? member.budgetMax : Math.min(budgetMin, member.budgetMax);
+            }
+        }
+        mergedLines = List.of(
+                "알레르기 (합집합) — " + (allergyUnion.isEmpty() ? "없음"
+                        : String.join(" · ", allergyUnion) + " 제외"),
+                "매운맛 (최솟값) — " + spicyMin + "단계 이하",
+                "예산 (교집합) — " + (budgetMin == 0 ? "제한없음" : String.format("%,d원 이하", budgetMin)));
+        broadcast(Message.of(Message.Type.MERGED, mergedLines));
+
+        recommending = true;
+        GroupCondition condition = new GroupCondition(allergyUnion, spicyMin, budgetMin);
+        Thread worker = new Thread(() -> runRecommendation(condition), "group-recommend");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /**
+     * 후보를 뽑아 방에 뿌립니다.
+     *
+     * <p>예전에는 메뉴가 없으면 미리 적어 둔 세 가지(김치찌개·제육볶음·비빔밥)를 대신 내보냈습니다.
+     * 그 목록은 <b>누구의 알레르기도 검사하지 않은</b> 값이라, 새우 알레르기가 있는 방에도 그대로
+     * 나갔습니다. 알레르기 앱에서 "그럴듯한 값"은 빈 화면보다 위험하므로 지웠습니다 —
+     * 이제 못 뽑았으면 왜 못 뽑았는지만 알립니다.
+     */
+    private void runRecommendation(GroupCondition condition) {
+        GroupResult result;
+        try {
+            result = recommendService.recommend(condition, CANDIDATE_COUNT);
+        } catch (RuntimeException e) {
+            System.err.println("[room] 후보 추천 실패: " + e);
+            result = GroupResult.failure();
+        }
+
+        if (result.failed()) {
+            applyCandidates(List.of(), "메뉴 정보를 불러오지 못했어요 —"
+                    + " 방장 쪽 데이터베이스 연결을 확인해 주세요."
+                    + " 알레르기를 확인하지 못한 메뉴는 후보로 내보내지 않습니다.");
+        } else if (!result.hasMenuData()) {
+            applyCandidates(List.of(), "등록된 메뉴가 없어 후보를 뽑지 못했어요 —"
+                    + " 메뉴 데이터를 먼저 넣어 주세요.");
+        } else if (result.allBlockedByAllergy()) {
+            applyCandidates(List.of(), allergyDeadEndNotice(condition, result.scannedMenus()));
+        } else {
+            applyCandidates(toProtocolRows(result.candidates()), null);
+        }
+    }
+
+    private static List<String[]> toProtocolRows(List<GroupCandidate> found) {
+        List<String[]> rows = new ArrayList<>();
+        for (GroupCandidate candidate : found) {
+            rows.add(new String[]{protocolSafe(candidate.menu()), protocolSafe(candidate.restaurant())});
+        }
+        return List.copyOf(rows);
+    }
+
+    private static String allergyDeadEndNotice(GroupCondition condition, int scannedMenus) {
+        return "전원 알레르기(" + String.join("·", condition.allergies()) + ")를 모두 피하는 메뉴가 없어요"
+                + " — 등록된 메뉴 " + scannedMenus + "개가 전부 제외됐습니다."
+                + " 매운맛·예산을 바꿔도 결과는 같으니, 인원을 나누거나 메뉴 데이터를 늘려 주세요.";
+    }
+
+    private synchronized void applyCandidates(List<String[]> found, String notice) {
+        recommending = false;
+        if (closed || resultMessage != null) {
+            return;
+        }
+        candidates = found;
+        votes.clear();
+
+        broadcast(candidatesMessage());
+        broadcast(voteStatusMessage());
+        if (notice != null) {
+            broadcast(Message.of(Message.Type.ERROR, notice));
+        }
+    }
+
+    private static String protocolSafe(String name) {
+        return name == null ? "" : name.replaceAll("[|,()]", " ").replaceAll("\\s+", " ").trim();
+    }
+
+    /** VOTE 처리 — 참여자당 1표, 다시 투표하면 표를 옮깁니다. 확정 후에는 받지 않습니다. */
+    synchronized void vote(ClientHandler handler, int candidateNo) {
+        if (!members.containsKey(handler) || candidates.isEmpty() || resultMessage != null) {
+            return;
+        }
+        if (candidateNo < 1 || candidateNo > candidates.size()) {
+            handler.send(Message.of(Message.Type.ERROR, "없는 후보 번호입니다: " + candidateNo));
+            return;
+        }
+        votes.put(handler, candidateNo);
+        broadcast(voteStatusMessage());
+    }
+
+    /** CHAT 처리 — 보낸 사람 이름을 붙여 전원(보낸 사람 포함)에게 중계합니다. */
+    synchronized void chat(ClientHandler handler, String text) {
+        Member member = members.get(handler);
+        if (member == null || text.isBlank()) {
+            return;
+        }
+        broadcast(Message.of(Message.Type.CHAT, member.name, text));
+    }
+
+    /**
+     * 최다 득표 후보를 확정해 전원에게 RESULT를 보냅니다 (동표면 앞 번호 우선).
+     * 방장 화면에서 직접 호출합니다 — 서버 객체는 방장 앱 안에만 있습니다.
+     *
+     * @return 표가 하나도 없으면 false
+     */
+    public synchronized boolean finishResult() {
+        if (candidates.isEmpty() || votes.isEmpty()) {
+            return false;
+        }
+        if (resultMessage != null) {
+            return true;   // 이미 확정 — 다시 브로드캐스트하지 않습니다
+        }
+        int[] counts = tally();
+        int best = 0;
+        for (int i = 1; i < counts.length; i++) {
+            if (counts[i] > counts[best]) {
+                best = i;
+            }
+        }
+        String[] pick = candidates.get(best);
+        resultMessage = Message.of(Message.Type.RESULT, pick[0], pick[1]);
+        broadcast(resultMessage);
+        return true;
+    }
+
+    /** 나감·끊김 처리 — 목록에서 제거하고 전원에게 LEFT를 알립니다. 표가 있었으면 집계도 갱신. */
+    synchronized void leave(ClientHandler handler) {
+        Member member = members.remove(handler);
+        if (member == null || closed) {
+            return;
+        }
+        boolean hadVote = votes.remove(handler) != null;
+        broadcast(Message.of(Message.Type.LEFT, member.name, String.valueOf(members.size())));
+        if (hadVote && resultMessage == null) {
+            broadcast(voteStatusMessage());
+        }
+    }
+
+    /** 방 종료 — 전원에게 알린 뒤 모든 소켓을 정리합니다 (README '방장 종료 처리'). */
+    synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        broadcast(Message.of(Message.Type.CLOSED, "방장이 방을 종료했습니다."));
+        for (ClientHandler handler : List.copyOf(members.keySet())) {
+            handler.close();
+        }
+        members.clear();
+        votes.clear();
+    }
+
+    private void broadcast(Message message) {
+        for (ClientHandler handler : members.keySet()) {
+            handler.send(message);
+        }
+    }
+
+    /** 예) {@code CANDIDATES|1.김치찌개(할머니손맛),2.제육볶음(백반집),3.비빔밥(한그릇)} */
+    private Message candidatesMessage() {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < candidates.size(); i++) {
+            if (i > 0) {
+                csv.append(',');
+            }
+            String[] candidate = candidates.get(i);
+            csv.append(i + 1).append('.').append(candidate[0])
+                    .append('(').append(candidate[1]).append(')');
+        }
+        return Message.of(Message.Type.CANDIDATES, csv.toString());
+    }
+
+    /** 예) {@code VOTE_STATUS|1:2,2:1,3:0} */
+    private Message voteStatusMessage() {
+        int[] counts = tally();
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < counts.length; i++) {
+            if (i > 0) {
+                csv.append(',');
+            }
+            csv.append(i + 1).append(':').append(counts[i]);
+        }
+        return Message.of(Message.Type.VOTE_STATUS, csv.toString());
+    }
+
+    private int[] tally() {
+        int[] counts = new int[candidates.size()];
+        for (int no : votes.values()) {
+            counts[no - 1]++;
+        }
+        return counts;
+    }
+}

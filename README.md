@@ -28,9 +28,9 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 문서 | 버전 | 다루는 내용 |
 |------|------|-------------|
 | 기능 설계서 | v2.0 | 기능 48개(A/R/G/S/L/M/H), 구현 우선순위 1~3차, 소켓 프로토콜, 추천·병합 알고리즘 |
-| 데이터베이스 설계서 | v2.0 | 테이블 18개 · 외래 키 26개, 컬럼 정의, ENUM, 시드 데이터, 쿼리 시나리오 |
+| 데이터베이스 설계서 | v2.0 | 테이블 22개 · 외래 키 31개, 컬럼 정의, ENUM, 시드 데이터, 쿼리 시나리오 |
 | UI 설계서 | v2.0 | 화면 14종(SC-01~SC-14), 화면 전이, 색상 팔레트, 공통 컴포넌트 규칙 |
-| [SetupWizard.md](docs/SetupWizard.md) | — | 개발 환경 설정 마법사 사용법, `data/` 파일 모드 |
+| [Development.md](docs/Development.md) | — | **개발 문서** — 환경 설정 마법사 · `data/` 파일 모드 · 그룹 추천 로직 · 실행 파일 만들기 |
 
 기능 ID(`A-01`, `G-03` …)와 화면 ID(`SC-04` …)로 세 문서가 서로를 참조합니다.
 커밋 메시지와 브랜치 이름에도 기능 ID를 쓰면 추적하기 쉽습니다.
@@ -42,11 +42,11 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 구분 | 사용 기술 |
 |------|-----------|
 | Language | Java 21 <!-- 바꾸려면 pom.xml의 maven.compiler.release 값만 수정 --> |
-| UI | **JavaFX 21.0.4** — `javafx-controls`, `javafx-fxml` |
+| UI | **JavaFX 21.0.4** — `javafx-controls`, `javafx-fxml`, `javafx-web`(주소 검색 WebView) |
 | Database | MySQL 8.0 **또는** 로컬 파일 (`data/`) |
 | DB 연동 | JDBC (MySQL Connector/J 8.4.0) / 파일 I/O (`data/public`, `data/private`) |
-| 실시간 통신 | Java Socket (TCP), 기본 포트 5000 — 방장 앱이 곧 서버 |
-| 지도 | Kakao Map API <!-- 또는 Naver Map API — 택 1 후 정리 -->, JavaFX `WebView`에 임베드 |
+| 실시간 통신 | Java Socket (TCP), 기본 포트 5000 — 방장 앱이 곧 서버 / 방 자동 탐색은 UDP 5001 |
+| 지도 | Kakao <!-- 또는 Naver — 택 1 후 정리 --> — 우편번호 서비스(주소 검색, JS 위젯을 `WebView`에 임베드) + 로컬 API(주소 → 좌표, REST 키 필요) |
 | Build | Maven (`pom.xml`) — 표준 디렉터리 레이아웃 |
 | IDE | IntelliJ IDEA |
 | 협업 | Git, GitHub (feature 브랜치 → PR 리뷰 → dev 병합) |
@@ -102,9 +102,9 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 > **방을 만든 사람이 서버가 됩니다.** 따로 켜 두는 중앙 서버 없이 앱 하나만 실행합니다.
 > ([소켓 통신 설계](#-소켓-통신-설계) 참고)
 
-- [ ] ⭐ **방장 서버 열기** — 방을 만들면 `ServerSocket`을 띄우고 접속 주소를 화면에 표시
+- [ ] ⭐ **방장 서버 열기** — 방을 만들면 `ServerSocket`을 띄우고 초대 코드를 화면에 표시
 - [ ] ⭐ **소켓 클라이언트** — 주소로 접속 + 수신 전용 스레드 (입력 대기 중에도 서버 메시지 수신)
-- [ ] ⭐ **초대 코드 확인** — `JOIN` 시 코드가 맞는 사람만 방에 받아들임
+- [ ] ⭐ **초대 코드 확인** — `JOIN` 시 코드가 맞는 사람만 방에 받아들임 (주소는 코드에서 복원, 낡았으면 UDP 탐색)
 - [ ] ⭐ **접속자 관리 / 브로드캐스트** — 참여자 목록을 유지하고 전원에게 동시 전달
 - [ ] ⭐ **실시간 참여 알림** — 새 참여자가 들어오면 전원에게 "OO님 참여 (3명)" 즉시 전달
 - [ ] ⭐ **실시간 투표** — 누가 투표하면 전원 화면의 득표 현황이 바로 갱신
@@ -123,6 +123,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 
 ### 🗺️ 지도 / 맛집
 
+- [ ] ⭐ **내 위치 등록** — 카카오 우편번호 서비스로 주소를 고르고, 좌표는 카카오 로컬 API로 채움 (거리·중간 지점의 기준점)
 - [ ] ⭐ **지도 API 연동** — 주변 맛집을 지도에 표시
 - [ ] ⭐ **맛집 상세** — 주소 / 영업시간 / 전화번호 / 메뉴 / 가격
 - [ ] **길찾기** — 외부 지도 앱(카카오맵·네이버지도)으로 연결
@@ -142,27 +143,44 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 ```
 SafeFood/
 ├── pom.xml                                # 빌드 설정 · 의존성 (JDBC 드라이버 등)
+├── run.bat                                # 앱 실행 (더블클릭) — 자바 찾기 · 빌드 · 실행
 ├── config.properties                      # 개인 설정 — 커밋 금지 (Setup Wizard가 생성)
 ├── config.properties.example              # 값이 빈 공유용 사본 — 커밋 가능
 ├── src/
 │   ├── main/
 │   │   ├── java/com/safefood/
-│   │   │   ├── Main.java                  # 진입점 (엔트리 포인트)
+│   │   │   ├── Main.java                  # 진입점 — DB 확인 후 앱 또는 설정 마법사로 분기
+│   │   │   ├── MainLauncher.java          # java -jar 시작 클래스 (Application 미상속)
+│   │   │   ├── AppConfig.java             # config.properties 읽기 · reload()
 │   │   │   ├── dto/                       # UserDto, MenuDto, RestaurantDto ...
 │   │   │   ├── dao/                       # 저장소 접근 (JDBC 또는 data/ 파일)
+│   │   │   │   ├── DatabaseUtil           # config.properties → JDBC 커넥션
+│   │   │   │   ├── GroupMenuDao           # 그룹 추천 후보 (메뉴·가게·알레르기 1회 조회)
+│   │   │   │   └── ...                    # User · Menu · Allergy · Profile · History ...
 │   │   │   ├── service/                   # 비즈니스 로직
 │   │   │   │   ├── AuthService            # 로그인 / 회원가입
-│   │   │   │   ├── RecommendService       # 추천 알고리즘
+│   │   │   │   ├── RecommendService       # 개인 추천 알고리즘
+│   │   │   │   ├── GroupRecommendService  # 그룹 추천 (병합 조건 → 후보 3개)
+│   │   │   │   ├── GroupMergeService      # 그룹 조건 병합
 │   │   │   │   ├── AllergyService         # 알레르기 매칭 / 위험도 판정
-│   │   │   │   ├── GroupService           # 그룹 생성·참여, 조건 병합, 투표
-│   │   │   │   └── MapService             # 지도 API 호출
+│   │   │   │   ├── MapService             # 카카오 로컬 API — 주소 → 좌표
+│   │   │   │   └── ...                    # Profile · Favorite · History · Feedback ...
 │   │   │   ├── network/                   # 소켓 통신 (방장이 서버)
 │   │   │   │   ├── GroupServer            # 방장 앱이 여는 서버 (ServerSocket, 접속 수락)
 │   │   │   │   ├── ClientHandler          # 참여자 1명당 스레드
 │   │   │   │   ├── Room                   # 접속자 목록 · 브로드캐스트 · 투표 집계
 │   │   │   │   ├── GroupClient            # 소켓 + 수신 스레드 (방장도 자기 서버에 접속)
-│   │   │   │   └── Message                # 프로토콜 메시지 (타입 + 본문) 파싱·생성
-│   │   │   ├── view/                      # 화면 출력 / 입력 처리
+│   │   │   │   ├── Message                # 프로토콜 메시지 (타입 + 본문) 파싱·생성
+│   │   │   │   ├── InviteCode             # 접속 주소를 품은 초대 코드 (발급 · 해석)
+│   │   │   │   ├── RoomBeacon             # 방장 쪽 자동 탐색 응답기 (UDP)
+│   │   │   │   └── RoomFinder             # 참여자 쪽 자동 탐색 질의 (UDP)
+│   │   │   ├── view/                      # 화면 (JavaFX FXML + CSS)
+│   │   │   │   ├── indexUi                # 앱 진입점 — mvn javafx:run
+│   │   │   │   ├── AppLauncher            # IntelliJ ▶ 실행용 시작 클래스
+│   │   │   │   ├── AppNav                 # FXML 불러오기 · 화면 전환 · Alert
+│   │   │   │   ├── Widgets · DemoData     # 동적 노드 · 임시 데이터
+│   │   │   │   ├── Theme                  # 앱 스타일 4종 (내 정보에서 고름 · 색 토큰만 교체)
+│   │   │   │   └── controller/            # 화면 하나당 컨트롤러 하나 (SC-01~SC-14)
 │   │   │   └── setup/                     # 개발 환경 설정 마법사 (DB·data/·설정 파일 자동 준비)
 │   │   │       ├── SetupWizardFx          # 창(JavaFX) 화면 — mvn javafx:run -Pwizard-fx
 │   │   │       ├── SetupWizardFxLauncher  # 창 화면의 IntelliJ ▶ 실행용 시작 클래스
@@ -170,24 +188,24 @@ SafeFood/
 │   │   │       ├── Ui                     # 콘솔 출력·입력
 │   │   │       └── core/                  # 화면 없이 도는 처리부 (두 화면이 공유)
 │   │   └── resources/                     # 빌드 시 target/classes로 복사되는 리소스
+│   │       └── com/safefood/
+│   │           ├── view/                  # 화면 FXML 15개 + app.css + postcode.html(주소 검색)
+│   │           │   └── theme/             # 앱 스타일 css — app.css 뒤에 얹혀 색 토큰만 덮어씀
+│   │           └── setup/                 # setup-wizard.css
 │   └── test/
 │       └── java/com/safefood/             # 테스트 코드 (JUnit 5)
 ├── data/                                  # DB 미사용 시 파일 저장소
 │   ├── public/                            # 앱에 필요한 공통 데이터 — 커밋 가능
 │   └── private/                           # 개인·팀 서버 데이터 — 커밋 금지
 ├── docs/
-│   └── SetupWizard.md                     # Setup Wizard 사용 설명
+│   └── Development.md                     # 개발 문서 (환경 설정 · 그룹 추천 · 배포)
 ├── target/                                # 빌드 산출물 — 커밋 금지 (Maven이 생성)
 ├── .gitignore
 └── README.md
 ```
 
-> 📦 **패키지(폴더)만 만들어 둔 상태입니다.**
-> `service/`·`network/` 아래 클래스 이름은 **앞으로 만들 예정 목록**이라 아직 파일이 없습니다.
-> 각 폴더의 `package-info.java`에 "여기엔 무엇을 넣는지"를 적어 뒀으니 작업 전에 한 번 읽어 보세요.
-
-> ⚠️ **`dto/`·`dao/`는 지금 저장소에 없습니다.** (8월 6일 커밋에서 삭제)
-> 위 계층 규칙(`view → service → dao`)을 유지하려면 두 패키지를 다시 만들어야 합니다.
+> 📦 각 폴더의 `package-info.java`에 "여기엔 무엇을 넣는지"를 적어 뒀으니
+> 작업 전에 한 번 읽어 보세요. `MapService`처럼 아직 만들지 않은 것도 있습니다.
 
 > 📌 **Java 파일은 반드시 `src/main/java/` 아래에 두세요.**
 > Maven은 이 경로만 소스로 인식합니다. 패키지 이름과 폴더 경로가 정확히 일치해야 하고
@@ -213,7 +231,7 @@ SafeFood/
 | `data/public/` | 앱이 **동작하는 데 필요한** 공통 데이터 (알레르기·기분 태그·메뉴 마스터 등) | ⭕ |
 | `data/private/` | **개인 데이터**(회원·취향·즐겨찾기·내 히스토리) + **팀 서버 데이터**(방장 쪽 그룹·투표·접속 기록 등) | ❌ |
 
-자세한 파일 목록·형식은 [Setup Wizard — data/ 폴더](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더)를 보세요.
+자세한 파일 목록·형식은 [개발 문서 — data/ 폴더](docs/Development.md#데이터베이스-미사용--data-폴더)를 보세요.
 
 <br>
 
@@ -224,8 +242,8 @@ SafeFood/
 - JDK 21 이상
 - Maven 3.6 이상 — **IntelliJ에 내장돼 있어 따로 설치하지 않아도 됩니다**
 - **(선택)** MySQL 8.0 이상 — DB를 쓸 때만
-- 지도 API 키 (Kakao Developers 등에서 발급)
-- 비어 있는 TCP 포트 1개 (소켓 서버용, 기본 `5000`)
+- 지도 API 키 (Kakao Developers에서 발급하는 **REST API 키**) — 없어도 앱은 돌아갑니다. 주소 검색은 키 없이 되고, 주소 → 좌표 변환만 막힙니다
+- 비어 있는 TCP 포트 1개 (소켓 서버용, 기본 `5000`) + UDP 포트 `5001` (방 자동 탐색용, 선택)
 
 > MySQL 없이 시작해도 됩니다. 이때 앱 데이터는 `data/public/`, `data/private/`에 저장합니다.
 
@@ -248,7 +266,7 @@ Maven 프로젝트로 인식되면서 의존성을 자동으로 내려받습니�
 mvn clean compile
 ```
 
-> ⚡ **3~4단계는 [Setup Wizard](docs/SetupWizard.md)로 자동 처리할 수 있습니다.**
+> ⚡ **3~4단계는 [Setup Wizard](docs/Development.md)로 자동 처리할 수 있습니다.**
 >
 > ```bash
 > mvn javafx:run -Pwizard-fx
@@ -259,7 +277,7 @@ mvn clean compile
 > IntelliJ에서는 `src/main/java/com/safefood/setup/SetupWizardFxLauncher.java`(창) 또는
 > `SetupWizard.java`(콘솔)를 열고 ▶ 버튼을 눌러도 됩니다.
 > (창 화면을 ▶로 실행할 때 `SetupWizardFx`가 아니라 **Launcher**를 눌러야 하는 이유는
-> [SetupWizard.md](docs/SetupWizard.md#-실행-방법)에 적어 뒀습니다.)
+> [개발 문서](docs/Development.md#실행-방법)에 적어 뒀습니다.)
 > 아래 3~4단계는 **직접 하고 싶거나, 무엇이 만들어지는지 확인하고 싶을 때** 참고하세요.
 
 ### 3. 데이터 저장소 준비
@@ -286,7 +304,7 @@ CREATE DATABASE safefood DEFAULT CHARACTER SET utf8mb4;
 | `data/public/` | 앱에 필요한 공통 데이터 (알레르기·기분·메뉴 등) | ⭕ |
 | `data/private/` | 개인 데이터 + 팀 서버 데이터 (회원·취향 / 그룹·투표 등) | ❌ |
 
-형식·파일 목록은 [Setup Wizard.md](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더)를 참고하세요.
+형식·파일 목록은 [개발 문서](docs/Development.md#데이터베이스-미사용--data-폴더)를 참고하세요.
 
 ### 4. 설정 파일 작성
 
@@ -301,7 +319,10 @@ db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterE
 db.user=본인_계정
 db.password=본인_비밀번호
 
-map.api.key=발급받은_지도_API_키
+# 카카오 REST API 키 (Kakao Developers › 내 애플리케이션 › 앱 키 › REST API 키)
+# 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다. 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
+# (주소 검색 자체는 카카오 우편번호 서비스라 키가 필요 없습니다)
+map.api.key=발급받은_카카오_REST_API_키
 
 # 소켓 서버 주소 (클라이언트가 접속할 곳)
 socket.host=localhost
@@ -313,17 +334,30 @@ socket.port=5000
 
 ### 5. 실행
 
+가장 쉬운 방법은 프로젝트 폴더의 **`run.bat` 더블클릭**입니다 (Windows).
+자바를 찾고, 실행 파일이 없으면 만들고, 앱을 띄우는 것까지 알아서 합니다.
+
+```bat
+run.bat
+run.bat build   :: 실행 파일을 다시 만들고 싶을 때
+```
+
+> `run.bat`은 PATH → `JAVA_HOME` → IntelliJ가 함께 깔아 주는 자바 순서로 찾습니다.
+> Maven도 마찬가지라, 둘 다 따로 설치하지 않은 PC에서도 대개 그냥 실행됩니다.
+> 콘솔 창을 닫으면 앱도 함께 종료됩니다.
+
+IntelliJ나 명령줄에서 직접 돌릴 수도 있습니다.
+
 ```bash
 # 컴파일 + 실행 (JDBC 드라이버는 Maven이 알아서 클래스패스에 넣습니다)
 mvn compile exec:java
 ```
 
-JAR로 묶어서 실행하려면 클래스패스에 의존성을 함께 지정합니다.
+JAR로 묶어서 실행할 수도 있습니다. 의존성이 전부 들어가 클래스패스를 따로 잡을 필요가 없습니다.
 
 ```bash
-mvn clean package                    # target/safefood.jar 생성
-mvn dependency:build-classpath -Dmdep.outputFile=cp.txt
-java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
+mvn clean package
+java -jar target/safefood.jar
 ```
 
 자주 쓰는 Maven 명령입니다.
@@ -333,10 +367,11 @@ java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
 | `mvn clean` | `target/` 삭제 |
 | `mvn compile` | `src/main/java` 컴파일 → `target/classes` |
 | `mvn test` | `src/test/java` 테스트 실행 |
-| `mvn package` | JAR 생성 → `target/safefood.jar` |
+| `mvn package` | 단일 실행 JAR 생성 → `target/safefood.jar` |
+| `java -jar target/safefood.jar` | 만들어진 JAR 실행 (의존성 포함) |
 | `mvn compile exec:java` | 앱 실행 (`com.safefood.Main`) |
-| `mvn javafx:run -Pwizard-fx` | Setup Wizard 실행 (창) |
-| `mvn compile exec:java -Pwizard` | Setup Wizard 실행 (콘솔) |
+| `mvn javafx:run -Pwizard-fx` | Setup Wizard만 따로 실행 (창) |
+| `mvn compile exec:java -Pwizard` | Setup Wizard만 따로 실행 (콘솔) |
 
 그룹 추천은 **방장이 방을 만들면 그 앱이 곧 서버**라서, 서버를 따로 켜지 않습니다.
 같은 앱을 인원수만큼 띄우고 한 명이 방을 만들면, 나머지는 그 주소로 참여하면 됩니다.
@@ -350,13 +385,45 @@ mvn compile exec:java
 > IntelliJ에서는 `Main.java`의 `main` 메서드 옆 ▶ 버튼으로 바로 실행할 수 있습니다.
 > 클라이언트를 **여러 개 동시에** 띄우려면 실행 구성(Run/Debug Configurations)에서
 > `Modify options → Allow multiple instances`를 체크하세요.
-> <!-- 웹/GUI로 결정되면 이 부분을 해당 실행 방법으로 교체하세요 -->
+
+<br>
+
+### 6. 실행 파일 만들기 (선택)
+
+```bash
+mvn clean package
+```
+
+`target/safefood.jar` **하나**(약 46MB)에 JavaFX와 JDBC 드라이버까지 전부 들어갑니다.
+(주소 검색용 WebView 엔진 `jfxwebkit`이 들어가면서 14MB에서 늘었습니다.)
+JDK 21이 있는 PC라면 어디서나 이렇게 실행됩니다.
+
+```bash
+java -jar target/safefood.jar
+```
+
+앱은 켜지면서 **DB가 준비됐는지 먼저 확인합니다.**
+
+```
+DB 정상  ────────────────────→ 로그인 화면
+설정 없음 / 연결 실패 ─→ 설정 마법사 ─[닫기]→ 로그인 화면
+```
+
+받는 사람은 설정 파일을 미리 만들 필요가 없습니다. 처음 켜면 마법사가 뜨고,
+`config.properties`를 만든 뒤 같은 창에서 앱으로 넘어갑니다.
+
+> ⚠️ jar를 전달할 때 `config.properties`는 **같이 주지 마세요.** DB 계정·비밀번호가 들어 있습니다.
+> 팀 서버 DB를 함께 쓴다면 접속 정보만 알려 주고 마법사에서 입력하게 하세요.
+
+자세한 내용은 [개발 문서 — 실행 파일 만들기](docs/Development.md#-실행-파일-만들기)를 보세요.
 
 <br>
 
 ## 🗄️ 데이터베이스 스키마
 
-테이블 18개 · 외래 키 26개. **데이터베이스 설계서 v2.0**이 기준입니다.
+테이블 23개 · 외래 키 32개. **데이터베이스 설계서 v2.0**이 기준입니다.
+(음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼,
+`user_location` 테이블은 v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 
 > ⚠️ **같은 스키마가 세 곳에 있습니다. 고칠 때는 셋을 함께 고쳐 주세요.**
 > 하나만 고치면 다음 사람이 틀린 쪽을 믿게 됩니다.
@@ -370,19 +437,24 @@ mvn compile exec:java
 > MySQL을 쓰지 않을 때는 아래 테이블 대신 `data/` 파일을 씁니다.
 > - 마스터성 데이터 → `data/public/`
 > - 회원·취향·그룹·투표 등 → `data/private/`
-> ([Setup Wizard.md](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더) 참고)
+> ([개발 문서](docs/Development.md#데이터베이스-미사용--data-폴더) 참고)
 
 ### 회원 · 취향 · 알레르기
 
 ```sql
 -- 회원
 CREATE TABLE user (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    login_id    VARCHAR(30)  NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL,          -- 평문 저장 금지! 해시값 저장
-    nickname    VARCHAR(30)  NOT NULL,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    login_id      VARCHAR(30)  NOT NULL UNIQUE,
+    password      VARCHAR(255) NOT NULL,        -- 평문 저장 금지! PBKDF2 해시 (pbkdf2$sha256$...)
+    nickname      VARCHAR(30)  NOT NULL,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    session_token VARCHAR(36)  NULL             -- 중복 로그인 차단 (나중에 로그인한 쪽이 이김)
 );
+
+-- 이미 만들어 둔 DB 라면 아래를 한 번 실행하세요.
+-- (설정 마법사를 다시 돌려도 같은 일을 합니다 — Schema.ADDED_COLUMNS 참고)
+-- ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL;
 
 -- 취향 (회원당 1행)
 CREATE TABLE user_preference (
@@ -391,6 +463,20 @@ CREATE TABLE user_preference (
     price_min   INT,
     price_max   INT,
     max_distance INT,                           -- 최대 거리(m). 0은 제한 없음
+    PRIMARY KEY (user_id),
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+
+-- 등록해 둔 내 위치 (회원당 1행)
+-- 거리 조건(user_preference.max_distance)과 그룹 중간 지점이 여기를 기준점으로 씁니다
+CREATE TABLE user_location (
+    user_id    INT NOT NULL,
+    label      VARCHAR(30),                     -- 집 / 회사처럼 알아볼 이름
+    zonecode   VARCHAR(10),                     -- 우편번호 (카카오 우편번호 서비스)
+    address    VARCHAR(255),                    -- 도로명 주소 + 상세 주소
+    latitude   DECIMAL(10, 7),                  -- 거리 계산에 쓰이는 값. 좌표를 못 찾으면 NULL
+    longitude  DECIMAL(10, 7),
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id),
     FOREIGN KEY (user_id) REFERENCES user(id)
 );
@@ -426,6 +512,64 @@ CREATE TABLE user_allergy (
 > `severity`는 POSSIBLE 등급 메뉴의 **감점 폭**에 씁니다.
 > 같은 땅콩 알레르기라도 심각도가 높은 사용자에게는 혼입 가능 메뉴의 순위를 크게 낮춥니다.
 
+### 음식 사전 · 재료 (공공데이터)
+
+공공데이터(농진청 메뉴젠 등)의 음식·재료 정보는 식당 메뉴(`menu`)에 직접 넣지 않고
+**음식 사전(`food`)**으로 받습니다. 음식 사전에는 소속 식당·가격이 없으므로
+`menu`의 `restaurant_id NOT NULL` · `price NOT NULL` 제약과 충돌하지 않습니다.
+식당 메뉴는 `menu.food_id`로 사전과 연결합니다.
+
+```sql
+-- 음식 사전 (공공데이터 원본)
+CREATE TABLE food (
+    id       INT AUTO_INCREMENT PRIMARY KEY,
+    food_cd  VARCHAR(20) NOT NULL UNIQUE,       -- 외부 음식코드. 임포트 재실행 시 upsert 기준
+    name     VARCHAR(100) NOT NULL,
+    category VARCHAR(50)
+);
+
+-- 재료 마스터
+CREATE TABLE ingredient (
+    id   INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE           -- 생크림 / 새우젓 / 두부 ...
+);
+
+-- 음식별 재료 구성
+CREATE TABLE food_ingredient (
+    food_id       INT NOT NULL,
+    ingredient_id INT NOT NULL,
+    quantity      VARCHAR(50),                  -- "30g", "1/2컵" 등 원문 그대로
+    PRIMARY KEY (food_id, ingredient_id),
+    FOREIGN KEY (food_id)       REFERENCES food(id),
+    FOREIGN KEY (ingredient_id) REFERENCES ingredient(id)
+);
+
+-- 재료 → 알레르기 매핑 (예: 생크림 → 우유)
+CREATE TABLE ingredient_allergy (
+    ingredient_id INT NOT NULL,
+    allergy_id    INT NOT NULL,
+    PRIMARY KEY (ingredient_id, allergy_id),
+    FOREIGN KEY (ingredient_id) REFERENCES ingredient(id),
+    FOREIGN KEY (allergy_id)    REFERENCES allergy(id)
+);
+```
+
+> 메뉴의 알레르기(`menu_allergy`)는 `menu → food → food_ingredient → ingredient_allergy`
+> 경로로 자동 도출할 수 있습니다. 매핑된 재료는 `CONTAINS`로, 매핑 안 된 재료가 남은
+> 메뉴는 보수적으로 `UNKNOWN`으로 남깁니다.
+
+공공데이터 임포트는 `com.safefood.tool.MenuGenImporter`가 담당합니다.
+`data/public/`의 음식 사전 파일 4종에 upsert 하고, `config.properties`에 `db.url`이
+있으면 **MySQL에도 같은 내용을 반영**하므로 여러 번 실행해도 안전합니다.
+(DB 반영은 음식 `food_cd`·재료 이름 기준이라 DB의 id가 파일과 달라도 됩니다)
+
+```bash
+mvn compile exec:java -Pimport-food -Dexec.args="--food=콩나물국"
+```
+
+서비스 키는 `--key=` 인자 → 환경 변수 `MENUGEN_API_KEY` → `config.properties`의
+`menugen.api.key` 순서로 찾습니다. `--food=`을 빼면 전체 데이터를 가져옵니다.
+
 ### 맛집 · 메뉴
 
 ```sql
@@ -453,7 +597,9 @@ CREATE TABLE menu (
     category      VARCHAR(20),
     spicy_level   TINYINT,                      -- 0 ~ 5
     description   VARCHAR(255),
-    FOREIGN KEY (restaurant_id) REFERENCES restaurant(id)
+    food_id       INT,                          -- 음식 사전 연결 (수기 등록 메뉴는 NULL)
+    FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
+    FOREIGN KEY (food_id)       REFERENCES food(id)
 );
 
 -- 메뉴 ↔ 알레르기 매칭 (위험도 포함)
@@ -461,6 +607,7 @@ CREATE TABLE menu_allergy (
     menu_id     INT NOT NULL,
     allergy_id  INT NOT NULL,
     risk_level  ENUM('CONTAINS', 'POSSIBLE', 'UNKNOWN') NOT NULL,
+    ingredient  VARCHAR(100),                   -- 원인 재료 표시용 (예: "생크림, 치즈")
     PRIMARY KEY (menu_id, allergy_id),
     FOREIGN KEY (menu_id)    REFERENCES menu(id),
     FOREIGN KEY (allergy_id) REFERENCES allergy(id)
@@ -571,9 +718,11 @@ CREATE TABLE history (
     group_id   INT,                             -- 그룹으로 먹은 경우 (개인 추천이면 NULL)
     type       ENUM('RECOMMENDED', 'EATEN', 'VIEWED', 'BLOCKED') NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    feedback_id INT,
     FOREIGN KEY (user_id)  REFERENCES user(id),
     FOREIGN KEY (menu_id)  REFERENCES menu(id),
-    FOREIGN KEY (group_id) REFERENCES dining_group(id)
+    FOREIGN KEY (group_id) REFERENCES dining_group(id),
+    FOREIGN KEY (feedback_id) REFERENCES feedback(id)
 );
 
 -- 피드백
@@ -657,7 +806,8 @@ CREATE TABLE feedback (
                           ├─ GroupServer   : ServerSocket으로 접속 수락
                           ├─ ClientHandler : 참여자 1명당 스레드 1개
                           ├─ Room          : 접속자 목록 · 브로드캐스트 · 투표 집계
-                          └─ GroupClient   : 방장도 자기 서버에 접속
+                          ├─ GroupClient   : 방장도 자기 서버에 접속
+                          └─ RoomBeacon    : 방을 찾는 UDP 질의에 응답 (:5001)
 ```
 
 - **서버(방장)** — `ServerSocket.accept()`로 접속을 받고, 참여자 1명당 **스레드 1개**(`ClientHandler`)를 배정
@@ -675,16 +825,62 @@ CREATE TABLE feedback (
 
 ### 참여자는 방장을 어떻게 찾나요
 
-중앙 서버가 없으니 **초대 코드만으로는 방장을 찾을 수 없습니다.** 주소를 직접 알려 줘야 합니다.
+중앙 서버가 없으니 **코드 → 주소**를 대신 조회해 줄 곳이 없습니다. 그래서 조회하는 대신
+**주소를 초대 코드 안에 접어 넣고**, 그 주소가 낡았을 때만 **네트워크에 직접 물어봅니다.**
+일행에게 전달하는 값은 **초대 코드 하나뿐**입니다.
 
-1. 방장이 방을 만들면 화면에 접속 주소를 띄웁니다 — 예) `192.168.0.5:5000`
-   (`InetAddress.getLocalHost().getHostAddress()`)
-2. 방장이 일행에게 **주소 + 초대 코드**를 알려 줍니다
-3. 참여자는 그 주소로 접속한 뒤 `JOIN`으로 초대 코드를 보냅니다
-   → 초대 코드는 **아무나 못 들어오게 막는 암호** 역할을 합니다
+**① 코드가 주소를 품습니다** — `InviteCode`
+
+```
+   6WMK4-2A0P8-Q3XN
+   └──── 10자 ────┘└4자┘
+      주소 + 검사비트   시크릿
+
+   앞 10자 = 5비트 × 10 = 50비트
+            ├ 검사 2비트  (오타 감지 — 약 75%를 입력 즉시 잡아냅니다)
+            ├ IPv4 32비트
+            └ 포트 16비트
+```
+
+글자는 **Crockford Base32**(헷갈리는 `I·L·O·U`를 뺀 32자)를 씁니다. 32 = 2⁵이라 한 글자가 정확히
+5비트입니다. 입력할 때 `O`는 `0`으로, `I·L`은 `1`로 자동 교정하므로 눈으로 옮겨 적다 헷갈려도
+같은 코드로 해석됩니다. 뒤 4자 **시크릿**이 아무나 못 들어오게 막는 암호 역할을 하고,
+`Room`이 `JOIN` 때 코드 전체를 대조합니다.
+
+**② 주소가 낡으면 네트워크에 물어봅니다** — `RoomFinder` → `RoomBeacon`
+
+코드에 굳어 있는 주소는 **발급하던 순간의 값**입니다. 방장이 와이파이를 다시 잡거나 DHCP 임대가
+갱신돼 IP가 바뀌면 그 주소로는 붙지 못합니다. 이때만 UDP 탐색이 켜집니다.
+
+```
+ 참여자                        (같은 네트워크)                      방장
+   │                                                                 │
+   ├─ ① 코드의 주소로 바로 TCP 접속  ──────────────────────────────▶ │  대부분 여기서 끝
+   │      실패(IP가 바뀜)                                             │
+   │                                                                 │
+   ├─ ② SAFEFOOD1-FIND|6WMK42A0P8 ─▶ 멀티캐스트 + 브로드캐스트 ────▶ │  RoomBeacon 수신
+   │                                                                 ├─ 내 코드의 주소부와 대조
+   │                                                                 │   다르면 → 무응답
+   │◀──── SAFEFOOD1-HERE|5000 ────── 물어본 사람에게만 유니캐스트 ───┤   같으면 → 응답
+   │                                                                 │
+   └─ 응답 패킷의 출발지 IP = 방장의 '지금' 주소 → 그리로 TCP 접속
+```
+
+설계에서 지킨 것
+
+- **시크릿은 UDP에 싣지 않습니다.** 방을 가리키는 값으로 코드의 **주소부 10자만** 씁니다.
+  주소부는 IP 헤더에 어차피 드러나는 정보라 도청해도 새로 얻을 게 없고,
+  **주소를 찾은 것과 입장 자격은 별개**라 시크릿 검사는 TCP `JOIN`에서 따로 합니다.
+- **응답 본문에 IP를 넣지 않습니다.** UDP 응답의 출발지 주소가 곧 방장의 현재 주소입니다.
+- **탐색은 실패해도 되는 보조 수단입니다.** 방화벽에 막혀 못 켜져도 코드의 주소로는 그대로 붙습니다.
+- **탐색을 먼저 하지 않습니다.** 그러면 모든 참여자가 매번 몇 초씩 기다리고 방화벽 확인 창까지
+  보게 됩니다. 평소에는 UDP를 아예 쓰지 않습니다.
+- 주소부는 `IP:포트`를 그대로 인코딩한 값이라 **방을 유일하게 가리킵니다** —
+  같은 주소·포트로 방을 두 개 열 수는 없으므로 코드 충돌을 걱정하지 않아도 됩니다.
 
 > 나중에 팀 **공용 MySQL 서버**를 쓰게 되면, `dining_group` 테이블에 방장 주소(`host_ip`·`host_port`)를
-> 저장해 두고 **초대 코드만으로 주소를 조회**하게 개선할 수 있습니다.
+> 저장해 두고 **다른 와이파이에서도** 코드로 주소를 조회하게 개선할 수 있습니다.
+> 지금 방식은 같은 네트워크 안에서만 동작합니다.
 
 ### ⚠️ 이 방식의 한계
 
@@ -692,6 +888,8 @@ CREATE TABLE feedback (
 |------|------|
 | **같은 네트워크 안에서만** | 공유기 밖(다른 와이파이·LTE)에서는 접속할 수 없습니다. 외부에서 붙으려면 포트포워딩이 필요합니다. |
 | **학교·카페 와이파이 주의** | 기기 간 통신을 막아 둔 곳이 많습니다. **시연은 한 PC에서 창을 여러 개 띄워 `localhost`로** 하는 편이 안전합니다. |
+| **방장 IP가 바뀌면** | 코드에 담긴 주소가 낡습니다. 같은 네트워크라면 자동 탐색이 현재 주소를 찾아 주지만, 탐색까지 막힌 곳에서는 방을 다시 만들어 새 코드를 전달해야 합니다. |
+| **UDP 방화벽 안내창** | 자동 탐색이 처음 켜질 때 Windows 방화벽이 허용 여부를 묻습니다. 거절해도 코드의 주소로는 그대로 접속됩니다. |
 | **방장이 나가면 방 종료** | 서버가 곧 방장 앱입니다. 방장이 앱을 끄면 전원 연결이 끊깁니다. |
 | **기록이 방장 쪽에만 남음** | 로컬 MySQL 또는 `data/private/`를 쓰면 그룹·투표 기록은 방장 PC에만 저장됩니다. 공용 DB를 쓰면 해결됩니다. |
 
@@ -701,7 +899,7 @@ CREATE TABLE feedback (
 
 | 방향 | 타입 | 예시 | 설명 |
 |------|------|------|------|
-| C→S | `JOIN` | `JOIN\|ABC123\|홍길동` | 초대 코드로 그룹 참여 |
+| C→S | `JOIN` | `JOIN|6WMK42A0P8Q3XN|홍길동` | 초대 코드로 그룹 참여 |
 | C→S | `INFO` | `INFO\|땅콩,갑각류\|2\|10000` | 알레르기 / 매운맛 / 예산 전달 |
 | C→S | `READY` | `READY` | 조건 입력 완료 (전원 완료 시 추천 시작) |
 | C→S | `VOTE` | `VOTE\|2` | 후보 번호에 투표 |
@@ -723,8 +921,11 @@ CREATE TABLE feedback (
 방장 앱                   방장 앱 속 서버                  참여자
  │                              │                            │
  │  방 만들기 ────────────────▶ │ GroupServer 시작 (:5000)
- │  화면에 접속 주소 표시 ◀──── │ 192.168.0.5:5000
- │  (주소 + 초대 코드를 일행에게 알려 줌)
+ │                              │ RoomBeacon 시작 (UDP :5001)
+ │  화면에 초대 코드 표시 ◀──── │ 6WMK4-2A0P8-Q3XN
+ │  (초대 코드 하나만 일행에게 알려 줌 — 주소는 코드 안에)     │
+ │                              │        참여자: 코드에서 주소를 꺼내 접속
+ │                              │        (닿지 않으면 UDP 탐색으로 현재 주소를 찾음)
  │                              │                            │
  │ ── 자기 서버에 접속 ───────▶ │ ◀──── 접속 + JOIN ─────────│
  │ ◀── JOINED(참여 알림) ────── │ ────── JOINED ────────────▶│
@@ -750,6 +951,10 @@ CREATE TABLE feedback (
   그냥 종료하면 참여자 쪽에 원인 모를 오류만 뜹니다.
 - **자원 정리** — 참여자가 나가면 스트림·소켓을 닫고 접속자 목록에서도 반드시 제거
 - **비정상 종료** — 창을 그냥 닫은 경우 `IOException`으로 감지해 `LEFT`로 처리
+- **자동 탐색은 보조 수단** — `RoomBeacon`을 못 띄워도 방 열기를 중단하지 마세요.
+  코드에 담긴 주소로는 그대로 접속됩니다. 탐색 질의에 **시크릿을 싣지 않는 것**도 함께 지키세요.
+- **탐색 폴백 순서** — 코드의 주소로 **먼저** 붙어 보고, 실패할 때만 탐색합니다.
+  탐색을 앞에 두면 모든 참여자가 매번 몇 초씩 기다리고 방화벽 확인 창까지 보게 됩니다.
 - **한글 깨짐** — 스트림을 만들 때 인코딩을 명시
   (`new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)`)
 - **테스트** — 같은 PC에서 앱을 여러 개 띄우고(하나는 방장, 나머지는 참여자) `localhost`로 확인
@@ -798,11 +1003,16 @@ CREATE TABLE feedback (
 - [x] 애플리케이션 형태 결정 — **JavaFX 데스크톱 앱**
 - [x] 기능 우선순위 확정 (기능 48개를 1·2·3차로 구분)
 - [x] 설계 문서 작성 (기능 · DB · UI 설계서 v2.0)
-- [x] DB 스키마 확정 (테이블 18개 · 외래 키 26개)
-- [ ] `dto` · `dao` 패키지 다시 만들기 <!-- 8월 6일 커밋에서 삭제된 상태 -->
+- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 23개 · 32개)
+- [x] `dto` · `dao` 패키지 다시 만들기
+- [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
+- [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅
+- [x] 그룹 추천 후보 3개 — DB 연동, 알레르기 판정, 후보 부족 처리
+- [x] 단일 실행 JAR 빌드 + 시작할 때 DB 확인 → 마법사/앱 자동 분기
+- [x] 내 위치 등록 — 카카오 우편번호 서비스로 주소 검색 + 로컬 API로 좌표 (`user_location`)
+- [x] 역할 분담
 - [ ] 지도 API 선택(Kakao / Naver) 및 키 발급
-- [ ] 테이블 생성 (팀원별 Setup Wizard 실행)
-- [ ] 소켓 메시지 프로토콜 확정
-- [ ] 역할 분담
-- [ ] 기능 구현
+- [ ] 메뉴 데이터 확충 — 현재 29개라 알레르기가 겹치면 후보가 금방 고갈됨
+- [ ] 그룹 결과를 `group_candidate` · `group_vote`에 저장
+- [ ] 기능 구현 (남은 항목은 위 [주요 기능](#-주요-기능) 참고)
 - [ ] 발표 자료 준비

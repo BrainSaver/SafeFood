@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  1a SC-04 메인 추천 — 개인 맞춤 추천 결과 · 기능 R-01~R-08 · L-02~L-04
+
+  리디자인에서 달라진 것
+   · '같이 먹기'가 화면 하단 띠에서 상단 내비게이션으로 올라왔습니다 (스크롤 끝까지 안 가도 됨)
+   · 필터가 라벨 + 콤보 2줄에서 한 줄로 줄고, 예산 필터가 새로 생겼습니다
+   · 카드의 액션이 4개에서 2개 + 찜 아이콘으로 줄었습니다
+   · 차단된 메뉴는 카드 대신 한 줄로 접힙니다 (cardBox 아래 blockedBox)
+-->
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.safefood.view.controller.MainController">
+
+    <!-- 상단 내비게이션 — 현재 위치만 테라코타 -->
+    <top>
+        <HBox spacing="18" alignment="CENTER_LEFT" styleClass="toolbar">
+            <HBox spacing="9" alignment="CENTER_LEFT">
+                <ImageView fitWidth="34" fitHeight="34" preserveRatio="true" smooth="true">
+                    <image>
+                        <Image url="@logo.png"/>
+                    </image>
+                </ImageView>
+                <Label text="SafeFood" styleClass="section-title"/>
+            </HBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="추천" styleClass="nav-button, active"/>
+            <Button text="내 정보" styleClass="nav-button" onAction="#handleProfile"/>
+            <Button text="기록" styleClass="nav-button" onAction="#handleHistory"/>
+            <Button text="같이 먹기" styleClass="primary" onAction="#handleGroup"/>
+            <Label fx:id="userLabel" text="사용자님" styleClass="sub"/>
+            <Button text="로그아웃" styleClass="ghost-quiet" onAction="#handleLogout"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true">
+            <VBox styleClass="screen" spacing="16">
+                <padding>
+                    <Insets top="8" right="28" bottom="30" left="28"/>
+                </padding>
+
+                <Label fx:id="greetingLabel" text="오늘 뭐 먹지?" styleClass="page-title"/>
+
+                <!-- 필터 한 줄 — 조건 3개 + 기분 칩 + 다시 뽑기 -->
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <ComboBox fx:id="categoryBox"/>
+                    <ComboBox fx:id="distanceBox"/>
+                    <ComboBox fx:id="budgetBox"/>
+                    <Region styleClass="rule-v" prefHeight="18"/>
+                    <FlowPane fx:id="moodPane" styleClass="chip-area" hgap="6" vgap="6"
+                              HBox.hgrow="ALWAYS"/>
+                    <Button text="🎰 룰렛" onAction="#handleRoulette"/>
+                    <Button text="↻ 다른 추천" onAction="#handleReroll"/>
+                </HBox>
+
+                <HBox spacing="6" alignment="CENTER_LEFT">
+                    <Label fx:id="excludeLabel" styleClass="sub"/>
+                    <Hyperlink fx:id="excludeToggle" text="포함하기" onAction="#handleToggleEaten"/>
+                </HBox>
+
+                <!-- 추천 카드가 여기에 채워집니다 -->
+                <VBox fx:id="cardBox" spacing="14"/>
+
+                <!-- 차단된 메뉴 — 카드가 아니라 한 줄로 -->
+                <VBox fx:id="blockedBox" spacing="8"/>
+            </VBox>
+        </ScrollPane>
+    </center>
+</BorderPane>
