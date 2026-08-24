@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  주소 검색 — 카카오(다음) 우편번호 서비스를 WebView 로 띄우는 창입니다.
+
+  위젯이 JavaScript로만 제공돼서 화면을 통째로 심습니다. 실제 껍데기는 postcode.html 이고,
+  고른 주소는 자바 쪽 bridge 로 넘어옵니다 (PostcodeController).
+-->
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.web.WebView?>
+
+<VBox xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.safefood.view.controller.PostcodeController"
+      fx:id="root" prefWidth="540" styleClass="sheet" spacing="12">
+
+    <VBox spacing="4">
+        <Label text="주소 검색" styleClass="page-title"/>
+        <Label text="카카오 우편번호 서비스입니다. 고른 주소가 등록 화면에 그대로 채워집니다."
+               styleClass="page-subtitle" wrapText="true"/>
+    </VBox>
+
+    <StackPane>
+        <!-- 높이는 시작값일 뿐입니다 — 위젯이 알려 주는 크기에 맞춰 컨트롤러가 다시 잡습니다 -->
+        <WebView fx:id="webView" prefWidth="472" prefHeight="466"/>
+        <!-- 불러오는 동안·실패했을 때 위에 덮는 안내 -->
+        <Label fx:id="status" text="주소 검색 화면을 불러오는 중이에요…"
+               styleClass="sub" wrapText="true" maxWidth="360"/>
+    </StackPane>
+
+    <HBox spacing="8" alignment="CENTER_RIGHT">
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="닫기" styleClass="ghost-quiet" onAction="#handleClose"/>
+    </HBox>
+</VBox>

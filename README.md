@@ -42,11 +42,11 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 구분 | 사용 기술 |
 |------|-----------|
 | Language | Java 21 <!-- 바꾸려면 pom.xml의 maven.compiler.release 값만 수정 --> |
-| UI | **JavaFX 21.0.4** — `javafx-controls`, `javafx-fxml` |
+| UI | **JavaFX 21.0.4** — `javafx-controls`, `javafx-fxml`, `javafx-web`(주소 검색 WebView) |
 | Database | MySQL 8.0 **또는** 로컬 파일 (`data/`) |
 | DB 연동 | JDBC (MySQL Connector/J 8.4.0) / 파일 I/O (`data/public`, `data/private`) |
 | 실시간 통신 | Java Socket (TCP), 기본 포트 5000 — 방장 앱이 곧 서버 / 방 자동 탐색은 UDP 5001 |
-| 지도 | Kakao Map API <!-- 또는 Naver Map API — 택 1 후 정리 -->, JavaFX `WebView`에 임베드 |
+| 지도 | Kakao <!-- 또는 Naver — 택 1 후 정리 --> — 우편번호 서비스(주소 검색, JS 위젯을 `WebView`에 임베드) + 로컬 API(주소 → 좌표, REST 키 필요) |
 | Build | Maven (`pom.xml`) — 표준 디렉터리 레이아웃 |
 | IDE | IntelliJ IDEA |
 | 협업 | Git, GitHub (feature 브랜치 → PR 리뷰 → dev 병합) |
@@ -123,6 +123,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 
 ### 🗺️ 지도 / 맛집
 
+- [ ] ⭐ **내 위치 등록** — 카카오 우편번호 서비스로 주소를 고르고, 좌표는 카카오 로컬 API로 채움 (거리·중간 지점의 기준점)
 - [ ] ⭐ **지도 API 연동** — 주변 맛집을 지도에 표시
 - [ ] ⭐ **맛집 상세** — 주소 / 영업시간 / 전화번호 / 메뉴 / 가격
 - [ ] **길찾기** — 외부 지도 앱(카카오맵·네이버지도)으로 연결
@@ -161,6 +162,7 @@ SafeFood/
 │   │   │   │   ├── GroupRecommendService  # 그룹 추천 (병합 조건 → 후보 3개)
 │   │   │   │   ├── GroupMergeService      # 그룹 조건 병합
 │   │   │   │   ├── AllergyService         # 알레르기 매칭 / 위험도 판정
+│   │   │   │   ├── MapService             # 카카오 로컬 API — 주소 → 좌표
 │   │   │   │   └── ...                    # Profile · Favorite · History · Feedback ...
 │   │   │   ├── network/                   # 소켓 통신 (방장이 서버)
 │   │   │   │   ├── GroupServer            # 방장 앱이 여는 서버 (ServerSocket, 접속 수락)
@@ -186,7 +188,7 @@ SafeFood/
 │   │   │       └── core/                  # 화면 없이 도는 처리부 (두 화면이 공유)
 │   │   └── resources/                     # 빌드 시 target/classes로 복사되는 리소스
 │   │       └── com/safefood/
-│   │           ├── view/                  # 화면 FXML 13개 + app.css
+│   │           ├── view/                  # 화면 FXML 15개 + app.css + postcode.html(주소 검색)
 │   │           │   └── theme/             # 앱 스타일 css — app.css 뒤에 얹혀 색 토큰만 덮어씀
 │   │           └── setup/                 # setup-wizard.css
 │   └── test/
@@ -239,7 +241,7 @@ SafeFood/
 - JDK 21 이상
 - Maven 3.6 이상 — **IntelliJ에 내장돼 있어 따로 설치하지 않아도 됩니다**
 - **(선택)** MySQL 8.0 이상 — DB를 쓸 때만
-- 지도 API 키 (Kakao Developers 등에서 발급)
+- 지도 API 키 (Kakao Developers에서 발급하는 **REST API 키**) — 없어도 앱은 돌아갑니다. 주소 검색은 키 없이 되고, 주소 → 좌표 변환만 막힙니다
 - 비어 있는 TCP 포트 1개 (소켓 서버용, 기본 `5000`) + UDP 포트 `5001` (방 자동 탐색용, 선택)
 
 > MySQL 없이 시작해도 됩니다. 이때 앱 데이터는 `data/public/`, `data/private/`에 저장합니다.
@@ -316,7 +318,10 @@ db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterE
 db.user=본인_계정
 db.password=본인_비밀번호
 
-map.api.key=발급받은_지도_API_키
+# 카카오 REST API 키 (Kakao Developers › 내 애플리케이션 › 앱 키 › REST API 키)
+# 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다. 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
+# (주소 검색 자체는 카카오 우편번호 서비스라 키가 필요 없습니다)
+map.api.key=발급받은_카카오_REST_API_키
 
 # 소켓 서버 주소 (클라이언트가 접속할 곳)
 socket.host=localhost
@@ -400,9 +405,9 @@ DB 정상  ────────────────────→ 로�
 
 ## 🗄️ 데이터베이스 스키마
 
-테이블 22개 · 외래 키 31개. **데이터베이스 설계서 v2.0**이 기준입니다.
-(음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼은
-v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
+테이블 23개 · 외래 키 32개. **데이터베이스 설계서 v2.0**이 기준입니다.
+(음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼,
+`user_location` 테이블은 v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 
 > ⚠️ **같은 스키마가 세 곳에 있습니다. 고칠 때는 셋을 함께 고쳐 주세요.**
 > 하나만 고치면 다음 사람이 틀린 쪽을 믿게 됩니다.
@@ -437,6 +442,20 @@ CREATE TABLE user_preference (
     price_min   INT,
     price_max   INT,
     max_distance INT,                           -- 최대 거리(m). 0은 제한 없음
+    PRIMARY KEY (user_id),
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+
+-- 등록해 둔 내 위치 (회원당 1행)
+-- 거리 조건(user_preference.max_distance)과 그룹 중간 지점이 여기를 기준점으로 씁니다
+CREATE TABLE user_location (
+    user_id    INT NOT NULL,
+    label      VARCHAR(30),                     -- 집 / 회사처럼 알아볼 이름
+    zonecode   VARCHAR(10),                     -- 우편번호 (카카오 우편번호 서비스)
+    address    VARCHAR(255),                    -- 도로명 주소 + 상세 주소
+    latitude   DECIMAL(10, 7),                  -- 거리 계산에 쓰이는 값. 좌표를 못 찾으면 NULL
+    longitude  DECIMAL(10, 7),
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id),
     FOREIGN KEY (user_id) REFERENCES user(id)
 );
@@ -963,12 +982,13 @@ CREATE TABLE feedback (
 - [x] 애플리케이션 형태 결정 — **JavaFX 데스크톱 앱**
 - [x] 기능 우선순위 확정 (기능 48개를 1·2·3차로 구분)
 - [x] 설계 문서 작성 (기능 · DB · UI 설계서 v2.0)
-- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개)
+- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 23개 · 32개)
 - [x] `dto` · `dao` 패키지 다시 만들기
 - [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
 - [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅
 - [x] 그룹 추천 후보 3개 — DB 연동, 알레르기 판정, 후보 부족 처리
 - [x] 단일 실행 JAR 빌드 + 시작할 때 DB 확인 → 마법사/앱 자동 분기
+- [x] 내 위치 등록 — 카카오 우편번호 서비스로 주소 검색 + 로컬 API로 좌표 (`user_location`)
 - [x] 역할 분담
 - [ ] 지도 API 선택(Kakao / Naver) 및 키 발급
 - [ ] 메뉴 데이터 확충 — 현재 29개라 알레르기가 겹치면 후보가 금방 고갈됨

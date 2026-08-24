@@ -182,6 +182,7 @@ data/
 └── private/                       # 커밋 금지
     ├── users.txt                  # [개인] 회원·게스트
     ├── preferences.txt            # [개인] 취향·예산·거리
+    ├── locations.txt              # [개인] 등록해 둔 내 위치 (거리 기준점)
     ├── user_allergies.txt         # [개인] 보유 알레르기 + 심각도
     ├── categories.txt             # [개인] 선호 음식 종류
     ├── favorites.txt              # [개인] 즐겨찾기
@@ -223,6 +224,7 @@ data/
 | `public/menu_allergy.txt` | `menu_allergy` | `menu_id\|allergy_id\|risk_level\|ingredient` |
 | `private/users.txt` | `user` | `id\|login_id\|password\|nickname\|created_at` |
 | `private/preferences.txt` | `user_preference` | `user_id\|spicy_level\|price_min\|price_max\|max_distance` |
+| `private/locations.txt` | `user_location` | `user_id\|label\|zonecode\|address\|latitude\|longitude\|updated_at` |
 | `private/user_allergies.txt` | `user_allergy` | `user_id\|allergy_id\|severity` |
 | `private/categories.txt` | `user_category` | `user_id\|category` |
 | `private/favorites.txt` | `favorite` | `id\|user_id\|restaurant_id\|menu_id\|created_at` |

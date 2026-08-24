@@ -57,8 +57,7 @@
                         <Label text="내 프로필" styleClass="page-title"/>
                         <Label fx:id="autoSaveTag" text="변경사항 자동 저장" styleClass="tag, accent2"/>
                         <Region HBox.hgrow="ALWAYS"/>
-                        <Button text="닉네임·비밀번호 변경" styleClass="ghost"
-                                onAction="#handleEditInfo"/>
+                        <Button text="닉네임·비밀번호 변경" styleClass="ghost" onAction="#handleEditInfo"/>
                     </HBox>
 
                     <HBox spacing="20" alignment="TOP_LEFT">
@@ -121,6 +120,26 @@
                                 <Label text="최대 거리" styleClass="field-label"/>
                                 <HBox fx:id="distanceSeg" alignment="CENTER_LEFT"/>
                             </HBox>
+
+                            <Region styleClass="rule"/>
+
+                            <!--
+                              거리 조건은 '어디서부터' 재는지가 정해져야 쓸 수 있습니다.
+                              그 기준점이 여기서 등록하는 위치입니다 (입력 창은 location.fxml).
+                            -->
+                            <VBox spacing="6">
+                                <Label text="내 위치 (거리 기준점)" styleClass="field-label"/>
+                                <HBox spacing="8" alignment="CENTER_LEFT">
+                                    <!-- 주소가 길어도 버튼을 밀어내지 않도록, 남는 폭은 라벨이 갖고 줄바꿈합니다 -->
+                                    <Label fx:id="locationLabel" text="아직 등록한 위치가 없어요"
+                                           styleClass="sub" wrapText="true" maxWidth="Infinity"
+                                           HBox.hgrow="ALWAYS"/>
+                                    <Button fx:id="locationButton" text="위치 등록" styleClass="outline"
+                                            onAction="#handleRegisterLocation"/>
+                                </HBox>
+                                <Label text="추천의 최대 거리와 '같이 먹기'의 중간 지점이 이 곳을 기준으로 계산됩니다."
+                                       styleClass="micro" wrapText="true"/>
+                            </VBox>
                         </VBox>
                     </HBox>
 

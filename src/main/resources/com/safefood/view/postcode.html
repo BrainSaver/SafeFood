@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!--
+  카카오(다음) 우편번호 서비스를 WebView 안에 심는 껍데기입니다.
+
+  이 위젯은 JavaScript로만 제공돼서 REST로 부를 수 없습니다. 그래서 화면 하나를 통째로
+  WebView에 띄우고, 사용자가 고른 주소만 자바로 넘겨받습니다 (PostcodeController).
+
+  ⚠️ 자바 쪽에서 window.bridge 를 심어 준 뒤에 start() 를 부릅니다.
+     여기서 window.onload 로 시작하지 않는 이유: bridge 주입이 문서 로딩보다 늦을 수 있어
+     타이밍에 따라 bridge is not defined 로 죽습니다.
+-->
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>주소 검색</title>
+    <style>
+        /*
+          html 만 뷰포트 높이로 못박고 body 는 min-height 로 둡니다.
+
+          body 까지 height:100% 로 묶으면 내용이 아무리 길어도 페이지가 늘어나지 않습니다.
+          검색 결과가 여러 건이면 위젯은 2000px가 넘게 자라는데, 그때 스크롤조차 되지 않고
+          창 아래로 넘어간 부분이 통째로 잘립니다.
+        */
+        html {
+            height: 100%;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
+            overflow-x: hidden;
+            background: #ffffff;
+        }
+        #wrap {
+            width: 100%;
+            min-height: 100%;
+        }
+    </style>
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+</head>
+<body>
+<div id="wrap"></div>
+<script>
+    // 스크립트가 실제로 내려왔는지 — 자바가 start() 전에 이 값을 확인합니다
+    function isReady() {
+        return typeof daum !== 'undefined' && !!daum.Postcode;
+    }
+
+    function start() {
+        if (!isReady()) {
+            return false;
+        }
+        var wrap = document.getElementById('wrap');
+        new daum.Postcode({
+            oncomplete: function (data) {
+                bridge.onComplete(
+                    data.zonecode || '',
+                    data.roadAddress || '',
+                    data.jibunAddress || '',
+                    data.buildingName || '');
+            },
+            onclose: function (state) {
+                bridge.onClose(state || '');
+            },
+            onresize: function (size) {
+                // 위젯이 "이만큼 필요하다"고 알려 오는 자리입니다
+                // (안내 화면 466px, 결과가 한두 건이면 270px 안팎, 여러 건이면 2000px도 넘습니다)
+                //
+                // 컨테이너를 그 높이로 늘려 두고 같은 값을 자바에도 넘깁니다. 자바는 WebView와
+                // 창을 그만큼(화면을 넘지 않는 선에서) 키우고, 창이 더 못 커지는 만큼은
+                // 페이지가 스크롤됩니다 — 검색창은 맨 위에 그대로 남습니다.
+                var height = Math.ceil(size.height);
+                wrap.style.height = height + 'px';
+                try {
+                    bridge.onResize(height);
+                } catch (ignored) {
+                    // bridge 가 아직 없거나 넘기지 못해도 화면은 그대로 돌아갑니다
+                }
+            },
+            width: '100%',
+            height: '100%'
+        }).embed(wrap, {autoClose: false});
+        return true;
+    }
+</script>
+</body>
+</html>

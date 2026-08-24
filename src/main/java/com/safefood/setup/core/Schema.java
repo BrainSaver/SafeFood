@@ -53,6 +53,20 @@ public final class Schema {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
+            new Table("user_location", """
+                    CREATE TABLE IF NOT EXISTS user_location (
+                        user_id    INT NOT NULL,
+                        label      VARCHAR(30),
+                        zonecode   VARCHAR(10),
+                        address    VARCHAR(255),
+                        latitude   DECIMAL(10, 7),
+                        longitude  DECIMAL(10, 7),
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (user_id),
+                        FOREIGN KEY (user_id) REFERENCES `user`(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
             new Table("user_category", """
                     CREATE TABLE IF NOT EXISTS user_category (
                         user_id  INT NOT NULL,
@@ -286,6 +300,21 @@ public final class Schema {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """)
     );
+
+    /**
+     * 이름으로 DDL 한 장을 꺼냅니다. 설정 마법사를 다시 돌리지 않은 데이터베이스에서
+     * <b>나중에 추가된 테이블</b>만 실행 중에 만들어 줄 때 씁니다 (LocationDao 참고).
+     *
+     * @throws IllegalArgumentException 그런 이름의 테이블이 없을 때
+     */
+    public static String ddlOf(String name) {
+        for (Table table : TABLES) {
+            if (table.name().equals(name)) {
+                return table.ddl();
+            }
+        }
+        throw new IllegalArgumentException(name + " 테이블은 스키마에 없습니다.");
+    }
 
     /**
      * 알레르기 마스터 데이터.

@@ -1,8 +1,10 @@
 package com.safefood.view.controller;
 
+import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
 import com.safefood.dto.UserDto;
+import com.safefood.service.LocationService;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
 import com.safefood.view.DemoData;
@@ -56,6 +58,8 @@ public class ProfileController {
     @FXML private Label userLabel;
     @FXML private Label autoSaveTag;
     @FXML private Label allergyHint;
+    @FXML private Label locationLabel;
+    @FXML private Button locationButton;
 
     private final List<ToggleButton> categoryChips = new ArrayList<>();
     private final ToggleGroup distanceGroup = new ToggleGroup();
@@ -89,6 +93,7 @@ public class ProfileController {
             renderSpicyLabel();
             renderOwned();
             renderCatalog();
+            renderLocation();
             wireAutoSave();
             loading = false;
             return;
@@ -118,6 +123,7 @@ public class ProfileController {
         renderSpicyLabel();
         renderOwned();
         renderCatalog();
+        renderLocation();
         wireAutoSave();
         loading = false;
     }
@@ -367,6 +373,43 @@ public class ProfileController {
 
     private void renderSpicyLabel() {
         spicyLabel.setText("선호 맵기 — " + (int) spicySlider.getValue() + "단계");
+    }
+
+    // ── 내 위치 ─────────────────────────────────────────────────
+
+    /*
+     * 거리 조건('최대 거리')은 기준점이 있어야 쓸모가 있습니다. 그 기준점을 등록하는 자리가
+     * 이 카드이고, 실제 입력은 창(location.fxml)에서 받습니다 — 이름·주소에 좌표까지 받아야
+     * 해서 프로필 카드 한 줄에 넣기에는 칸이 모자랍니다.
+     */
+
+    /** 등록해 둔 위치를 한 줄로. 세션에 사본이 없으면 DB에서 한 번 읽어 옵니다. */
+    private void renderLocation() {
+        LocationDto mine = Session.getMyLocation();
+        UserDto me = Session.getCurrentUser();
+        if (mine == null && me != null) {
+            mine = new LocationService().getMyLocation(me.getId());
+            Session.setMyLocation(mine);
+        }
+        boolean registered = mine != null;
+        // 좌표가 없으면 거리 계산에서 빠지므로, 등록돼 있어도 그 사실을 같이 알려 줍니다
+        locationLabel.setText(registered
+                ? mine.describe() + (mine.hasCoordinates() ? "" : " · 좌표 없음")
+                : "아직 등록한 위치가 없어요");
+        locationButton.setText(registered ? "위치 변경" : "위치 등록");
+    }
+
+    /**
+     * 위치 등록 창을 엽니다.
+     *
+     * <p>창이 닫히기를 기다렸다가 라벨을 다시 그리지 <b>않습니다</b> — {@code AppNav.dialog}는
+     * 실제로 여는 일을 한 박자 미루므로, 이 메서드가 끝난 뒤에야 창이 열립니다. 대신 저장된
+     * 순간 알려 달라고 걸어 둡니다.
+     */
+    @FXML
+    private void handleRegisterLocation() {
+        AppNav.dialog("위치 등록", "location.fxml",
+                (LocationController controller) -> controller.setOnSaved(this::renderLocation));
     }
 
     // ── 앱 스타일 ───────────────────────────────────────────────
