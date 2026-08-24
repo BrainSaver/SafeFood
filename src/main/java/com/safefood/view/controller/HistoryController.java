@@ -112,13 +112,24 @@ public class HistoryController {
         }
     }
 
+    private final com.safefood.dao.HistoryDao historyDao = new com.safefood.dao.HistoryDao();
+    private final com.safefood.dao.FavoriteDao favoriteDao = new com.safefood.dao.FavoriteDao();
+    private final com.safefood.dao.MenuDao menuDao = new com.safefood.dao.MenuDao();
+
     private void renderHistory() {
         String wanted = selectedType();
         String lastDate = null;
         int shown = 0;
 
-        for (DemoData.HistoryRow row : DemoData.HISTORY) {
-            if (wanted != null && !wanted.equals(row.type())) {
+        List<DemoData.HistoryRow> historyRows = List.of();
+        if (com.safefood.dto.Session.getCurrentUser() != null) {
+            historyRows = historyDao.getUserHistoryRows(com.safefood.dto.Session.getCurrentUser().getId(), wanted);
+        } else {
+            historyRows = DemoData.HISTORY;
+        }
+
+        for (DemoData.HistoryRow row : historyRows) {
+            if (wanted != null && !wanted.equalsIgnoreCase(row.type())) {
                 continue;
             }
             // 날짜가 바뀌는 지점에서만 머리글을 답니다 — 같은 날은 한 번만
@@ -139,7 +150,7 @@ public class HistoryController {
 
     private HBox historyRow(DemoData.HistoryRow row) {
         Label menu = new Label(row.menu());
-        menu.getStyleClass().add("BLOCKED".equals(row.type()) ? "strike" : "section-title");
+        menu.getStyleClass().add("BLOCKED".equalsIgnoreCase(row.type()) ? "strike" : "section-title");
 
         HBox line = new HBox(12,
                 Widgets.statusLabel(row.type()),
@@ -151,7 +162,7 @@ public class HistoryController {
         line.getStyleClass().addAll("card", "soft");
         line.setPadding(new javafx.geometry.Insets(13, 18, 13, 18));
 
-        if ("EATEN".equals(row.type())) {
+        if ("EATEN".equalsIgnoreCase(row.type())) {
             Button rate = new Button("평가하기");
             rate.getStyleClass().add("ghost-quiet");
             rate.setOnAction(event ->
@@ -162,11 +173,18 @@ public class HistoryController {
     }
 
     private void renderFavorites() {
-        if (DemoData.FAVORITES.isEmpty()) {
-            timelineBox.getChildren().add(Widgets.sub("찜한 가게가 없습니다."));
+        List<DemoData.FavoriteRow> favList = List.of();
+        if (com.safefood.dto.Session.getCurrentUser() != null) {
+            favList = favoriteDao.getUserFavorites(com.safefood.dto.Session.getCurrentUser().getId());
+        } else {
+            favList = DemoData.FAVORITES;
+        }
+
+        if (favList.isEmpty()) {
+            timelineBox.getChildren().add(Widgets.sub("찜한 가게나 메뉴가 없습니다."));
             return;
         }
-        for (DemoData.FavoriteRow row : DemoData.FAVORITES) {
+        for (DemoData.FavoriteRow row : favList) {
             timelineBox.getChildren().add(favoriteRow(row));
         }
     }
@@ -186,7 +204,24 @@ public class HistoryController {
         line.getStyleClass().addAll("card", "soft");
         line.setPadding(new javafx.geometry.Insets(13, 18, 13, 18));
 
-        remove.setOnAction(event -> timelineBox.getChildren().remove(line));
+        remove.setOnAction(event -> {
+            if (com.safefood.dto.Session.getCurrentUser() != null) {
+                int menuId = 0;
+                for (com.safefood.dao.MenuDao.MenuDto m : menuDao.getAllCandidateMenus()) {
+                    if (m.getName().equals(row.menu())) {
+                        menuId = m.getId();
+                        break;
+                    }
+                }
+                if (menuId > 0) {
+                    favoriteDao.removeFavorite(com.safefood.dto.Session.getCurrentUser().getId(), menuId);
+                }
+            }
+            timelineBox.getChildren().remove(line);
+            if (timelineBox.getChildren().isEmpty()) {
+                timelineBox.getChildren().add(Widgets.sub("찜한 가게나 메뉴가 없습니다."));
+            }
+        });
         return line;
     }
 

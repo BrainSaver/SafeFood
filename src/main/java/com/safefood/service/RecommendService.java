@@ -1,138 +1,573 @@
 package com.safefood.service;
 
 import com.safefood.dao.AllergyDao;
+import com.safefood.dao.HistoryDao;
 import com.safefood.dao.MenuDao;
 import com.safefood.dao.MenuDao.MenuDto;
+import com.safefood.dao.ProfileDao;
+import com.safefood.dto.PreferenceDto;
+import com.safefood.service.GroupMergeService.MergedGroupCondition;
+import com.safefood.view.DemoData;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * [ SafeFood - 개인 맞춤 추천 엔진 서비스 ]
+ * [ SafeFood - 개인 맞춤 및 그룹 추천 엔진 서비스 ]
  * 담당자: 조영준
- * 관련 기능 ID: R-01(개인 추천 알고리즘), R-02(심각도 비례 감점/가산점 적용), R-03(추천 사유 문구 생성)
+ * 
+ * 구현 기능:
+ * - R-01 (개인 추천 점수 계산 및 랭킹 정렬)
+ * - R-02 (가격/카테고리/맵기 제약 필터링)
+ * - R-03 (선호도·알레르기·기분 기반 추천 사유 문구 생성)
+ * - R-04 (재추천 / 다른 추천 보기 시 직전 결과 제외)
+ * - R-05 (기분·컨디션 태그 기반 가중치 +15점 부여)
+ * - R-06 (히스토리 EATEN 기록 기반 전날/최근 메뉴 제외)
+ * - R-07 (알레르기 차단 메뉴 감지 및 안전 대체 메뉴 추천)
+ * - R-08 (상위 3~5개 추천 후보 무작위 룰렛 추첨)
  */
 public class RecommendService {
 
     private final AllergyService allergyService;
     private final AllergyDao allergyDao;
     private final MenuDao menuDao;
+    private final HistoryDao historyDao;
+    private final ProfileDao profileDao;
 
     public RecommendService() {
         this.allergyService = new AllergyService();
         this.allergyDao = new AllergyDao();
         this.menuDao = new MenuDao();
+        this.historyDao = new HistoryDao();
+        this.profileDao = new ProfileDao();
     }
 
     /**
-     * [추천 결과 DTO] UI 카드(SC-04) 출력을 위한 데이터 객체
+     * [추천 결과 DTO] UI 카드(SC-04) 및 비즈니스 연동용 데이터 객체
      */
     public static class RecommendResult {
+        private final int menuId;
+        private final int restaurantId;
         private final String menuName;
+        private final String restaurantName;
         private final String category;
+        private final int price;
+        private final int spicyLevel;
         private final int finalScore;
+        private final boolean hasPenalty;
         private final String reason;
+        private final String address;
+        private final String hours;
+        private final double rating;
+        private final int reviewCount;
+        private final boolean blocked;
+        private final String alternative;
 
-        public RecommendResult(String menuName, String category, int finalScore, String reason) {
+        public RecommendResult(int menuId, int restaurantId, String menuName, String restaurantName,
+                               String category, int price, int spicyLevel, int finalScore,
+                               boolean hasPenalty, String reason, String address, String hours,
+                               double rating, int reviewCount, boolean blocked, String alternative) {
+            this.menuId = menuId;
+            this.restaurantId = restaurantId;
             this.menuName = menuName;
+            this.restaurantName = restaurantName;
             this.category = category;
+            this.price = price;
+            this.spicyLevel = spicyLevel;
             this.finalScore = finalScore;
+            this.hasPenalty = hasPenalty;
             this.reason = reason;
+            this.address = address;
+            this.hours = hours;
+            this.rating = rating;
+            this.reviewCount = reviewCount;
+            this.blocked = blocked;
+            this.alternative = alternative;
         }
 
+        public int getMenuId() { return menuId; }
+        public int getRestaurantId() { return restaurantId; }
         public String getMenuName() { return menuName; }
+        public String getRestaurantName() { return restaurantName; }
         public String getCategory() { return category; }
+        public int getPrice() { return price; }
+        public int getSpicyLevel() { return spicyLevel; }
         public int getFinalScore() { return finalScore; }
+        public boolean isHasPenalty() { return hasPenalty; }
         public String getReason() { return reason; }
+        public String getAddress() { return address; }
+        public String getHours() { return hours; }
+        public double getRating() { return rating; }
+        public int getReviewCount() { return reviewCount; }
+        public boolean isBlocked() { return blocked; }
+        public String getAlternative() { return alternative; }
+
+        /**
+         * UI DemoData.Recommendation 레코드로 변환
+         */
+        public DemoData.Recommendation toRecommendation(int rank) {
+            DemoData.Safety safety = blocked ? DemoData.Safety.CONTAINS
+                    : (hasPenalty ? DemoData.Safety.POSSIBLE : DemoData.Safety.SAFE);
+            return new DemoData.Recommendation(
+                    rank,
+                    finalScore,
+                    menuName,
+                    (restaurantName != null && !restaurantName.isEmpty()) ? restaurantName : "안심 식당",
+                    safety,
+                    spicyLevel,
+                    reason,
+                    (address != null && !address.isEmpty()) ? address : "서울시 강남구 테헤란로",
+                    (hours != null && !hours.isEmpty()) ? hours : "11:00 ~ 21:00",
+                    rating > 0 ? rating : 4.5,
+                    "450m",
+                    blocked,
+                    alternative
+            );
+        }
 
         @Override
         public String toString() {
-            return String.format("[%s (%s)] 점수: %d점 | 사유: %s", menuName, category, finalScore, reason);
+            return String.format("[%s (%s - %s)] 점수: %d점 | 사유: %s | 가격: %,d원",
+                    menuName, category, restaurantName, finalScore, reason, price);
         }
     }
 
     // =========================================================================
-    // 1. 점수 연산 로직 (기본점수 100점 + 선호 카테고리 가산점 - 알레르기 감점)
     // =========================================================================
-    public int calculateMenuScore(int baseScore, boolean isPreferredCategory,
-                                  Map<Integer, Integer> userSeverityMap,
-                                  List<Integer> menuPossibleAllergyIds) {
-
+    // [R-01 & R-05] 점수 연산 로직 (기본 100점 + 선호 카테고리 +20점 + 기분 태그 +15점)
+    // =========================================================================
+    /**
+     * [R-01 & R-05] 메뉴별 추천 점수 계산
+     * - 기본점수 100점 시작
+     * - 선호 카테고리 일치 시 +20점 가산 (R-01)
+     * - 선택한 기분 태그 일치 시 +15점 가산 (R-05)
+     * - 알레르기(CONTAINS / POSSIBLE) 메뉴는 앞단에서 100% 완전 차단되므로 감점 없이 안심 점수 산출
+     */
+    public int calculateMenuScore(int baseScore, boolean isPreferredCategory, boolean isMatchedMood) {
         int score = baseScore;
 
-        // [가산점] 선호 카테고리 일치 시 +20점
+        // [R-01 가산점] 선호 카테고리 일치 시 +20점
         if (isPreferredCategory) {
             score += 20;
         }
 
-        // [감점] POSSIBLE 알레르기 심각도 비례 감점 차감
-        int penalty = allergyService.calculatePenalty(userSeverityMap, menuPossibleAllergyIds);
-        score -= penalty;
+        // [R-05 가산점] 선택한 기분 태그 매칭 시 +15점
+        if (isMatchedMood) {
+            score += 15;
+        }
 
-        // 음수 방지 (최소 0점 보장)
-        return Math.max(0, score);
+        return score;
+    }
+
+    /**
+     * [R-01] 메뉴별 추천 점수 계산 (기분 태그 미적용 기본형)
+     */
+    public int calculateMenuScore(int baseScore, boolean isPreferredCategory) {
+        return calculateMenuScore(baseScore, isPreferredCategory, false);
     }
 
     // =========================================================================
-    // 2. UI 카드 노출용 추천 사유 문구 세분화 (경고 제거 리팩토링)
+    // [R-03 & R-05] UI 카드 노출용 추천 사유 문구 세분화
     // =========================================================================
-    public String generateRecommendReason(String categoryName, boolean isPreferred, boolean hasPenalty) {
+    /**
+     * [R-03 & R-05] 추천 점수 산출 근거를 친절한 문장으로 생성
+     * - 선호 카테고리 일치 여부 (O / X)
+     * - 알레르기 교차오염 혼입 감점 여부 (O / X)
+     * - 기분·컨디션 태그 매칭 여부 (O / X)
+     */
+    public String generateRecommendReason(String categoryName, boolean isPreferred, boolean hasPenalty, String matchedMood) {
+        String moodPhrase = (matchedMood != null && !matchedMood.isBlank()) ? " '" + matchedMood + "' 태그와 어울리는" : "";
         if (isPreferred) {
             if (hasPenalty) {
-                return "선호하시는 [" + categoryName + "] 메뉴이지만, 제조 과정에서 알레르기 성분이 혼입되었을 수 있으니 주의하세요.";
+                return "선호하시는 [" + categoryName + "] 메뉴이며" + moodPhrase + " 훌륭한 선택이지만, 조리 과정에서 알레르기 성분이 혼입되었을 수 있으니 주의하세요.";
             } else {
-                return "회원님이 선호하시는 [" + categoryName + "] 메뉴이며, 알레르기 걱정 없이 안심하고 드실 수 있습니다!";
+                return "회원님이 선호하시는 [" + categoryName + "] 메뉴이며" + moodPhrase + ", 알레르기 걱정 없이 안심하고 드실 수 있습니다!";
             }
         } else {
             if (hasPenalty) {
-                return "알레르기 유발 성분의 교차 오염 가능성이 있으니 주의가 필요합니다.";
+                return moodPhrase.isEmpty()
+                        ? "알레르기 유발 성분의 교차 오염 가능성이 있으니 주의가 필요합니다."
+                        : moodPhrase.trim() + " 메뉴이지만, 알레르기 교차 오염 가능성이 있으니 주의가 필요합니다.";
             } else {
-                return "알레르기 유발 물질로부터 안전한 메뉴입니다.";
+                return moodPhrase.isEmpty()
+                        ? "알레르기 유발 물질로부터 안전한 메뉴입니다."
+                        : moodPhrase.trim() + " 알레르기 안심 메뉴입니다!";
             }
         }
     }
 
-    // =========================================================================
-    // 3. DB 연동 개인 맞춤 추천 실행 (정렬 로직 포함)
-    // =========================================================================
-    public List<RecommendResult> getPersonalizedRecommendations(int userId, List<String> preferredCategories) {
-        List<RecommendResult> results = new ArrayList<>();
+    /**
+     * [R-03] 4단계 맞춤 사유 문구 생성 (기분 태그 미적용 하위 호환)
+     */
+    public String generateRecommendReason(String categoryName, boolean isPreferred, boolean hasPenalty) {
+        return generateRecommendReason(categoryName, isPreferred, hasPenalty, null);
+    }
 
-        List<Integer> userAllergies = allergyDao.getUserAllergyIds(userId);
-        Map<Integer, Integer> userSeverityMap = allergyDao.getUserSeverityMap(userId);
+    // =========================================================================
+    // [R-05] 기분·컨디션 태그 매칭 판별 헬퍼
+    // =========================================================================
+    /**
+     * [R-05] 사용자가 선택한 기분 태그와 메뉴 간의 일치 여부 판별
+     * - 1차: DB menu_mood 테이블의 태그 매칭
+     * - 2차: 메뉴명 및 설명 텍스트 키워드 매칭
+     */
+    private String findMatchedMood(MenuDto menu, List<String> selectedMoods) {
+        if (selectedMoods == null || selectedMoods.isEmpty()) {
+            return null;
+        }
+        for (String mood : selectedMoods) {
+            if (mood == null || mood.isBlank()) continue;
+            // 1. menu_mood DB 직접 일치
+            if (menu.getMoods() != null && menu.getMoods().contains(mood)) {
+                return mood;
+            }
+            // 2. 키워드 기반 일치 ("스트레스 해소" -> "스트레스", "속풀이·해장" -> "해장")
+            String clean = mood.replace(" 해소", "").replace("속풀이·", "").replace(" 한끼", "").replace(" 식사", "").trim();
+            if (menu.getName().contains(clean) || menu.getDescription().contains(clean)) {
+                return mood;
+            }
+            if (menu.getMoods() != null) {
+                for (String m : menu.getMoods()) {
+                    if (m.contains(clean) || mood.contains(m)) {
+                        return mood;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    // =========================================================================
+    // [R-07] 알레르기 차단 메뉴 감지 및 대체 메뉴(Alternative) 추천
+    // =========================================================================
+    /**
+     * [R-07] CONTAINS 또는 POSSIBLE 알레르기로 차단된 메뉴에 대해 동일 식당/카테고리의 안전한 대안 메뉴 제안
+     */
+    private RecommendResult createBlockedRecommendationWithAlternative(MenuDto blockedMenu,
+                                                                        List<Integer> userAllergies,
+                                                                        List<MenuDto> allMenus) {
+        List<Integer> menuContains = allergyDao.getMenuAllergiesByRiskLevel(blockedMenu.getId(), "CONTAINS");
+        List<Integer> menuPossible = allergyDao.getMenuAllergiesByRiskLevel(blockedMenu.getId(), "POSSIBLE");
+
+        List<String> blockedAllergyNames = new ArrayList<>();
+        boolean isPossibleOnly = true;
+
+        for (Integer allergyId : userAllergies) {
+            if (allergyId > 0 && allergyId <= DemoData.ALLERGIES.size()) {
+                String allergyName = DemoData.ALLERGIES.get(allergyId - 1);
+                if (menuContains.contains(allergyId)) {
+                    blockedAllergyNames.add(allergyName);
+                    isPossibleOnly = false;
+                } else if (menuPossible.contains(allergyId)) {
+                    blockedAllergyNames.add(allergyName + "(혼입우려)");
+                }
+            }
+        }
+        String blockedReason;
+        if (blockedAllergyNames.isEmpty()) {
+            blockedReason = "알레르기 안전 기준에 부합하지 않아 추천에서 제외되었습니다.";
+        } else if (isPossibleOnly) {
+            blockedReason = "알레르기 유발물질(" + String.join(", ", blockedAllergyNames) + ")의 조리 과정 교차오염 및 혼입 가능성이 있어 추천에서 제외되었습니다.";
+        } else {
+            blockedReason = allergyService.createBlockedReason(blockedAllergyNames);
+        }
+
+        // 같은 식당 또는 동일 카테고리의 100% 안전한 대체 메뉴 탐색 (CONTAINS와 POSSIBLE 모두 안전한 메뉴)
+        String alternative = null;
+        for (MenuDto other : allMenus) {
+            if (other.getId() == blockedMenu.getId()) continue;
+            List<Integer> otherContains = allergyDao.getMenuAllergiesByRiskLevel(other.getId(), "CONTAINS");
+            List<Integer> otherPossible = allergyDao.getMenuAllergiesByRiskLevel(other.getId(), "POSSIBLE");
+            if (allergyService.isSafe(userAllergies, otherContains) && allergyService.isSafe(userAllergies, otherPossible)) {
+                if (other.getRestaurantId() == blockedMenu.getRestaurantId()) {
+                    alternative = "같은 식당의 안심 메뉴인 '" + other.getName() + "'(을)를 대신 드실 수 있습니다.";
+                    break;
+                } else if (other.getCategory().equals(blockedMenu.getCategory()) && alternative == null) {
+                    alternative = "동일 카테고리의 알레르기 안심 메뉴 '" + other.getName() + "'(을)를 추천합니다.";
+                }
+            }
+        }
+        if (alternative == null) {
+            alternative = "조리 시 해당 알레르기 유발 성분 제외를 요청하시거나 다른 안전 메뉴를 선택해 주세요.";
+        }
+
+        return new RecommendResult(
+                blockedMenu.getId(),
+                blockedMenu.getRestaurantId(),
+                blockedMenu.getName(),
+                blockedMenu.getRestaurantName(),
+                blockedMenu.getCategory(),
+                blockedMenu.getPrice(),
+                blockedMenu.getSpicyLevel(),
+                0,
+                false,
+                blockedReason,
+                blockedMenu.getRestaurantAddress(),
+                blockedMenu.getHours(),
+                blockedMenu.getRating(),
+                blockedMenu.getReviewCount(),
+                true,
+                alternative
+        );
+    }
+
+    // =========================================================================
+    // [R-01 ~ R-07] 고도화된 개인 맞춤 추천 메인 엔진
+    // =========================================================================
+    /**
+     * [R-01 ~ R-07 통합 실행]
+     * @param userId 회원 PK
+     * @param preferredCategories 선호 카테고리 (+20점 가산)
+     * @param selectedCategory 상단 카테고리 선택 필터 (R-02)
+     * @param selectedMoods 선택한 기분 태그 목록 (+15점 가산, R-05)
+     * @param maxSpicyLevel 맵기 상한선 필터 (R-02)
+     * @param maxBudget 예산 상한선 필터 (R-02)
+     * @param excludeEaten 히스토리 먹은 메뉴(EATEN) 제외 여부 (R-06)
+     * @param excludeMenuIds 재추천(Reroll) 시 직전 노출 메뉴 ID 제외 (R-04)
+     * @param includeBlockedCard 알레르기 차단 및 대체 메뉴 카드 포함 여부 (R-07)
+     */
+    public List<RecommendResult> getPersonalizedRecommendations(int userId,
+                                                               List<String> preferredCategories,
+                                                               String selectedCategory,
+                                                               List<String> selectedMoods,
+                                                               int maxSpicyLevel,
+                                                               int maxBudget,
+                                                               boolean excludeEaten,
+                                                               Set<Integer> excludeMenuIds,
+                                                               boolean includeBlockedCard) {
+        List<RecommendResult> results = new ArrayList<>();
+        List<MenuDto> blockedMenus = new ArrayList<>();
+
+        List<Integer> userAllergies = (userId > 0) ? allergyDao.getUserAllergyIds(userId) : List.of();
+        List<Integer> eatenMenuIds = (excludeEaten && userId > 0) ? historyDao.getEatenMenuIds(userId) : List.of();
+
         List<MenuDto> candidateMenus = menuDao.getAllCandidateMenus();
 
         for (MenuDto menu : candidateMenus) {
-            List<Integer> containsAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "CONTAINS");
-            List<Integer> possibleAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "POSSIBLE");
-
-            // [1차 필터링] CONTAINS 알레르기 포함 시 즉시 제외
-            if (!allergyService.isSafe(userAllergies, containsAllergies)) {
+            // [R-04] 재추천 직전 노출 제외
+            if (excludeMenuIds != null && excludeMenuIds.contains(menu.getId())) {
                 continue;
             }
 
-            // [2차 선호 카테고리 매칭]
-            boolean isPreferred = (preferredCategories != null && preferredCategories.contains(menu.getCategory()));
+            // [R-06] 전날/최근 먹은 메뉴(EATEN) 제외
+            if (excludeEaten && eatenMenuIds.contains(menu.getId())) {
+                continue;
+            }
 
-            // [3차 점수 연산]
+            // [R-02] 카테고리 필터링
+            if (selectedCategory != null && !selectedCategory.isBlank() && !"전체".equals(selectedCategory)) {
+                if (!selectedCategory.equals(menu.getCategory())) {
+                    continue;
+                }
+            }
+
+            // [R-02] 맵기 상한선 필터링
+            if (maxSpicyLevel > 0 && menu.getSpicyLevel() > maxSpicyLevel) {
+                continue;
+            }
+
+            // [R-02] 예산 상한선 필터링
+            if (maxBudget > 0 && menu.getPrice() > maxBudget) {
+                continue;
+            }
+
+            List<Integer> containsAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "CONTAINS");
+            List<Integer> possibleAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "POSSIBLE");
+
+            // [R-01 & R-07] CONTAINS(원재료 포함) 또는 POSSIBLE(혼입 가능성) 알레르기 성분 겹침 시 100% 완전 차단 (안전 제일주의)
+            boolean isContainsUnsafe = !allergyService.isSafe(userAllergies, containsAllergies);
+            boolean isPossibleUnsafe = !allergyService.isSafe(userAllergies, possibleAllergies);
+
+            if (isContainsUnsafe || isPossibleUnsafe) {
+                blockedMenus.add(menu);
+                continue;
+            }
+
+            // [R-01] 선호 카테고리 매칭
+            String category = (menu.getCategory() != null) ? menu.getCategory() : "";
+            boolean isPreferred = (preferredCategories != null && !category.isEmpty() && preferredCategories.contains(category));
+
+            // [R-05] 기분 태그 매칭
+            String matchedMood = findMatchedMood(menu, selectedMoods);
+            boolean isMoodMatched = (matchedMood != null);
+
+            // [R-01 & R-05] 추천 점수 연산 (100점 기본 + 선호 +20점 + 기분 +15점)
+            // 통과된 메뉴는 100% 알레르기 프리(SAFE) 보장
             int baseScore = 100;
-            int finalScore = calculateMenuScore(baseScore, isPreferred, userSeverityMap, possibleAllergies);
+            int finalScore = baseScore + (isPreferred ? 20 : 0) + (isMoodMatched ? 15 : 0);
 
-            // 감점 여부 확인
-            int penaltyOnly = allergyService.calculatePenalty(userSeverityMap, possibleAllergies);
-            boolean hasPenalty = (penaltyOnly > 0);
+            // [R-03 & R-05] 사유 문구 생성
+            String reason = generateRecommendReason(category.isEmpty() ? "추천" : category, isPreferred, false, matchedMood);
 
-            // [4차 사유 생성]
-            String reason = generateRecommendReason(menu.getCategory(), isPreferred, hasPenalty);
-
-            results.add(new RecommendResult(menu.getName(), menu.getCategory(), finalScore, reason));
+            results.add(new RecommendResult(
+                    menu.getId(),
+                    menu.getRestaurantId(),
+                    menu.getName(),
+                    menu.getRestaurantName(),
+                    menu.getCategory(),
+                    menu.getPrice(),
+                    menu.getSpicyLevel(),
+                    finalScore,
+                    false,
+                    reason,
+                    menu.getRestaurantAddress(),
+                    menu.getHours(),
+                    menu.getRating(),
+                    menu.getReviewCount(),
+                    false,
+                    null
+            ));
         }
 
-        // 점수 내림차순 정렬
-        results.sort(Comparator.comparingInt(RecommendResult::getFinalScore).reversed());
+        // [R-01] 점수 내림차순 정렬 (동점 시 별점 높은 순)
+        results.sort(Comparator.comparingInt(RecommendResult::getFinalScore).reversed()
+                .thenComparing(Comparator.comparingDouble(RecommendResult::getRating).reversed()));
 
+        // [R-07] 대체 메뉴 제안 카드 추가 (최대 1건)
+        if (includeBlockedCard && !blockedMenus.isEmpty()) {
+            MenuDto representativeBlocked = blockedMenus.get(0);
+            for (MenuDto b : blockedMenus) {
+                if (preferredCategories != null && preferredCategories.contains(b.getCategory())) {
+                    representativeBlocked = b;
+                    break;
+                }
+            }
+            RecommendResult blockedCard = createBlockedRecommendationWithAlternative(representativeBlocked, userAllergies, candidateMenus);
+            results.add(blockedCard);
+        }
+
+        return results;
+    }
+
+    /**
+     * [R-01 & R-02 & R-06] 기본 맞춤 추천 편의 오버로딩
+     */
+    public List<RecommendResult> getPersonalizedRecommendations(int userId,
+                                                               List<String> preferredCategories,
+                                                               String selectedCategory,
+                                                               int maxSpicyLevel,
+                                                               int maxBudget,
+                                                               boolean excludeEaten) {
+        return getPersonalizedRecommendations(userId, preferredCategories, selectedCategory, null, maxSpicyLevel, maxBudget, excludeEaten, null, true);
+    }
+
+    /**
+     * [R-01] 최소 파라미터 맞춤 추천 편의 오버로딩
+     */
+    public List<RecommendResult> getPersonalizedRecommendations(int userId, List<String> preferredCategories) {
+        return getPersonalizedRecommendations(userId, preferredCategories, null, null, 5, 0, false, null, true);
+    }
+
+    /**
+     * [R-01 ~ R-06] 세션 사용자 맞춤 추천 통합 메서드 (MainController 호출용)
+     */
+    public List<RecommendResult> getRecommendationsForUser(int userId, String selectedCategory, List<String> selectedMoods,
+                                                          boolean excludeEaten, Set<Integer> excludeMenuIds) {
+        PreferenceDto pref = profileDao.getPreference(userId);
+        List<String> categories = profileDao.getCategories(userId);
+
+        int maxSpicy = (pref != null && pref.getSpicyLevel() > 0) ? pref.getSpicyLevel() : 5;
+        int maxBudget = (pref != null && pref.getPriceMax() > 0) ? pref.getPriceMax() : 0;
+
+        return getPersonalizedRecommendations(userId, categories, selectedCategory, selectedMoods, maxSpicy, maxBudget, excludeEaten, excludeMenuIds, true);
+    }
+
+    /**
+     * [R-01 ~ R-06] 세션 사용자 맞춤 추천 기본형
+     */
+    public List<RecommendResult> getRecommendationsForUser(int userId, String selectedCategory, boolean excludeEaten) {
+        return getRecommendationsForUser(userId, selectedCategory, null, excludeEaten, null);
+    }
+
+    // =========================================================================
+    // [R-08] 룰렛 추천 (상위 안전 후보 중 무작위 1개 추첨)
+    // =========================================================================
+    /**
+     * [R-08] 상위 안전 추천 후보 N개 중 무작위 1개 추첨
+     * - 알레르기로 차단된 메뉴는 추첨에서 제외
+     */
+    public RecommendResult pickRouletteMenu(List<RecommendResult> recommendations, int topN) {
+        if (recommendations == null || recommendations.isEmpty()) {
+            return null;
+        }
+        List<RecommendResult> safeCandidates = new ArrayList<>();
+        for (RecommendResult r : recommendations) {
+            if (!r.isBlocked()) {
+                safeCandidates.add(r);
+            }
+        }
+        if (safeCandidates.isEmpty()) {
+            return null;
+        }
+        int limit = (topN <= 0 || topN > safeCandidates.size()) ? safeCandidates.size() : topN;
+        int randomIndex = ThreadLocalRandom.current().nextInt(limit);
+        return safeCandidates.get(randomIndex);
+    }
+
+    public RecommendResult pickRouletteMenu(List<RecommendResult> recommendations) {
+        return pickRouletteMenu(recommendations, 0);
+    }
+
+    // =========================================================================
+    // [G-04] 단체 모임 그룹 병합 조건 기반 추천 (소켓 방장 및 모임 추천용)
+    // =========================================================================
+    /**
+     * [G-04] 그룹 병합 조건(MergedGroupCondition)을 바탕으로 상위 메뉴 추천 목록 생성
+     */
+    public List<RecommendResult> getGroupRecommendations(MergedGroupCondition condition, int limit) {
+        List<RecommendResult> results = new ArrayList<>();
+        List<MenuDto> candidateMenus = menuDao.getAllCandidateMenus();
+
+        List<Integer> mergedAllergies = condition.getMergedAllergies();
+        int maxSpicy = condition.getMinSpicyLevel();
+        int maxBudget = condition.getMaxBudget();
+
+        for (MenuDto menu : candidateMenus) {
+            if (maxSpicy > 0 && menu.getSpicyLevel() > maxSpicy) {
+                continue;
+            }
+            if (maxBudget > 0 && menu.getPrice() > maxBudget) {
+                continue;
+            }
+
+            List<Integer> containsAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "CONTAINS");
+            List<Integer> possibleAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "POSSIBLE");
+            if (!allergyService.isSafe(mergedAllergies, containsAllergies) || !allergyService.isSafe(mergedAllergies, possibleAllergies)) {
+                continue;
+            }
+
+            int finalScore = 100;
+            String reason = "그룹 구성원 전원의 알레르기, 맵기, 예산 조건을 모두 만족하는 안심 메뉴입니다.";
+
+            results.add(new RecommendResult(
+                    menu.getId(),
+                    menu.getRestaurantId(),
+                    menu.getName(),
+                    menu.getRestaurantName(),
+                    menu.getCategory(),
+                    menu.getPrice(),
+                    menu.getSpicyLevel(),
+                    finalScore,
+                    false,
+                    reason,
+                    menu.getRestaurantAddress(),
+                    menu.getHours(),
+                    menu.getRating(),
+                    menu.getReviewCount(),
+                    false,
+                    null
+            ));
+        }
+
+        results.sort(Comparator.comparingDouble(RecommendResult::getRating).reversed()
+                .thenComparing(Comparator.comparingInt(RecommendResult::getReviewCount).reversed()));
+
+        if (limit > 0 && results.size() > limit) {
+            return results.subList(0, limit);
+        }
         return results;
     }
 
@@ -141,14 +576,18 @@ public class RecommendService {
     // =========================================================================
     public static void main(String[] args) {
         RecommendService service = new RecommendService();
+        List<String> myFavoriteCategories = List.of("한식", "일식");
+        List<String> myMoods = List.of("스트레스 해소");
 
-        List<String> myFavoriteCategories = List.of("일식");
-
-        System.out.println("=== 회원 PK 100 고도화 추천 결과 (점수 높은 순 정렬) ===");
-        List<RecommendResult> recommendations = service.getPersonalizedRecommendations(100, myFavoriteCategories);
-
+        System.out.println("=== 1. 개인 맞춤 추천 결과 (R-01, R-03, R-05, R-07) ===");
+        List<RecommendResult> recommendations = service.getPersonalizedRecommendations(
+                100, myFavoriteCategories, null, myMoods, 5, 0, false, null, true);
         for (RecommendResult result : recommendations) {
-            System.out.println(result);
+            System.out.println(result + (result.isBlocked() ? " [BLOCKED] 대체: " + result.getAlternative() : ""));
         }
+
+        System.out.println("\n=== 2. 룰렛 추천 추첨 결과 (R-08) ===");
+        RecommendResult roulettePick = service.pickRouletteMenu(recommendations, 5);
+        System.out.println("당첨 메뉴: " + roulettePick);
     }
 }

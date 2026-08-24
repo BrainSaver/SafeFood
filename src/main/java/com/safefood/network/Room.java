@@ -1,5 +1,10 @@
 package com.safefood.network;
 
+import com.safefood.service.GroupMergeService.MergedGroupCondition;
+import com.safefood.service.RecommendService;
+import com.safefood.view.DemoData;
+
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -144,8 +149,34 @@ public final class Room {
                 "매운맛 (최솟값) — " + spicyMin + "단계 이하",
                 "예산 (교집합) — " + (budgetMin == 0 ? "제한없음" : String.format("%,d원 이하", budgetMin)));
 
-        // TODO: 병합 조건으로 RecommendService를 호출해 실제 후보를 받도록 교체 (추천 담당 연결 지점)
-        candidates = PLACEHOLDER_MENUS;
+        // 병합 조건으로 RecommendService를 호출해 DB 기반 실제 후보 3개 산출
+        List<Integer> allergyIds = new ArrayList<>();
+        for (String name : allergyUnion) {
+            int idx = DemoData.ALLERGIES.indexOf(name);
+            if (idx >= 0) {
+                allergyIds.add(idx + 1);
+            }
+        }
+
+        try {
+            RecommendService recommendService = new RecommendService();
+            MergedGroupCondition condition = new MergedGroupCondition(allergyIds, spicyMin, budgetMin);
+            List<RecommendService.RecommendResult> recs = recommendService.getGroupRecommendations(condition, 3);
+
+            if (!recs.isEmpty()) {
+                List<String[]> list = new ArrayList<>();
+                for (RecommendService.RecommendResult r : recs) {
+                    list.add(new String[]{r.getMenuName(), r.getRestaurantName()});
+                }
+                candidates = list;
+            } else {
+                candidates = PLACEHOLDER_MENUS;
+            }
+        } catch (Exception e) {
+            System.err.println("[Room] 추천 후보 생성 실패 (기본 메뉴 사용): " + e.getMessage());
+            candidates = PLACEHOLDER_MENUS;
+        }
+
         votes.clear();
 
         broadcast(Message.of(Message.Type.MERGED, mergedLines));

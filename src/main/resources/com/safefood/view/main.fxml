@@ -57,6 +57,7 @@
                     <Region styleClass="rule-v" prefHeight="18"/>
                     <FlowPane fx:id="moodPane" styleClass="chip-area" hgap="6" vgap="6"
                               HBox.hgrow="ALWAYS"/>
+                    <Button text="🎰 룰렛" onAction="#handleRoulette"/>
                     <Button text="↻ 다른 추천" onAction="#handleReroll"/>
                 </HBox>
 
