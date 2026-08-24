@@ -87,4 +87,29 @@ public class GroupDao {
         }
         return spicyLevels;
     }
+
+    /**
+     * 특정 그룹(groupId) 회원 참여자들의 최대 예산(price_max) 목록 조회 (교집합/최솟값 병합용)
+     */
+    public List<Integer> getGroupMembersBudgets(int groupId) {
+        List<Integer> budgets = new ArrayList<>();
+        String sql = "SELECT up.price_max " +
+                "FROM group_member gm " +
+                "JOIN user_preference up ON gm.user_id = up.user_id " +
+                "WHERE gm.group_id = ? AND gm.user_id IS NOT NULL AND up.price_max IS NOT NULL AND up.price_max > 0";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, groupId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    budgets.add(rs.getInt("price_max"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return budgets;
+    }
 }

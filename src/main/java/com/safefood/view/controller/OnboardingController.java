@@ -24,10 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 온보딩 — 3단계 스텝 (리디자인 1d).
- *
- * <p>단계마다 기본값이 들어 있어서 '다음'만 눌러도 끝나고, '나중에 할게요'는 지금 화면까지의
- * 값을 그대로 저장하고 메인으로 보냅니다 — 어느 쪽이든 빈 프로필이 만들어지지 않습니다.
+ * 온보딩 3단계 스텝 (리디자인 1d).
  */
 public class OnboardingController {
 
@@ -35,12 +32,11 @@ public class OnboardingController {
 
     private static final int LAST_STEP = 3;
 
-    /** 단계별 제목·부제 — 인덱스 0이 1단계. */
     private static final String[][] HEADINGS = {
-            {"무슨 음식을 좋아하세요?", "고른 종류가 추천 순위에서 먼저 올라와요."},
+            {"무슨 음식을 좋아하세요?", "고른 종류가 추천 상위에서 먼저 올라와요"},
             {"못 드시는 재료가 있나요?",
-                    "식약처 고시 19종 · 한 명이라도 못 먹는 메뉴는 추천에서 빠져요."},
-            {"예산과 거리는요?", "여기까지만 정하면 바로 추천을 시작할 수 있어요."}
+                    "식약처 고시 19종 · 한 명이라도 못 먹는 메뉴는 추천에서 빠져요"},
+            {"예산과 거리는요?", "여기까지만 정하면 바로 추천을 시작할 수 있어요"}
     };
 
     @FXML private Label dot1;
@@ -76,7 +72,7 @@ public class OnboardingController {
     private final List<ToggleButton> allergyChips = new ArrayList<>();
     private final ToggleGroup distanceGroup = new ToggleGroup();
 
-    /** 고른 알레르기 → 심각도(1~5). 칩을 껐다 켜도 값이 살아 있게 여기에 들고 있습니다. */
+    /** 고른 알레르기 별 심각도 (1~5). 칩을 껐다 켜도 값이 남아 있게 유지 */
     private final Map<String, Integer> severityByAllergy = new LinkedHashMap<>();
 
     private int step = 1;
@@ -121,7 +117,6 @@ public class OnboardingController {
             }
             distanceSeg.getChildren().add(option);
         }
-        // 세그먼티드 컨트롤은 '선택 없음'이 없습니다 — 다시 누르면 그대로 둡니다
         distanceGroup.selectedToggleProperty().addListener((observable, before, after) -> {
             if (after == null && before != null) {
                 distanceGroup.selectToggle(before);
@@ -129,7 +124,7 @@ public class OnboardingController {
         });
     }
 
-    /** 고른 알레르기마다 심각도 카드 한 장 — 목업의 "새우 — 얼마나 심한가요?" 블록. */
+    /** 고른 알레르기마다 심각도 카드 한 장 */
     private void rebuildSeverity() {
         severityBox.getChildren().clear();
 
@@ -153,7 +148,6 @@ public class OnboardingController {
         HBox seg = new HBox();
         seg.setAlignment(Pos.CENTER_LEFT);
         for (int level = 1; level <= DemoData.SEVERITIES.size(); level++) {
-            // "Class 3 보통" → "3 보통" (세그먼트 칸이 좁아 접두어를 뗍니다)
             String label = DemoData.SEVERITIES.get(level - 1).replace("Class ", "");
             ToggleButton option =
                     Widgets.segOption(label, level == 1, level == DemoData.SEVERITIES.size());
@@ -164,7 +158,7 @@ public class OnboardingController {
         }
         group.selectedToggleProperty().addListener((observable, before, after) -> {
             if (after == null) {
-                group.selectToggle(before);      // 한 칸은 늘 켜져 있어야 합니다
+                group.selectToggle(before);
                 return;
             }
             severityByAllergy.put(allergy, (int) after.getUserData());
@@ -201,7 +195,7 @@ public class OnboardingController {
         }
     }
 
-    /** 건너뛰기 — 지금까지 고른 값(대부분 기본값)을 그대로 저장하고 넘어갑니다. */
+    /** 건너뛰기 */
     @FXML
     private void handleSkip() {
         save();
@@ -266,9 +260,6 @@ public class OnboardingController {
 
     // ── 저장 ────────────────────────────────────────────────────
 
-    /**
-     * 화면의 값을 DB로 넘깁니다.
-     */
     private void save() {
         UserDto me = com.safefood.dto.Session.getCurrentUser();
         boolean isGuest = (me != null && me.getId() == -1);

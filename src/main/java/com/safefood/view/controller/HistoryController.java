@@ -229,6 +229,9 @@ public class HistoryController {
         remove.setOnAction(event -> {
             new FavoriteService().removeFavorite(row.getFavoriteId());
             timelineBox.getChildren().remove(line);
+            if (timelineBox.getChildren().isEmpty()) {
+                timelineBox.getChildren().add(Widgets.sub("찜한 가게가 없습니다."));
+            }
         });
         return line;
     }

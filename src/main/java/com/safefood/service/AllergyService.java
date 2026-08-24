@@ -96,6 +96,7 @@ public class AllergyService {
     // =========================================================================
     /**
      * DB 데이터를 직접 조회하여 특정 회원(userId)에게 특정 메뉴(menuId)가 안전한지 판정
+     * (원재료 포함 CONTAINS 및 혼입 가능성 POSSIBLE 모두 안전한지 엄격 검증)
      *
      * @param userId 회원 PK
      * @param menuId 메뉴 PK
@@ -104,7 +105,8 @@ public class AllergyService {
     public boolean isSafeForUser(int userId, int menuId) {
         List<Integer> userAllergies = allergyDao.getUserAllergyIds(userId);
         List<Integer> menuContains = allergyDao.getMenuAllergiesByRiskLevel(menuId, "CONTAINS");
-        return isSafe(userAllergies, menuContains);
+        List<Integer> menuPossible = allergyDao.getMenuAllergiesByRiskLevel(menuId, "POSSIBLE");
+        return isSafe(userAllergies, menuContains) && isSafe(userAllergies, menuPossible);
     }
 
     // =========================================================================
@@ -132,12 +134,8 @@ public class AllergyService {
         String reason = service.createBlockedReason(List.of("땅콩", "대두"));
         System.out.println("차단 사유 문구: " + reason);
 
-        System.out.println("\n=== 4. DB 연동 isSafeForUser 테스트 (회원 ID: 100 기준) ===");
-        // 회원 100번(땅콩 보유), 메뉴 1번(땅콩 짜장면 - CONTAINS) -> false 반환
-        // 회원 100번(땅콩 보유), 메뉴 2번(순한 우동 - POSSIBLE) -> CONTAINS가 없으므로 true 반환
-        boolean isMenu1Safe = service.isSafeForUser(100, 1);
-        boolean isMenu2Safe = service.isSafeForUser(100, 2);
-        System.out.println("메뉴 1번(땅콩 짜장면) 안전 여부 (false 예상): " + isMenu1Safe);
-        System.out.println("메뉴 2번(순한 우동) 안전 여부 (true 예상): " + isMenu2Safe);
+        System.out.println("\n=== 4. DB 연동 isSafeForUser 테스트 ===");
+        boolean isMenu1Safe = service.isSafeForUser(106, 1);
+        System.out.println("test 회원(새우 알레르기) - 메뉴 1번 안전 여부: " + isMenu1Safe);
     }
 }
