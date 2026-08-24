@@ -52,6 +52,14 @@
             <version>${javafx.version}</version>
         </dependency>
 
+        <!-- 주소 검색(카카오 우편번호 서비스)은 JavaScript 위젯이라 WebView로 띄웁니다.
+             네이티브 엔진(jfxwebkit)이 딸려 와서 실행 JAR이 100MB 가까이 커집니다. -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
