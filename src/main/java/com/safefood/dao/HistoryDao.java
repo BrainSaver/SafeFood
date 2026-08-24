@@ -1,5 +1,8 @@
 package com.safefood.dao;
 
+import com.safefood.dto.HistoryDto;
+import com.safefood.view.DemoData;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -86,10 +89,10 @@ public class HistoryDao {
     }
 
     /**
-     * 특정 회원의 히스토리 목록 조회 (메뉴명, 식당명 포함)
+     * 특정 회원의 히스토리 목록 조회 (메뉴명, 식당명 포함 - UI DemoData.HistoryRow)
      */
-    public List<com.safefood.view.DemoData.HistoryRow> getUserHistoryRows(int userId, String typeFilter) {
-        List<com.safefood.view.DemoData.HistoryRow> rows = new ArrayList<>();
+    public List<DemoData.HistoryRow> getUserHistoryRows(int userId, String typeFilter) {
+        List<DemoData.HistoryRow> rows = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
                 "SELECT h.created_at, h.type, m.name AS menu_name, r.name AS restaurant_name " +
                 "FROM history h " +
@@ -128,12 +131,64 @@ public class HistoryDao {
                     String note = "EATEN".equals(type) ? "식사 완료"
                             : ("BLOCKED".equals(type) ? "알레르기 포함으로 차단" : "알레르기 안전");
 
-                    rows.add(new com.safefood.view.DemoData.HistoryRow(date, type, menu, restaurant, note));
+                    rows.add(new DemoData.HistoryRow(date, type, menu, restaurant, note));
                 }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return rows;
+    }
+
+    /**
+     * 피드백 ID 업데이트
+     */
+    public boolean updateFeedbackId(int historyId, int feedbackId) {
+        String sql = "UPDATE history SET feedback_id = ? WHERE id = ?";
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, feedbackId);
+            pstmt.setInt(2, historyId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 특정 회원의 히스토리 목록 조회 (HistoryDto)
+     */
+    public List<HistoryDto> findHistoriesByUserId(int userId) {
+        String sql = "SELECT DATE_FORMAT(h.created_at, '%Y-%m-%d') as date, " +
+                "h.type, m.name as menu_name, r.name as restaurant_name, " +
+                "m.id as menu_id, r.id as restaurant_id, h.id as history_id, h.feedback_id " +
+                "FROM history h " +
+                "JOIN menu m ON h.menu_id = m.id " +
+                "LEFT JOIN restaurant r ON m.restaurant_id = r.id " +
+                "WHERE h.user_id = ? " +
+                "ORDER BY h.created_at DESC";
+
+        List<HistoryDto> list = new ArrayList<>();
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    String date = rs.getString("date");
+                    String type = rs.getString("type");
+                    String menu = rs.getString("menu_name");
+                    String restaurant = rs.getString("restaurant_name");
+                    int menuId = rs.getInt("menu_id");
+                    int restaurantId = rs.getInt("restaurant_id");
+                    int historyId = rs.getInt("history_id");
+                    int feedbackId = rs.getInt("feedback_id");
+                    list.add(new HistoryDto(date, type, menu, restaurant, "", menuId, restaurantId, historyId, feedbackId));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 }

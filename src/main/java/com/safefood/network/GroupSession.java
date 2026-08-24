@@ -314,8 +314,9 @@ public final class GroupSession implements GroupClient.Listener {
                             + readyNames.size() + "/" + memberOrder.size() + ")"));
             case MERGED -> events.add(new Event(
                     EventKind.MERGED, "", "✓ 전원 준비 완료 — 조건을 합쳐 후보를 뽑았어요"));
-            case CANDIDATES -> events.add(good(
-                    "추천 후보 " + candidates.size() + "개가 도착했어요"));
+            case CANDIDATES -> events.add(candidates.isEmpty()
+                    ? bad("조건에 맞는 추천 후보를 찾지 못했어요")
+                    : good("추천 후보 " + candidates.size() + "개가 도착했어요"));
             case VOTE_STATUS -> {
                 // 프로토콜이 '누가' 투표했는지는 싣지 않아 총계로만 알립니다
                 int total = 0;

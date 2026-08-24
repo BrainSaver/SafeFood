@@ -1,15 +1,19 @@
 package com.safefood.view.controller;
 
+import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
 import com.safefood.dto.UserDto;
+import com.safefood.service.LocationService;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
 import com.safefood.view.DemoData;
+import com.safefood.view.Theme;
 import com.safefood.view.Widgets;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
@@ -19,6 +23,7 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
@@ -40,7 +45,10 @@ public class ProfileController {
     private static final Duration SETTLE = Duration.millis(500);
 
     @FXML private FlowPane ownedPane;
+    @FXML private FlowPane catalogPane;
     @FXML private FlowPane categoryPane;
+    @FXML private FlowPane themePane;
+    @FXML private Label themeTag;
     @FXML private TextField searchField;
     @FXML private HBox distanceSeg;
     @FXML private Slider priceMax;
@@ -50,6 +58,8 @@ public class ProfileController {
     @FXML private Label userLabel;
     @FXML private Label autoSaveTag;
     @FXML private Label allergyHint;
+    @FXML private Label locationLabel;
+    @FXML private Button locationButton;
 
     private final List<ToggleButton> categoryChips = new ArrayList<>();
     private final ToggleGroup distanceGroup = new ToggleGroup();
@@ -65,8 +75,12 @@ public class ProfileController {
     @FXML
     private void initialize() {
         fillDistanceSeg();
+        fillThemes();
         Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
         preferenceSettle.setOnFinished(event -> savePreferences());
+
+        // 입력칸은 검색도 겸합니다 — 치는 동안 아래 목록이 걸러집니다
+        searchField.textProperty().addListener((observable, before, after) -> renderCatalog());
 
         UserDto me = Session.getCurrentUser();
         if (me == null) {
@@ -78,6 +92,8 @@ public class ProfileController {
             renderPriceLabel();
             renderSpicyLabel();
             renderOwned();
+            renderCatalog();
+            renderLocation();
             wireAutoSave();
             loading = false;
             return;
@@ -106,6 +122,8 @@ public class ProfileController {
         renderPriceLabel();
         renderSpicyLabel();
         renderOwned();
+        renderCatalog();
+        renderLocation();
         wireAutoSave();
         loading = false;
     }
@@ -202,6 +220,7 @@ public class ProfileController {
         remove.setOnAction(event -> {
             owned.remove(name);
             renderOwned();
+            renderCatalog();
             saveAllergies();
         });
 
@@ -211,26 +230,87 @@ public class ProfileController {
         return chip;
     }
 
+    // ── 알레르기 고르기 ─────────────────────────────────────────
+
+    /*
+     * 예전에는 이름을 정확히 쳐 넣어야만 추가할 수 있었습니다. 무엇을 적을 수 있는지 모르면
+     * 아무것도 못 넣는 화면이라, 고를 수 있는 목록을 그대로 펼쳐 놓고 눌러서 넣게 했습니다.
+     * 입력칸은 없애지 않고 '검색'으로 바꿨습니다 — 19종을 눈으로 훑는 것보다 두 글자 치는
+     * 편이 빠른 사람도 있으니까요.
+     *
+     * 목록이 마스터 19종으로 묶여 있는 것은 화면 사정이 아니라 DB 사정입니다:
+     * user_allergy 는 allergy_id(마스터의 번호)로 저장되므로, 목록 밖의 이름은 넣을 번호가
+     * 없습니다 (ProfileService.updateAllergiesOnly 참고).
+     */
+
+    /** 아직 등록하지 않은 것 중, 검색어에 걸리는 항목. */
+    private List<String> candidates() {
+        String keyword = searchField.getText() == null ? "" : searchField.getText().trim();
+        List<String> found = new ArrayList<>();
+        for (String name : DemoData.ALLERGIES) {
+            if (!owned.containsKey(name) && name.contains(keyword)) {
+                found.add(name);
+            }
+        }
+        return found;
+    }
+
+    private void renderCatalog() {
+        catalogPane.getChildren().clear();
+        List<String> found = candidates();
+        if (found.isEmpty()) {
+            catalogPane.getChildren().add(Widgets.sub(owned.size() == DemoData.ALLERGIES.size()
+                    ? "고시 19종을 모두 등록했습니다."
+                    : "검색어와 맞는 항목이 없습니다. 식약처 고시 19종 안에서 찾아 주세요."));
+            return;
+        }
+        for (String name : found) {
+            catalogPane.getChildren().add(catalogChip(name));
+        }
+    }
+
+    /** 눌러서 바로 추가되는 칩. 고르는 순간이 곧 추가라 따로 확인 버튼을 두지 않습니다. */
+    private Button catalogChip(String name) {
+        Button chip = new Button(name);
+        chip.getStyleClass().add("chip");
+        chip.setOnAction(event -> addAllergy(name));
+        return chip;
+    }
+
+    /** 입력칸으로 추가 — 검색 결과가 하나로 좁혀졌으면 그것을, 아니면 어떻게 좁힐지 알려 줍니다. */
     @FXML
     private void handleAddAllergy() {
-        String name = searchField.getText().trim();
-        if (name.isEmpty()) {
-            hint("추가할 알레르기 이름을 입력해 주세요.");
+        String keyword = searchField.getText().trim();
+        if (keyword.isEmpty()) {
+            hint("아래 목록에서 고르거나, 알레르기 이름을 입력해 주세요.");
             return;
         }
-        if (!DemoData.ALLERGIES.contains(name)) {
-            hint("알레르기 마스터에 없는 항목입니다. 식약처 고시 19종 중에서 골라 주세요.");
+        if (DemoData.ALLERGIES.contains(keyword)) {
+            addAllergy(keyword);   // 정확히 친 이름은 후보가 여럿이어도 그대로 받습니다
             return;
         }
+
+        List<String> found = candidates();
+        if (found.size() == 1) {
+            addAllergy(found.get(0));
+        } else if (found.isEmpty()) {
+            hint("'" + keyword + "'와(과) 맞는 알레르기가 없습니다. 식약처 고시 19종 중에서 골라 주세요.");
+        } else {
+            hint("'" + keyword + "'에 걸리는 항목이 " + found.size() + "개입니다 — 아래에서 눌러 골라 주세요.");
+        }
+    }
+
+    private void addAllergy(String name) {
         if (owned.containsKey(name)) {
             hint("이미 등록한 알레르기입니다.");
             return;
         }
 
         owned.put(name, 3);   // 기본 '보통' — 칩에서 바로 바꿀 수 있습니다
-        searchField.clear();
+        searchField.clear();  // 검색어를 비워 목록을 전체로 되돌립니다
         Widgets.hideError(allergyHint);
         renderOwned();
+        renderCatalog();
         saveAllergies();
     }
 
@@ -293,6 +373,118 @@ public class ProfileController {
 
     private void renderSpicyLabel() {
         spicyLabel.setText("선호 맵기 — " + (int) spicySlider.getValue() + "단계");
+    }
+
+    // ── 내 위치 ─────────────────────────────────────────────────
+
+    /*
+     * 거리 조건('최대 거리')은 기준점이 있어야 쓸모가 있습니다. 그 기준점을 등록하는 자리가
+     * 이 카드이고, 실제 입력은 창(location.fxml)에서 받습니다 — 이름·주소에 좌표까지 받아야
+     * 해서 프로필 카드 한 줄에 넣기에는 칸이 모자랍니다.
+     */
+
+    /** 등록해 둔 위치를 한 줄로. 세션에 사본이 없으면 DB에서 한 번 읽어 옵니다. */
+    private void renderLocation() {
+        LocationDto mine = Session.getMyLocation();
+        UserDto me = Session.getCurrentUser();
+        if (mine == null && me != null) {
+            mine = new LocationService().getMyLocation(me.getId());
+            Session.setMyLocation(mine);
+        }
+        boolean registered = mine != null;
+        // 좌표가 없으면 거리 계산에서 빠지므로, 등록돼 있어도 그 사실을 같이 알려 줍니다
+        locationLabel.setText(registered
+                ? mine.describe() + (mine.hasCoordinates() ? "" : " · 좌표 없음")
+                : "아직 등록한 위치가 없어요");
+        locationButton.setText(registered ? "위치 변경" : "위치 등록");
+    }
+
+    /**
+     * 위치 등록 창을 엽니다.
+     *
+     * <p>창이 닫히기를 기다렸다가 라벨을 다시 그리지 <b>않습니다</b> — {@code AppNav.dialog}는
+     * 실제로 여는 일을 한 박자 미루므로, 이 메서드가 끝난 뒤에야 창이 열립니다. 대신 저장된
+     * 순간 알려 달라고 걸어 둡니다.
+     */
+    @FXML
+    private void handleRegisterLocation() {
+        AppNav.dialog("위치 등록", "location.fxml",
+                (LocationController controller) -> controller.setOnSaved(this::renderLocation));
+    }
+
+    // ── 앱 스타일 ───────────────────────────────────────────────
+
+    /*
+     * 테마는 색 토큰만 갈아 끼우는 css 한 장입니다 (Theme 참고). 고르는 즉시 열려 있는
+     * 창 전부가 다시 칠해지므로, '적용' 버튼 없이 누르는 것으로 끝냅니다.
+     */
+
+    private void fillThemes() {
+        themePane.getChildren().clear();
+        for (Theme option : Theme.values()) {
+            themePane.getChildren().add(themeOption(option));
+        }
+        renderThemeTag();
+    }
+
+    /** 테마 한 칸 — 축소판 미리보기 + 이름 + 한 줄 설명. */
+    private VBox themeOption(Theme option) {
+        VBox card = new VBox(8,
+                themePreview(option),
+                Widgets.label(option.label(), "name"),
+                Widgets.micro(option.description()));
+        card.getStyleClass().add("theme-option");
+        card.setMaxWidth(158);   // 설명이 줄바꿈되도록 폭을 묶습니다
+        card.setUserData(option);
+        card.setOnMouseClicked(event -> pickTheme(option));
+        markSelected(card, option == AppNav.theme());
+        return card;
+    }
+
+    /**
+     * 축소판 화면 — 바탕 위에 표면 두 줄과 강조색 알약.
+     *
+     * <p>여기 색만은 인라인 스타일로 칠합니다. 이 칸이 보여 줘야 하는 것은 <b>지금 테마가
+     * 아니라 저 테마의 색</b>이라, 화면 전체가 쓰는 토큰(-bg, -accent)으로는 그릴 수 없습니다.
+     */
+    private static VBox themePreview(Theme option) {
+        VBox preview = new VBox(6,
+                bar(option.surface(), 74, 9),
+                bar(option.surface(), 50, 9),
+                bar(option.accent(), 34, 13));
+        preview.getStyleClass().add("theme-preview");
+        preview.setStyle("-fx-background-color: " + option.bg() + ";");
+        return preview;
+    }
+
+    private static Region bar(String color, double width, double height) {
+        Region bar = new Region();
+        bar.getStyleClass().add("bar");
+        bar.setMinSize(width, height);
+        bar.setPrefSize(width, height);
+        bar.setMaxSize(width, height);
+        bar.setStyle("-fx-background-color: " + color + ";");
+        return bar;
+    }
+
+    private void pickTheme(Theme option) {
+        AppNav.theme(option);
+        for (Node card : themePane.getChildren()) {
+            markSelected(card, card.getUserData() == option);
+        }
+        renderThemeTag();
+        AppNav.success("앱 스타일을 '" + option.label() + "'(으)로 바꿨어요");
+    }
+
+    private static void markSelected(Node card, boolean selected) {
+        card.getStyleClass().remove("selected");
+        if (selected) {
+            card.getStyleClass().add("selected");
+        }
+    }
+
+    private void renderThemeTag() {
+        themeTag.setText("지금 · " + AppNav.theme().label());
     }
 
     // ── 내비게이션 ──────────────────────────────────────────────

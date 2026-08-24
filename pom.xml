@@ -26,6 +26,10 @@
         <javafx.plugin.version>0.0.8</javafx.plugin.version>
         <compiler.plugin.version>3.13.0</compiler.plugin.version>
         <surefire.plugin.version>3.2.5</surefire.plugin.version>
+        <shade.plugin.version>3.6.0</shade.plugin.version>
+
+        <!-- java -jar 로 실행할 때의 시작 클래스 (Application을 상속하지 않아야 합니다) -->
+        <app.main.class>com.safefood.MainLauncher</app.main.class>
     </properties>
 
     <dependencies>
@@ -45,6 +49,14 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- 주소 검색(카카오 우편번호 서비스)은 JavaScript 위젯이라 WebView로 띄웁니다.
+             네이티브 엔진(jfxwebkit)이 딸려 와서 실행 JAR이 100MB 가까이 커집니다. -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
             <version>${javafx.version}</version>
         </dependency>
 
@@ -91,6 +103,46 @@
                 <configuration>
                     <mainClass>com.safefood.view.indexUi</mainClass>
                 </configuration>
+            </plugin>
+
+            <!-- mvn package → target/safefood.jar 하나에 의존성까지 전부 넣습니다.
+                 java -jar target/safefood.jar 로 어디서나 실행됩니다. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>${shade.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>${app.main.class}</mainClass>
+                                </transformer>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <!-- JavaFX jar의 module-info가 섞이면 실행이 막힙니다 -->
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

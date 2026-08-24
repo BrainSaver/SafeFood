@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  위치 등록 — 내 정보(1h)의 '위치 등록'에서 열리는 작은 창입니다.
+
+  주소는 카카오(다음) 우편번호 서비스에서 고릅니다 (주소 검색 → postcode.fxml).
+  좌표는 그 주소로 카카오 지도 API에 다시 물어 채우고, 키가 없거나 못 찾을 때만
+  아래 칸에 직접 넣거나 대표 지점으로 대신 채웁니다.
+-->
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.safefood.view.controller.LocationController"
+      fx:id="root" prefWidth="520" styleClass="sheet" spacing="10">
+
+    <VBox spacing="4">
+        <Label text="위치 등록" styleClass="page-title"/>
+        <Label text="추천 거리 계산과 '같이 먹기' 중간 지점이 이 곳을 기준으로 삼습니다."
+               styleClass="page-subtitle" wrapText="true"/>
+    </VBox>
+
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Label text="지금 등록된 위치" styleClass="field-label"/>
+        <Label fx:id="currentTag" text="없음" styleClass="tag, neutral"/>
+    </HBox>
+
+    <!-- ── 주소 ────────────────────────────────────────────── -->
+    <VBox styleClass="card, soft" spacing="8">
+        <Label text="주소" styleClass="section-title"/>
+
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <TextField fx:id="zonecodeField" promptText="우편번호" prefWidth="110"
+                       editable="false" focusTraversable="false"/>
+            <Button text="주소 검색" styleClass="primary" onAction="#handleSearchAddress"/>
+        </HBox>
+
+        <!-- 검색으로만 채웁니다 — 손으로 고치면 우편번호·좌표와 어긋납니다 -->
+        <TextField fx:id="addressField" promptText="'주소 검색'을 눌러 도로명 주소를 고르세요"
+                   editable="false" focusTraversable="false"/>
+        <TextField fx:id="detailField" promptText="상세 주소 (예: 3층 301호)"/>
+
+        <TextField fx:id="labelField" promptText="장소 이름 — 집 · 회사처럼 (비워도 됩니다)"/>
+    </VBox>
+
+    <!-- ── 좌표 ────────────────────────────────────────────── -->
+    <VBox styleClass="card, soft" spacing="8">
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="좌표 (거리 계산용)" styleClass="section-title"/>
+            <Label fx:id="coordTag" text="아직 없음" styleClass="tag, neutral"/>
+        </HBox>
+
+        <HBox spacing="10">
+            <TextField fx:id="latField" promptText="위도 (예: 37.4979)" HBox.hgrow="ALWAYS"/>
+            <TextField fx:id="lngField" promptText="경도 (예: 127.0276)" HBox.hgrow="ALWAYS"/>
+        </HBox>
+
+        <Label fx:id="coordHint" styleClass="micro" wrapText="true"/>
+
+        <Label text="가까운 대표 지점으로 대신 채우기" styleClass="field-label"/>
+        <ScrollPane fitToWidth="true" prefHeight="64" minHeight="64">
+            <FlowPane fx:id="placePane" styleClass="chip-area" hgap="8" vgap="8"/>
+        </ScrollPane>
+    </VBox>
+
+    <Label fx:id="errorLabel" styleClass="error-text" wrapText="true"
+           visible="false" managed="false"/>
+
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Button fx:id="clearButton" text="등록 해제" styleClass="ghost-quiet"
+                onAction="#handleClear"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="취소" styleClass="ghost-quiet" onAction="#handleCancel"/>
+        <Button text="저장" styleClass="primary" onAction="#handleSave"/>
+    </HBox>
+</VBox>

@@ -61,6 +61,7 @@ final class DataStoreInitializer {
      * <ul>
      *   <li>{@code users.txt} — id|login_id|password|nickname|created_at</li>
      *   <li>{@code preferences.txt} — user_id|spicy_level|price_min|price_max|max_distance</li>
+     *   <li>{@code locations.txt} — user_id|label|zonecode|address|latitude|longitude|updated_at</li>
      *   <li>{@code user_allergies.txt} — user_id|allergy_id|severity (심각도 1~5, 기본 3)</li>
      *   <li>{@code categories.txt} — user_id|category</li>
      *   <li>{@code favorites.txt} — id|user_id|restaurant_id|menu_id|created_at</li>
@@ -75,6 +76,7 @@ final class DataStoreInitializer {
     private static final List<String> PRIVATE_FILES = List.of(
             "users.txt",
             "preferences.txt",
+            "locations.txt",
             "user_allergies.txt",
             "categories.txt",
             "favorites.txt",

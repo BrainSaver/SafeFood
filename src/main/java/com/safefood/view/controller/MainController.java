@@ -1,11 +1,13 @@
 package com.safefood.view.controller;
 
+import com.safefood.dao.FavoriteDao;
 import com.safefood.dao.HistoryDao;
-import com.safefood.dao.MenuDao;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
 import com.safefood.dto.UserDto;
 import com.safefood.network.GroupSession;
+import com.safefood.service.FavoriteService;
+import com.safefood.service.HistoryService;
 import com.safefood.service.RecommendService;
 import com.safefood.view.AppNav;
 import com.safefood.view.DemoData;
@@ -28,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 메인 추천 화면 (리디자인 1a & 실데이터 엔진 연동).
+ * 메인 추천 화면 (리디자인 1a & 실데이터 개인 맞춤 추천 엔진 연동).
  */
 public class MainController {
 
@@ -46,15 +48,14 @@ public class MainController {
     private final List<ToggleButton> moodChips = new ArrayList<>();
     private final RecommendService recommendService = new RecommendService();
     private final HistoryDao historyDao = new HistoryDao();
-    private final MenuDao menuDao = new MenuDao();
-    private final com.safefood.dao.FavoriteDao favoriteDao = new com.safefood.dao.FavoriteDao();
+    private final FavoriteDao favoriteDao = new FavoriteDao();
 
     // R-04 재추천 시 직전 노출 메뉴 누적 제외용 Set 및 순위 오프셋
     private final Set<Integer> excludedForReroll = new HashSet<>();
     private int currentRankOffset = 0;
     private List<RecommendService.RecommendResult> currentDisplayedSafeResults = new ArrayList<>();
 
-    /** 어제 먹은 메뉴를 빼고 볼지 */
+    /** 어제/최근 먹은 메뉴를 빼고 볼지 */
     private boolean excludeEaten = true;
 
     @FXML
@@ -62,8 +63,14 @@ public class MainController {
         String name;
         if (Session.getCurrentUser() != null) {
             name = Session.getCurrentUser().getNickname();
+            if (name == null || name.isBlank()) {
+                name = Session.getCurrentUser().getLoginId();
+            }
         } else {
             name = GroupSession.get().displayName();
+        }
+        if (name == null || name.isBlank()) {
+            name = "사용자";
         }
         userLabel.setText(name + "님");
         greetingLabel.setText("오늘 뭐 먹지, " + name + "님?");
@@ -72,7 +79,7 @@ public class MainController {
         categoryBox.getItems().addAll(DemoData.CATEGORIES);
         categoryBox.setValue("전체");
 
-        distanceBox.getItems().setAll(DemoData.DISTANCES);
+        distanceBox.getItems().setAll("500m", "1km", "2km", "3km", "제한없음");
         distanceBox.setValue("1km");
 
         budgetBox.getItems().setAll(DemoData.BUDGETS);
@@ -187,7 +194,9 @@ public class MainController {
 
     private void fillCards() {
         cardBox.getChildren().clear();
-        blockedBox.getChildren().clear();
+        if (blockedBox != null) {
+            blockedBox.getChildren().clear();
+        }
 
         List<RecommendService.RecommendResult> rawResults = fetchRecommendations(excludedForReroll);
 
@@ -217,7 +226,7 @@ public class MainController {
         if (currentDisplayedSafeResults.isEmpty()) {
             for (DemoData.Recommendation item : DemoData.RECOMMENDATIONS) {
                 if (item.blocked()) {
-                    blockedBox.getChildren().add(blockedRow(item));
+                    if (blockedBox != null) blockedBox.getChildren().add(blockedRow(item));
                 } else {
                     cardBox.getChildren().add(card(item));
                 }
@@ -227,7 +236,7 @@ public class MainController {
             for (RecommendService.RecommendResult r : currentDisplayedSafeResults) {
                 cardBox.getChildren().add(card(r.toRecommendation(rank++), r.getMenuId(), r.getRestaurantId()));
             }
-            if (!blockedResults.isEmpty()) {
+            if (!blockedResults.isEmpty() && blockedBox != null) {
                 blockedBox.getChildren().add(blockedRow(blockedResults.get(0).toRecommendation(0)));
             }
         }
@@ -255,7 +264,7 @@ public class MainController {
 
         HBox titleRow = new HBox(10, menu, meta, Widgets.hSpacer(),
                 Widgets.safetyBadge(item.safety()),
-                Widgets.tag("맵기 " + item.spicyLevel(), "neutral"));
+                Widgets.tag("맵기 " + item.spicyLevel() + "단계", "neutral"));
         titleRow.setAlignment(Pos.CENTER_LEFT);
 
         Label reason = new Label(item.reason());
@@ -267,7 +276,7 @@ public class MainController {
         eat.setOnAction(event -> {
             UserDto currentUser = Session.getCurrentUser();
             if (currentUser != null && menuId > 0) {
-                historyDao.insertHistory(currentUser.getId(), menuId, null, "EATEN");
+                new HistoryService().saveEatenHistory(currentUser.getId(), menuId);
             }
             AppNav.success(item.menu() + "(으)로 정했어요 — 기록에 남기고 다음 추천에서 제외합니다");
             renderExcludeNotice();
@@ -322,7 +331,7 @@ public class MainController {
         why.setOnAction(event -> AppNav.info(item.reason()));
 
         HBox row = new HBox(12,
-                Widgets.tag(item.safety().shortLabel, "danger"),
+                Widgets.tag(item.safety().label, "danger"),
                 struck,
                 Widgets.sub(item.alternative() == null
                         ? "" : "대체 — " + item.alternative()),
@@ -347,7 +356,9 @@ public class MainController {
 
     @FXML
     private void handleLogout() {
-        AppNav.show("로그인", "login.fxml");
+        Session.setCurrentUser(null);
+        GroupSession.get().setGuest(false);
+        AppNav.show("SafeFood 로그인", "login.fxml");
     }
 
     // R-04 재추천 ("다른 추천 보기" 선택 시 직전 5개 결과를 제외하고 차순위 5개 로딩)
@@ -391,6 +402,6 @@ public class MainController {
 
     @FXML
     private void handleGroup() {
-        AppNav.dialog("같이 먹기", "group-option.fxml");
+        AppNav.dialog("같이 먹기 옵션 선택", "group-option.fxml");
     }
 }

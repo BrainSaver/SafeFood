@@ -30,7 +30,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 기능 설계서 | v2.0 | 기능 48개(A/R/G/S/L/M/H), 구현 우선순위 1~3차, 소켓 프로토콜, 추천·병합 알고리즘 |
 | 데이터베이스 설계서 | v2.0 | 테이블 22개 · 외래 키 31개, 컬럼 정의, ENUM, 시드 데이터, 쿼리 시나리오 |
 | UI 설계서 | v2.0 | 화면 14종(SC-01~SC-14), 화면 전이, 색상 팔레트, 공통 컴포넌트 규칙 |
-| [SetupWizard.md](docs/SetupWizard.md) | — | 개발 환경 설정 마법사 사용법, `data/` 파일 모드 |
+| [Development.md](docs/Development.md) | — | **개발 문서** — 환경 설정 마법사 · `data/` 파일 모드 · 그룹 추천 로직 · 실행 파일 만들기 |
 
 기능 ID(`A-01`, `G-03` …)와 화면 ID(`SC-04` …)로 세 문서가 서로를 참조합니다.
 커밋 메시지와 브랜치 이름에도 기능 ID를 쓰면 추적하기 쉽습니다.
@@ -42,11 +42,11 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 | 구분 | 사용 기술 |
 |------|-----------|
 | Language | Java 21 <!-- 바꾸려면 pom.xml의 maven.compiler.release 값만 수정 --> |
-| UI | **JavaFX 21.0.4** — `javafx-controls`, `javafx-fxml` |
+| UI | **JavaFX 21.0.4** — `javafx-controls`, `javafx-fxml`, `javafx-web`(주소 검색 WebView) |
 | Database | MySQL 8.0 **또는** 로컬 파일 (`data/`) |
 | DB 연동 | JDBC (MySQL Connector/J 8.4.0) / 파일 I/O (`data/public`, `data/private`) |
 | 실시간 통신 | Java Socket (TCP), 기본 포트 5000 — 방장 앱이 곧 서버 / 방 자동 탐색은 UDP 5001 |
-| 지도 | Kakao Map API <!-- 또는 Naver Map API — 택 1 후 정리 -->, JavaFX `WebView`에 임베드 |
+| 지도 | Kakao <!-- 또는 Naver — 택 1 후 정리 --> — 우편번호 서비스(주소 검색, JS 위젯을 `WebView`에 임베드) + 로컬 API(주소 → 좌표, REST 키 필요) |
 | Build | Maven (`pom.xml`) — 표준 디렉터리 레이아웃 |
 | IDE | IntelliJ IDEA |
 | 협업 | Git, GitHub (feature 브랜치 → PR 리뷰 → dev 병합) |
@@ -123,6 +123,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 
 ### 🗺️ 지도 / 맛집
 
+- [ ] ⭐ **내 위치 등록** — 카카오 우편번호 서비스로 주소를 고르고, 좌표는 카카오 로컬 API로 채움 (거리·중간 지점의 기준점)
 - [ ] ⭐ **지도 API 연동** — 주변 맛집을 지도에 표시
 - [ ] ⭐ **맛집 상세** — 주소 / 영업시간 / 전화번호 / 메뉴 / 가격
 - [ ] **길찾기** — 외부 지도 앱(카카오맵·네이버지도)으로 연결
@@ -147,15 +148,22 @@ SafeFood/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/safefood/
-│   │   │   ├── Main.java                  # 진입점 (엔트리 포인트)
+│   │   │   ├── Main.java                  # 진입점 — DB 확인 후 앱 또는 설정 마법사로 분기
+│   │   │   ├── MainLauncher.java          # java -jar 시작 클래스 (Application 미상속)
+│   │   │   ├── AppConfig.java             # config.properties 읽기 · reload()
 │   │   │   ├── dto/                       # UserDto, MenuDto, RestaurantDto ...
 │   │   │   ├── dao/                       # 저장소 접근 (JDBC 또는 data/ 파일)
+│   │   │   │   ├── DatabaseUtil           # config.properties → JDBC 커넥션
+│   │   │   │   ├── GroupMenuDao           # 그룹 추천 후보 (메뉴·가게·알레르기 1회 조회)
+│   │   │   │   └── ...                    # User · Menu · Allergy · Profile · History ...
 │   │   │   ├── service/                   # 비즈니스 로직
 │   │   │   │   ├── AuthService            # 로그인 / 회원가입
-│   │   │   │   ├── RecommendService       # 추천 알고리즘
+│   │   │   │   ├── RecommendService       # 개인 추천 알고리즘
+│   │   │   │   ├── GroupRecommendService  # 그룹 추천 (병합 조건 → 후보 3개)
+│   │   │   │   ├── GroupMergeService      # 그룹 조건 병합
 │   │   │   │   ├── AllergyService         # 알레르기 매칭 / 위험도 판정
-│   │   │   │   ├── GroupService           # 그룹 생성·참여, 조건 병합, 투표
-│   │   │   │   └── MapService             # 지도 API 호출
+│   │   │   │   ├── MapService             # 카카오 로컬 API — 주소 → 좌표
+│   │   │   │   └── ...                    # Profile · Favorite · History · Feedback ...
 │   │   │   ├── network/                   # 소켓 통신 (방장이 서버)
 │   │   │   │   ├── GroupServer            # 방장 앱이 여는 서버 (ServerSocket, 접속 수락)
 │   │   │   │   ├── ClientHandler          # 참여자 1명당 스레드
@@ -170,6 +178,7 @@ SafeFood/
 │   │   │   │   ├── AppLauncher            # IntelliJ ▶ 실행용 시작 클래스
 │   │   │   │   ├── AppNav                 # FXML 불러오기 · 화면 전환 · Alert
 │   │   │   │   ├── Widgets · DemoData     # 동적 노드 · 임시 데이터
+│   │   │   │   ├── Theme                  # 앱 스타일 4종 (내 정보에서 고름 · 색 토큰만 교체)
 │   │   │   │   └── controller/            # 화면 하나당 컨트롤러 하나 (SC-01~SC-14)
 │   │   │   └── setup/                     # 개발 환경 설정 마법사 (DB·data/·설정 파일 자동 준비)
 │   │   │       ├── SetupWizardFx          # 창(JavaFX) 화면 — mvn javafx:run -Pwizard-fx
@@ -179,7 +188,8 @@ SafeFood/
 │   │   │       └── core/                  # 화면 없이 도는 처리부 (두 화면이 공유)
 │   │   └── resources/                     # 빌드 시 target/classes로 복사되는 리소스
 │   │       └── com/safefood/
-│   │           ├── view/                  # 화면 FXML 13개 + app.css
+│   │           ├── view/                  # 화면 FXML 15개 + app.css + postcode.html(주소 검색)
+│   │           │   └── theme/             # 앱 스타일 css — app.css 뒤에 얹혀 색 토큰만 덮어씀
 │   │           └── setup/                 # setup-wizard.css
 │   └── test/
 │       └── java/com/safefood/             # 테스트 코드 (JUnit 5)
@@ -187,18 +197,14 @@ SafeFood/
 │   ├── public/                            # 앱에 필요한 공통 데이터 — 커밋 가능
 │   └── private/                           # 개인·팀 서버 데이터 — 커밋 금지
 ├── docs/
-│   └── SetupWizard.md                     # Setup Wizard 사용 설명
+│   └── Development.md                     # 개발 문서 (환경 설정 · 그룹 추천 · 배포)
 ├── target/                                # 빌드 산출물 — 커밋 금지 (Maven이 생성)
 ├── .gitignore
 └── README.md
 ```
 
-> 📦 **패키지(폴더)만 만들어 둔 상태입니다.**
-> `service/`·`network/` 아래 클래스 이름은 **앞으로 만들 예정 목록**이라 아직 파일이 없습니다.
-> 각 폴더의 `package-info.java`에 "여기엔 무엇을 넣는지"를 적어 뒀으니 작업 전에 한 번 읽어 보세요.
-
-> ⚠️ **`dto/`·`dao/`는 지금 저장소에 없습니다.** (8월 6일 커밋에서 삭제)
-> 위 계층 규칙(`view → service → dao`)을 유지하려면 두 패키지를 다시 만들어야 합니다.
+> 📦 각 폴더의 `package-info.java`에 "여기엔 무엇을 넣는지"를 적어 뒀으니
+> 작업 전에 한 번 읽어 보세요. `MapService`처럼 아직 만들지 않은 것도 있습니다.
 
 > 📌 **Java 파일은 반드시 `src/main/java/` 아래에 두세요.**
 > Maven은 이 경로만 소스로 인식합니다. 패키지 이름과 폴더 경로가 정확히 일치해야 하고
@@ -224,7 +230,7 @@ SafeFood/
 | `data/public/` | 앱이 **동작하는 데 필요한** 공통 데이터 (알레르기·기분 태그·메뉴 마스터 등) | ⭕ |
 | `data/private/` | **개인 데이터**(회원·취향·즐겨찾기·내 히스토리) + **팀 서버 데이터**(방장 쪽 그룹·투표·접속 기록 등) | ❌ |
 
-자세한 파일 목록·형식은 [Setup Wizard — data/ 폴더](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더)를 보세요.
+자세한 파일 목록·형식은 [개발 문서 — data/ 폴더](docs/Development.md#데이터베이스-미사용--data-폴더)를 보세요.
 
 <br>
 
@@ -235,7 +241,7 @@ SafeFood/
 - JDK 21 이상
 - Maven 3.6 이상 — **IntelliJ에 내장돼 있어 따로 설치하지 않아도 됩니다**
 - **(선택)** MySQL 8.0 이상 — DB를 쓸 때만
-- 지도 API 키 (Kakao Developers 등에서 발급)
+- 지도 API 키 (Kakao Developers에서 발급하는 **REST API 키**) — 없어도 앱은 돌아갑니다. 주소 검색은 키 없이 되고, 주소 → 좌표 변환만 막힙니다
 - 비어 있는 TCP 포트 1개 (소켓 서버용, 기본 `5000`) + UDP 포트 `5001` (방 자동 탐색용, 선택)
 
 > MySQL 없이 시작해도 됩니다. 이때 앱 데이터는 `data/public/`, `data/private/`에 저장합니다.
@@ -259,7 +265,7 @@ Maven 프로젝트로 인식되면서 의존성을 자동으로 내려받습니�
 mvn clean compile
 ```
 
-> ⚡ **3~4단계는 [Setup Wizard](docs/SetupWizard.md)로 자동 처리할 수 있습니다.**
+> ⚡ **3~4단계는 [Setup Wizard](docs/Development.md)로 자동 처리할 수 있습니다.**
 >
 > ```bash
 > mvn javafx:run -Pwizard-fx
@@ -270,7 +276,7 @@ mvn clean compile
 > IntelliJ에서는 `src/main/java/com/safefood/setup/SetupWizardFxLauncher.java`(창) 또는
 > `SetupWizard.java`(콘솔)를 열고 ▶ 버튼을 눌러도 됩니다.
 > (창 화면을 ▶로 실행할 때 `SetupWizardFx`가 아니라 **Launcher**를 눌러야 하는 이유는
-> [SetupWizard.md](docs/SetupWizard.md#-실행-방법)에 적어 뒀습니다.)
+> [개발 문서](docs/Development.md#실행-방법)에 적어 뒀습니다.)
 > 아래 3~4단계는 **직접 하고 싶거나, 무엇이 만들어지는지 확인하고 싶을 때** 참고하세요.
 
 ### 3. 데이터 저장소 준비
@@ -297,7 +303,7 @@ CREATE DATABASE safefood DEFAULT CHARACTER SET utf8mb4;
 | `data/public/` | 앱에 필요한 공통 데이터 (알레르기·기분·메뉴 등) | ⭕ |
 | `data/private/` | 개인 데이터 + 팀 서버 데이터 (회원·취향 / 그룹·투표 등) | ❌ |
 
-형식·파일 목록은 [Setup Wizard.md](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더)를 참고하세요.
+형식·파일 목록은 [개발 문서](docs/Development.md#데이터베이스-미사용--data-폴더)를 참고하세요.
 
 ### 4. 설정 파일 작성
 
@@ -312,7 +318,10 @@ db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterE
 db.user=본인_계정
 db.password=본인_비밀번호
 
-map.api.key=발급받은_지도_API_키
+# 카카오 REST API 키 (Kakao Developers › 내 애플리케이션 › 앱 키 › REST API 키)
+# 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다. 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
+# (주소 검색 자체는 카카오 우편번호 서비스라 키가 필요 없습니다)
+map.api.key=발급받은_카카오_REST_API_키
 
 # 소켓 서버 주소 (클라이언트가 접속할 곳)
 socket.host=localhost
@@ -329,12 +338,11 @@ socket.port=5000
 mvn compile exec:java
 ```
 
-JAR로 묶어서 실행하려면 클래스패스에 의존성을 함께 지정합니다.
+JAR로 묶어서 실행할 수도 있습니다. 의존성이 전부 들어가 클래스패스를 따로 잡을 필요가 없습니다.
 
 ```bash
-mvn clean package                    # target/safefood.jar 생성
-mvn dependency:build-classpath -Dmdep.outputFile=cp.txt
-java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
+mvn clean package
+java -jar target/safefood.jar
 ```
 
 자주 쓰는 Maven 명령입니다.
@@ -344,10 +352,11 @@ java -cp "target/classes;$(cat cp.txt)" com.safefood.Main
 | `mvn clean` | `target/` 삭제 |
 | `mvn compile` | `src/main/java` 컴파일 → `target/classes` |
 | `mvn test` | `src/test/java` 테스트 실행 |
-| `mvn package` | JAR 생성 → `target/safefood.jar` |
+| `mvn package` | 단일 실행 JAR 생성 → `target/safefood.jar` |
+| `java -jar target/safefood.jar` | 만들어진 JAR 실행 (의존성 포함) |
 | `mvn compile exec:java` | 앱 실행 (`com.safefood.Main`) |
-| `mvn javafx:run -Pwizard-fx` | Setup Wizard 실행 (창) |
-| `mvn compile exec:java -Pwizard` | Setup Wizard 실행 (콘솔) |
+| `mvn javafx:run -Pwizard-fx` | Setup Wizard만 따로 실행 (창) |
+| `mvn compile exec:java -Pwizard` | Setup Wizard만 따로 실행 (콘솔) |
 
 그룹 추천은 **방장이 방을 만들면 그 앱이 곧 서버**라서, 서버를 따로 켜지 않습니다.
 같은 앱을 인원수만큼 띄우고 한 명이 방을 만들면, 나머지는 그 주소로 참여하면 됩니다.
@@ -361,15 +370,44 @@ mvn compile exec:java
 > IntelliJ에서는 `Main.java`의 `main` 메서드 옆 ▶ 버튼으로 바로 실행할 수 있습니다.
 > 클라이언트를 **여러 개 동시에** 띄우려면 실행 구성(Run/Debug Configurations)에서
 > `Modify options → Allow multiple instances`를 체크하세요.
-> <!-- 웹/GUI로 결정되면 이 부분을 해당 실행 방법으로 교체하세요 -->
+
+<br>
+
+### 6. 실행 파일 만들기 (선택)
+
+```bash
+mvn clean package
+```
+
+`target/safefood.jar` **하나**(약 14MB)에 JavaFX와 JDBC 드라이버까지 전부 들어갑니다.
+JDK 21이 있는 PC라면 어디서나 이렇게 실행됩니다.
+
+```bash
+java -jar target/safefood.jar
+```
+
+앱은 켜지면서 **DB가 준비됐는지 먼저 확인합니다.**
+
+```
+DB 정상  ────────────────────→ 로그인 화면
+설정 없음 / 연결 실패 ─→ 설정 마법사 ─[닫기]→ 로그인 화면
+```
+
+받는 사람은 설정 파일을 미리 만들 필요가 없습니다. 처음 켜면 마법사가 뜨고,
+`config.properties`를 만든 뒤 같은 창에서 앱으로 넘어갑니다.
+
+> ⚠️ jar를 전달할 때 `config.properties`는 **같이 주지 마세요.** DB 계정·비밀번호가 들어 있습니다.
+> 팀 서버 DB를 함께 쓴다면 접속 정보만 알려 주고 마법사에서 입력하게 하세요.
+
+자세한 내용은 [개발 문서 — 실행 파일 만들기](docs/Development.md#-실행-파일-만들기)를 보세요.
 
 <br>
 
 ## 🗄️ 데이터베이스 스키마
 
-테이블 22개 · 외래 키 31개. **데이터베이스 설계서 v2.0**이 기준입니다.
-(음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼은
-v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
+테이블 23개 · 외래 키 32개. **데이터베이스 설계서 v2.0**이 기준입니다.
+(음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼,
+`user_location` 테이블은 v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 
 > ⚠️ **같은 스키마가 세 곳에 있습니다. 고칠 때는 셋을 함께 고쳐 주세요.**
 > 하나만 고치면 다음 사람이 틀린 쪽을 믿게 됩니다.
@@ -383,7 +421,7 @@ v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 > MySQL을 쓰지 않을 때는 아래 테이블 대신 `data/` 파일을 씁니다.
 > - 마스터성 데이터 → `data/public/`
 > - 회원·취향·그룹·투표 등 → `data/private/`
-> ([Setup Wizard.md](docs/SetupWizard.md#-데이터베이스-미사용--data-폴더) 참고)
+> ([개발 문서](docs/Development.md#데이터베이스-미사용--data-폴더) 참고)
 
 ### 회원 · 취향 · 알레르기
 
@@ -404,6 +442,20 @@ CREATE TABLE user_preference (
     price_min   INT,
     price_max   INT,
     max_distance INT,                           -- 최대 거리(m). 0은 제한 없음
+    PRIMARY KEY (user_id),
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+
+-- 등록해 둔 내 위치 (회원당 1행)
+-- 거리 조건(user_preference.max_distance)과 그룹 중간 지점이 여기를 기준점으로 씁니다
+CREATE TABLE user_location (
+    user_id    INT NOT NULL,
+    label      VARCHAR(30),                     -- 집 / 회사처럼 알아볼 이름
+    zonecode   VARCHAR(10),                     -- 우편번호 (카카오 우편번호 서비스)
+    address    VARCHAR(255),                    -- 도로명 주소 + 상세 주소
+    latitude   DECIMAL(10, 7),                  -- 거리 계산에 쓰이는 값. 좌표를 못 찾으면 NULL
+    longitude  DECIMAL(10, 7),
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id),
     FOREIGN KEY (user_id) REFERENCES user(id)
 );
@@ -930,11 +982,16 @@ CREATE TABLE feedback (
 - [x] 애플리케이션 형태 결정 — **JavaFX 데스크톱 앱**
 - [x] 기능 우선순위 확정 (기능 48개를 1·2·3차로 구분)
 - [x] 설계 문서 작성 (기능 · DB · UI 설계서 v2.0)
-- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개)
-- [ ] `dto` · `dao` 패키지 다시 만들기 <!-- 8월 6일 커밋에서 삭제된 상태 -->
+- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 23개 · 32개)
+- [x] `dto` · `dao` 패키지 다시 만들기
+- [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
+- [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅
+- [x] 그룹 추천 후보 3개 — DB 연동, 알레르기 판정, 후보 부족 처리
+- [x] 단일 실행 JAR 빌드 + 시작할 때 DB 확인 → 마법사/앱 자동 분기
+- [x] 내 위치 등록 — 카카오 우편번호 서비스로 주소 검색 + 로컬 API로 좌표 (`user_location`)
+- [x] 역할 분담
 - [ ] 지도 API 선택(Kakao / Naver) 및 키 발급
-- [ ] 테이블 생성 (팀원별 Setup Wizard 실행)
-- [ ] 소켓 메시지 프로토콜 확정
-- [ ] 역할 분담
-- [ ] 기능 구현
+- [ ] 메뉴 데이터 확충 — 현재 29개라 알레르기가 겹치면 후보가 금방 고갈됨
+- [ ] 그룹 결과를 `group_candidate` · `group_vote`에 저장
+- [ ] 기능 구현 (남은 항목은 위 [주요 기능](#-주요-기능) 참고)
 - [ ] 발표 자료 준비
