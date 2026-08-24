@@ -177,7 +177,9 @@ public class SignUpController {
 
     @FXML
     private void handleCancel() {
-        AppNav.show("로그인", "login.fxml");
+        // '로그인 화면에 있으면 세션은 비어 있다'를 규칙으로 지킵니다 — 돌아가는 길마다
+        // 따로 비우다 보니 이전 사람의 주소가 남는 일이 있었습니다.
+        AppNav.logout();
     }
 
     private static void hint(Label label, boolean ok, String okText, String badText) {

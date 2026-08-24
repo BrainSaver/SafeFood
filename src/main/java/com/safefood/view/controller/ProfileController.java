@@ -1,5 +1,6 @@
 package com.safefood.view.controller;
 
+import com.safefood.dao.AllergyCatalog;
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
@@ -82,10 +83,10 @@ public class ProfileController {
         // 입력칸은 검색도 겸합니다 — 치는 동안 아래 목록이 걸러집니다
         searchField.textProperty().addListener((observable, before, after) -> renderCatalog());
 
-        UserDto me = Session.getCurrentUser();
-        if (me == null) {
+        // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
+        if (!Session.isMember()) {
             // 게스트는 저장할 계정이 없습니다 — 화면은 보여 주되 자동 저장은 끕니다
-            userLabel.setText(com.safefood.network.GroupSession.get().displayName() + "님");
+            userLabel.setText(Session.displayName("게스트") + "님");
             autoSaveTag.setText("게스트 — 저장되지 않아요");
             autoSaveTag.getStyleClass().remove("accent2");
             autoSaveTag.getStyleClass().add("neutral");
@@ -99,7 +100,8 @@ public class ProfileController {
             return;
         }
 
-        userLabel.setText(me.getNickname() + "님");
+        UserDto me = Session.getCurrentUser();
+        userLabel.setText(Session.displayName("사용자") + "님");
         ProfileService profileService = new ProfileService();
 
         Map<String, Integer> myAllergies = profileService.getMyAllergies(me.getId());
@@ -247,7 +249,7 @@ public class ProfileController {
     private List<String> candidates() {
         String keyword = searchField.getText() == null ? "" : searchField.getText().trim();
         List<String> found = new ArrayList<>();
-        for (String name : DemoData.ALLERGIES) {
+        for (String name : AllergyCatalog.names()) {
             if (!owned.containsKey(name) && name.contains(keyword)) {
                 found.add(name);
             }
@@ -259,8 +261,8 @@ public class ProfileController {
         catalogPane.getChildren().clear();
         List<String> found = candidates();
         if (found.isEmpty()) {
-            catalogPane.getChildren().add(Widgets.sub(owned.size() == DemoData.ALLERGIES.size()
-                    ? "고시 19종을 모두 등록했습니다."
+            catalogPane.getChildren().add(Widgets.sub(owned.size() == AllergyCatalog.names().size()
+                    ? "등록할 수 있는 알레르기를 모두 등록했습니다."
                     : "검색어와 맞는 항목이 없습니다. 식약처 고시 19종 안에서 찾아 주세요."));
             return;
         }
@@ -285,7 +287,7 @@ public class ProfileController {
             hint("아래 목록에서 고르거나, 알레르기 이름을 입력해 주세요.");
             return;
         }
-        if (DemoData.ALLERGIES.contains(keyword)) {
+        if (AllergyCatalog.names().contains(keyword)) {
             addAllergy(keyword);   // 정확히 친 이름은 후보가 여럿이어도 그대로 받습니다
             return;
         }
@@ -331,23 +333,28 @@ public class ProfileController {
         if (loading) {
             return;
         }
-        UserDto me = Session.getCurrentUser();
-        if (me == null) {
+        if (!Session.isMember()) {
             return;   // 게스트 — 저장할 계정이 없습니다
         }
-        new ProfileService().updateAllergiesOnly(me.getId(), new java.util.HashMap<>(owned));
+        // 실패를 조용히 넘기면 '자동 저장' 배지만 보고 저장된 줄 압니다 — 알레르기는 특히 위험합니다
+        if (!new ProfileService().updateAllergiesOnly(
+                Session.currentUserId(), new java.util.LinkedHashMap<>(owned))) {
+            AppNav.error("알레르기를 저장하지 못했습니다. "
+                    + "이전에 등록한 목록은 그대로 남아 있습니다 — 연결을 확인한 뒤 다시 시도해 주세요.");
+        }
     }
 
     private void savePreferences() {
-        UserDto me = Session.getCurrentUser();
-        if (me == null) {
+        if (!Session.isMember()) {
             return;
         }
-        new ProfileService().updatePreferencesOnly(me.getId(),
+        if (!new ProfileService().updatePreferencesOnly(Session.currentUserId(),
                 (int) spicySlider.getValue(),
                 (int) priceMax.getValue(),
                 parseDistance(selectedDistance()),
-                Widgets.selected(categoryChips));
+                Widgets.selected(categoryChips))) {
+            AppNav.error("취향을 저장하지 못했습니다. 데이터베이스 연결을 확인해 주세요.");
+        }
     }
 
     private String selectedDistance() {
@@ -386,9 +393,8 @@ public class ProfileController {
     /** 등록해 둔 위치를 한 줄로. 세션에 사본이 없으면 DB에서 한 번 읽어 옵니다. */
     private void renderLocation() {
         LocationDto mine = Session.getMyLocation();
-        UserDto me = Session.getCurrentUser();
-        if (mine == null && me != null) {
-            mine = new LocationService().getMyLocation(me.getId());
+        if (mine == null && Session.isMember()) {
+            mine = new LocationService().getMyLocation(Session.currentUserId());
             Session.setMyLocation(mine);
         }
         boolean registered = mine != null;
@@ -489,14 +495,18 @@ public class ProfileController {
 
     // ── 내비게이션 ──────────────────────────────────────────────
 
+    /**
+     * 정보 변경 창을 엽니다.
+     *
+     * <p>{@code AppNav.dialog} 는 여는 일을 한 박자 미루므로 이 메서드는 <b>창이 뜨기 전에</b>
+     * 끝납니다. 그래서 여기서 곧바로 라벨을 다시 그려도 바뀐 닉네임이 반영되지 않았습니다 —
+     * 저장된 순간 알려 달라고 걸어 둡니다 (위치 등록과 같은 방식).
+     */
     @FXML
     private void handleEditInfo() {
-        AppNav.dialog("정보 변경", "edit-info.fxml");
-        // 정보 변경이 끝나면(팝업창이 닫히면) 즉시 라벨 텍스트 갱신
-        UserDto me = Session.getCurrentUser();
-        if (me != null) {
-            userLabel.setText(me.getNickname() + "님");
-        }
+        AppNav.dialog("정보 변경", "edit-info.fxml",
+                (EditInfoController controller) -> controller.setOnSaved(
+                        () -> userLabel.setText(Session.displayName("사용자") + "님")));
     }
 
     @FXML
@@ -516,6 +526,6 @@ public class ProfileController {
 
     @FXML
     private void handleLogout() {
-        AppNav.show("로그인", "login.fxml");
+        AppNav.logout();
     }
 }

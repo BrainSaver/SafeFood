@@ -771,12 +771,19 @@ mvn -q compile
 mvn clean package
 ```
 
-결과물은 **`target/safefood.jar`** 하나(약 14MB)입니다.
+결과물은 **`target/safefood.jar`** 하나(약 46MB — 주소 검색용 WebView 엔진 포함)입니다.
 MySQL Connector/J와 JavaFX가 안에 들어 있어 클래스패스를 따로 잡을 필요가 없습니다.
 
 ```bash
 java -jar target/safefood.jar
 ```
+
+Windows에서는 프로젝트 루트의 **`run.bat`을 더블클릭**하면 됩니다 —
+자바를 찾고(PATH → `JAVA_HOME` → IntelliJ 동봉 자바), jar가 없으면 만들고, 앱을 띄웁니다.
+`run.bat build`로 다시 빌드할 수 있습니다.
+
+> ⚠️ `run.bat`은 **CP949(ANSI)로 저장**돼 있습니다. UTF-8로 바꾸면 cmd가 한글 줄의 위치를
+> 잘못 잡아 주석 한가운데를 명령으로 실행하는 오류가 납니다.
 
 > JDK 21이 설치된 PC에서 돌아갑니다. 자바가 없는 PC용 실행 파일(`.exe`)과 설치 마법사는
 > 만들었다가 걷어냈습니다 — 배포물이 165MB로 커지고 WiX·jpackage 설정을 계속 들고 가야 해서,

@@ -148,7 +148,8 @@ public class MenuDao {
                 menuList.add(dto);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            // 빈 목록을 돌려주면 화면이 '조건에 맞는 메뉴가 없음'으로 오해합니다
+            throw new DataAccessException("추천 후보 메뉴를 불러오지 못했습니다.", e);
         }
         return menuList;
     }

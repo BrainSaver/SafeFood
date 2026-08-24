@@ -273,20 +273,7 @@ public final class Schema {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
-            new Table("history", """
-                    CREATE TABLE IF NOT EXISTS history (
-                        id         INT AUTO_INCREMENT PRIMARY KEY,
-                        user_id    INT NOT NULL,
-                        menu_id    INT NOT NULL,
-                        group_id   INT,
-                        type       ENUM('RECOMMENDED', 'EATEN', 'VIEWED', 'BLOCKED') NOT NULL,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id)  REFERENCES `user`(id),
-                        FOREIGN KEY (menu_id)  REFERENCES menu(id),
-                        FOREIGN KEY (group_id) REFERENCES dining_group(id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                    """),
-
+            // history.feedback_id 가 feedback(id)를 가리키므로 feedback을 먼저 만듭니다.
             new Table("feedback", """
                     CREATE TABLE IF NOT EXISTS feedback (
                         id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -297,6 +284,22 @@ public final class Schema {
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (user_id) REFERENCES `user`(id),
                         FOREIGN KEY (menu_id) REFERENCES menu(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("history", """
+                    CREATE TABLE IF NOT EXISTS history (
+                        id          INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id     INT NOT NULL,
+                        menu_id     INT NOT NULL,
+                        group_id    INT,
+                        type        ENUM('RECOMMENDED', 'EATEN', 'VIEWED', 'BLOCKED') NOT NULL,
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        feedback_id INT,
+                        FOREIGN KEY (user_id)     REFERENCES `user`(id),
+                        FOREIGN KEY (menu_id)     REFERENCES menu(id),
+                        FOREIGN KEY (group_id)    REFERENCES dining_group(id),
+                        FOREIGN KEY (feedback_id) REFERENCES feedback(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """)
     );
@@ -320,7 +323,7 @@ public final class Schema {
      * 알레르기 마스터 데이터.
      * 식품의약품안전처가 고시한 알레르기 유발물질 표시 대상 품목을 기준으로 삼았습니다.
      */
-    static final List<String> ALLERGIES = List.of(
+    public static final List<String> ALLERGIES = List.of(
             "우유", "계란", "메밀", "땅콩", "대두", "밀", "호두", "잣",
             "새우", "게", "오징어", "조개류", "고등어", "복숭아", "토마토",
             "돼지고기", "쇠고기", "닭고기", "아황산류"

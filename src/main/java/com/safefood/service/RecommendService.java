@@ -1,6 +1,8 @@
 package com.safefood.service;
 
+import com.safefood.dao.AllergyCatalog;
 import com.safefood.dao.AllergyDao;
+import com.safefood.dao.AllergyDao.MenuAllergies;
 import com.safefood.dao.HistoryDao;
 import com.safefood.dao.MenuDao;
 import com.safefood.dao.MenuDao.MenuDto;
@@ -12,6 +14,7 @@ import com.safefood.view.DemoData;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -248,22 +251,27 @@ public class RecommendService {
      */
     private RecommendResult createBlockedRecommendationWithAlternative(MenuDto blockedMenu,
                                                                         List<Integer> userAllergies,
-                                                                        List<MenuDto> allMenus) {
-        List<Integer> menuContains = allergyDao.getMenuAllergiesByRiskLevel(blockedMenu.getId(), "CONTAINS");
-        List<Integer> menuPossible = allergyDao.getMenuAllergiesByRiskLevel(blockedMenu.getId(), "POSSIBLE");
+                                                                        List<MenuDto> allMenus,
+                                                                        Map<Integer, MenuAllergies> allergiesByMenu) {
+        MenuAllergies blockedAllergies =
+                allergiesByMenu.getOrDefault(blockedMenu.getId(), MenuAllergies.EMPTY);
+        List<Integer> menuContains = blockedAllergies.contains();
+        List<Integer> menuPossible = blockedAllergies.possible();
 
         List<String> blockedAllergyNames = new ArrayList<>();
         boolean isPossibleOnly = true;
 
         for (Integer allergyId : userAllergies) {
-            if (allergyId > 0 && allergyId <= DemoData.ALLERGIES.size()) {
-                String allergyName = DemoData.ALLERGIES.get(allergyId - 1);
-                if (menuContains.contains(allergyId)) {
-                    blockedAllergyNames.add(allergyName);
-                    isPossibleOnly = false;
-                } else if (menuPossible.contains(allergyId)) {
-                    blockedAllergyNames.add(allergyName + "(혼입우려)");
-                }
+            // 이름은 allergy 테이블에서 찾습니다 — 목록 순서로 추측하면 다른 알레르기 이름이 나옵니다
+            String allergyName = AllergyCatalog.nameOf(allergyId);
+            if (allergyName == null) {
+                continue;
+            }
+            if (menuContains.contains(allergyId)) {
+                blockedAllergyNames.add(allergyName);
+                isPossibleOnly = false;
+            } else if (menuPossible.contains(allergyId)) {
+                blockedAllergyNames.add(allergyName + "(혼입우려)");
             }
         }
         String blockedReason;
@@ -279,9 +287,10 @@ public class RecommendService {
         String alternative = null;
         for (MenuDto other : allMenus) {
             if (other.getId() == blockedMenu.getId()) continue;
-            List<Integer> otherContains = allergyDao.getMenuAllergiesByRiskLevel(other.getId(), "CONTAINS");
-            List<Integer> otherPossible = allergyDao.getMenuAllergiesByRiskLevel(other.getId(), "POSSIBLE");
-            if (allergyService.isSafe(userAllergies, otherContains) && allergyService.isSafe(userAllergies, otherPossible)) {
+            MenuAllergies otherAllergies =
+                    allergiesByMenu.getOrDefault(other.getId(), MenuAllergies.EMPTY);
+            if (allergyService.isSafe(userAllergies, otherAllergies.contains())
+                    && allergyService.isSafe(userAllergies, otherAllergies.possible())) {
                 if (other.getRestaurantId() == blockedMenu.getRestaurantId()) {
                     alternative = "같은 식당의 안심 메뉴인 '" + other.getName() + "'(을)를 대신 드실 수 있습니다.";
                     break;
@@ -346,6 +355,10 @@ public class RecommendService {
 
         List<MenuDto> candidateMenus = menuDao.getAllCandidateMenus();
 
+        // 메뉴마다 묻지 않고 한 번에 받아 둡니다 — 예전에는 후보 1개당 커넥션 2개를 새로 맺어
+        // (풀이 없습니다) 메뉴가 조금만 늘어도 화면이 몇 초씩 멎었습니다
+        Map<Integer, MenuAllergies> allergiesByMenu = allergyDao.getAllMenuAllergies();
+
         for (MenuDto menu : candidateMenus) {
             // [R-04] 재추천 직전 노출 제외
             if (excludeMenuIds != null && excludeMenuIds.contains(menu.getId())) {
@@ -374,8 +387,9 @@ public class RecommendService {
                 continue;
             }
 
-            List<Integer> containsAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "CONTAINS");
-            List<Integer> possibleAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "POSSIBLE");
+            MenuAllergies menuAllergies = allergiesByMenu.getOrDefault(menu.getId(), MenuAllergies.EMPTY);
+            List<Integer> containsAllergies = menuAllergies.contains();
+            List<Integer> possibleAllergies = menuAllergies.possible();
 
             // [R-01 & R-07] CONTAINS(원재료 포함) 또는 POSSIBLE(혼입 가능성) 알레르기 성분 겹침 시 100% 완전 차단 (안전 제일주의)
             boolean isContainsUnsafe = !allergyService.isSafe(userAllergies, containsAllergies);
@@ -435,7 +449,8 @@ public class RecommendService {
                     break;
                 }
             }
-            RecommendResult blockedCard = createBlockedRecommendationWithAlternative(representativeBlocked, userAllergies, candidateMenus);
+            RecommendResult blockedCard = createBlockedRecommendationWithAlternative(
+                    representativeBlocked, userAllergies, candidateMenus, allergiesByMenu);
             results.add(blockedCard);
         }
 
@@ -520,6 +535,7 @@ public class RecommendService {
     public List<RecommendResult> getGroupRecommendations(MergedGroupCondition condition, int limit) {
         List<RecommendResult> results = new ArrayList<>();
         List<MenuDto> candidateMenus = menuDao.getAllCandidateMenus();
+        Map<Integer, MenuAllergies> allergiesByMenu = allergyDao.getAllMenuAllergies();
 
         List<Integer> mergedAllergies = condition.getMergedAllergies();
         int maxSpicy = condition.getMinSpicyLevel();
@@ -533,8 +549,9 @@ public class RecommendService {
                 continue;
             }
 
-            List<Integer> containsAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "CONTAINS");
-            List<Integer> possibleAllergies = allergyDao.getMenuAllergiesByRiskLevel(menu.getId(), "POSSIBLE");
+            MenuAllergies menuAllergies = allergiesByMenu.getOrDefault(menu.getId(), MenuAllergies.EMPTY);
+            List<Integer> containsAllergies = menuAllergies.contains();
+            List<Integer> possibleAllergies = menuAllergies.possible();
             if (!allergyService.isSafe(mergedAllergies, containsAllergies) || !allergyService.isSafe(mergedAllergies, possibleAllergies)) {
                 continue;
             }

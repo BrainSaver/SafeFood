@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,60 @@ import java.util.List;
  * DB의 history 테이블 (RECOMMENDED, EATEN, VIEWED, BLOCKED) 조회 및 저장 담당
  */
 public class HistoryDao {
+
+    private static final String TABLE = "history";
+
+    /**
+     * {@code history.feedback_id} 를 이미 확인했는지 — JVM 당 한 번만 봅니다.
+     */
+    private static volatile boolean feedbackColumnReady;
+
+    /**
+     * 이미 만들어져 있는 history 테이블에 {@code feedback_id} 를 채워 넣습니다.
+     *
+     * <p>{@code CREATE TABLE IF NOT EXISTS} 는 기존 테이블의 구조를 건드리지 않으므로
+     * ({@link com.safefood.setup.core.Schema} 클래스 주석 참고), 마법사를 이미 돌린
+     * 데이터베이스에는 이 컬럼이 없습니다. 없으면 여기서 한 번 붙입니다 — LocationDao 와 같은 방식입니다.
+     *
+     * <p>외래 키는 붙이지 못해도 그냥 넘어갑니다. 컬럼만 있으면 평가 저장·조회는 동작하고,
+     * 제약이 없다고 화면을 막을 이유는 없기 때문입니다.
+     */
+    private static void ensureFeedbackColumn(Connection conn) throws SQLException {
+        if (feedbackColumnReady) {
+            return;
+        }
+        synchronized (HistoryDao.class) {
+            if (feedbackColumnReady) {
+                return;
+            }
+            if (!hasColumn(conn, "feedback_id")) {
+                run(conn, "ALTER TABLE history ADD COLUMN feedback_id INT AFTER created_at");
+                System.out.println("[db] " + TABLE + ".feedback_id 컬럼을 추가했습니다.");
+                try {
+                    run(conn, "ALTER TABLE history "
+                            + "ADD CONSTRAINT fk_history_feedback "
+                            + "FOREIGN KEY (feedback_id) REFERENCES feedback(id)");
+                } catch (SQLException e) {
+                    System.err.println("[db] " + TABLE + ".feedback_id 외래 키는 걸지 못했습니다"
+                            + " (컬럼은 추가됐습니다): " + e.getMessage());
+                }
+            }
+            feedbackColumnReady = true;
+        }
+    }
+
+    private static boolean hasColumn(Connection conn, String column) throws SQLException {
+        try (ResultSet columns = conn.getMetaData()
+                .getColumns(conn.getCatalog(), null, TABLE, column)) {
+            return columns.next();
+        }
+    }
+
+    private static void run(Connection conn, String sql) throws SQLException {
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate(sql);
+        }
+    }
 
     /**
      * 특정 회원의 '먹음(EATEN)' 이력에 있는 메뉴 ID 목록 조회 (재추천 방지용)
@@ -145,11 +200,13 @@ public class HistoryDao {
      */
     public boolean updateFeedbackId(int historyId, int feedbackId) {
         String sql = "UPDATE history SET feedback_id = ? WHERE id = ?";
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, feedbackId);
-            pstmt.setInt(2, historyId);
-            return pstmt.executeUpdate() > 0;
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            ensureFeedbackColumn(conn);
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, feedbackId);
+                pstmt.setInt(2, historyId);
+                return pstmt.executeUpdate() > 0;
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
@@ -170,20 +227,23 @@ public class HistoryDao {
                 "ORDER BY h.created_at DESC";
 
         List<HistoryDto> list = new ArrayList<>();
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, userId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String date = rs.getString("date");
-                    String type = rs.getString("type");
-                    String menu = rs.getString("menu_name");
-                    String restaurant = rs.getString("restaurant_name");
-                    int menuId = rs.getInt("menu_id");
-                    int restaurantId = rs.getInt("restaurant_id");
-                    int historyId = rs.getInt("history_id");
-                    int feedbackId = rs.getInt("feedback_id");
-                    list.add(new HistoryDto(date, type, menu, restaurant, "", menuId, restaurantId, historyId, feedbackId));
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            ensureFeedbackColumn(conn);
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        String date = rs.getString("date");
+                        String type = rs.getString("type");
+                        String menu = rs.getString("menu_name");
+                        String restaurant = rs.getString("restaurant_name");
+                        int menuId = rs.getInt("menu_id");
+                        int restaurantId = rs.getInt("restaurant_id");
+                        int historyId = rs.getInt("history_id");
+                        int feedbackId = rs.getInt("feedback_id");
+                        list.add(new HistoryDto(date, type, menu, restaurant, "",
+                                menuId, restaurantId, historyId, feedbackId));
+                    }
                 }
             }
         } catch (Exception e) {

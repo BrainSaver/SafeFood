@@ -4,6 +4,7 @@ import com.safefood.dao.GroupMenuDao;
 import com.safefood.dao.GroupMenuDao.AllergySource;
 import com.safefood.dao.GroupMenuDao.CandidateMenu;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -39,10 +40,19 @@ public class GroupRecommendService {
         }
     }
 
-    public record GroupResult(List<GroupCandidate> candidates, int scannedMenus, int blockedByAllergy) {
+    public record GroupResult(List<GroupCandidate> candidates, int scannedMenus, int blockedByAllergy,
+                              boolean failed) {
 
         public static GroupResult empty() {
-            return new GroupResult(List.of(), 0, 0);
+            return new GroupResult(List.of(), 0, 0, false);
+        }
+
+        /**
+         * 메뉴를 <b>불러오지 못한</b> 경우 — 메뉴가 하나도 없는 경우와 구분해야 합니다.
+         * 둘을 뭉뚱그리면 조회 실패일 때 검증 안 된 대체 후보가 나갑니다.
+         */
+        public static GroupResult failure() {
+            return new GroupResult(List.of(), 0, 0, true);
         }
 
         public boolean hasMenuData() {
@@ -59,7 +69,13 @@ public class GroupRecommendService {
             return GroupResult.empty();
         }
 
-        List<CandidateMenu> menus = groupMenuDao.findAllWithAllergies();
+        List<CandidateMenu> menus;
+        try {
+            menus = groupMenuDao.findAllWithAllergies();
+        } catch (SQLException e) {
+            System.err.println("[group] 추천 후보 조회 실패: " + e.getMessage());
+            return GroupResult.failure();
+        }
         List<Scored> scored = new ArrayList<>();
         int blocked = 0;
         for (CandidateMenu menu : menus) {
@@ -77,7 +93,7 @@ public class GroupRecommendService {
                 .thenComparingInt(s -> s.menu().price())
                 .thenComparingInt(s -> s.menu().menuId()));
 
-        return new GroupResult(pickDiverse(scored, limit), menus.size(), blocked);
+        return new GroupResult(pickDiverse(scored, limit), menus.size(), blocked, false);
     }
 
     private Scored score(CandidateMenu menu, GroupCondition condition) {
@@ -193,6 +209,11 @@ public class GroupRecommendService {
 
     private static void print(String title, GroupResult result) {
         System.out.println("=== " + title + " ===");
+        if (result.failed()) {
+            System.out.println("  메뉴를 불러오지 못했습니다.");
+            System.out.println();
+            return;
+        }
         System.out.printf("  훑은 메뉴 %d개 · 알레르기로 제외 %d개 · 후보 %d개%n",
                 result.scannedMenus(), result.blockedByAllergy(), result.candidates().size());
         result.candidates().forEach(candidate -> System.out.println("  " + candidate));
