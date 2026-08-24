@@ -64,12 +64,6 @@
                 bridge.onClose(state || '');
             },
             onresize: function (size) {
-                // 위젯이 "이만큼 필요하다"고 알려 오는 자리입니다
-                // (안내 화면 466px, 결과가 한두 건이면 270px 안팎, 여러 건이면 2000px도 넘습니다)
-                //
-                // 컨테이너를 그 높이로 늘려 두고 같은 값을 자바에도 넘깁니다. 자바는 WebView와
-                // 창을 그만큼(화면을 넘지 않는 선에서) 키우고, 창이 더 못 커지는 만큼은
-                // 페이지가 스크롤됩니다 — 검색창은 맨 위에 그대로 남습니다.
                 var height = Math.ceil(size.height);
                 wrap.style.height = height + 'px';
                 try {
