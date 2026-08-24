@@ -35,11 +35,6 @@ public final class Room {
 
     private static final int CANDIDATE_COUNT = 3;
 
-    private static final List<String[]> PLACEHOLDER_MENUS = List.of(
-            new String[]{"김치찌개", "할머니손맛"},
-            new String[]{"제육볶음", "백반집"},
-            new String[]{"비빔밥", "한그릇"});
-
     private final GroupRecommendService recommendService = new GroupRecommendService();
 
     private final String inviteCode;
@@ -161,17 +156,30 @@ public final class Room {
         worker.start();
     }
 
+    /**
+     * 후보를 뽑아 방에 뿌립니다.
+     *
+     * <p>예전에는 메뉴가 없으면 미리 적어 둔 세 가지(김치찌개·제육볶음·비빔밥)를 대신 내보냈습니다.
+     * 그 목록은 <b>누구의 알레르기도 검사하지 않은</b> 값이라, 새우 알레르기가 있는 방에도 그대로
+     * 나갔습니다. 알레르기 앱에서 "그럴듯한 값"은 빈 화면보다 위험하므로 지웠습니다 —
+     * 이제 못 뽑았으면 왜 못 뽑았는지만 알립니다.
+     */
     private void runRecommendation(GroupCondition condition) {
         GroupResult result;
         try {
             result = recommendService.recommend(condition, CANDIDATE_COUNT);
         } catch (RuntimeException e) {
-            System.err.println("[room] 후보 추천 실패, 대체 목록을 씁니다: " + e);
-            result = GroupResult.empty();
+            System.err.println("[room] 후보 추천 실패: " + e);
+            result = GroupResult.failure();
         }
 
-        if (!result.hasMenuData()) {
-            applyCandidates(PLACEHOLDER_MENUS, null);
+        if (result.failed()) {
+            applyCandidates(List.of(), "메뉴 정보를 불러오지 못했어요 —"
+                    + " 방장 쪽 데이터베이스 연결을 확인해 주세요."
+                    + " 알레르기를 확인하지 못한 메뉴는 후보로 내보내지 않습니다.");
+        } else if (!result.hasMenuData()) {
+            applyCandidates(List.of(), "등록된 메뉴가 없어 후보를 뽑지 못했어요 —"
+                    + " 메뉴 데이터를 먼저 넣어 주세요.");
         } else if (result.allBlockedByAllergy()) {
             applyCandidates(List.of(), allergyDeadEndNotice(condition, result.scannedMenus()));
         } else {

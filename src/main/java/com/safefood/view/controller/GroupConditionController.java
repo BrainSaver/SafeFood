@@ -1,5 +1,6 @@
 package com.safefood.view.controller;
 
+import com.safefood.dao.AllergyCatalog;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
 import com.safefood.dto.UserDto;
@@ -59,7 +60,7 @@ public class GroupConditionController {
         // 조건 확인 중 X로 닫으면 방에서 나갑니다 — 준비 안 된 유령 참여자로 남아 전원 READY를 막지 않게
         AppNav.onDialogClosed(root, () -> GroupSession.get().shutdown());
 
-        Widgets.fillChips(allergyPane, DemoData.ALLERGIES, allergyChips);
+        Widgets.fillChips(allergyPane, AllergyCatalog.names(), allergyChips);
         budgetBox.getItems().setAll(DemoData.BUDGETS);
 
         // 요약 줄은 편집기의 값이 바뀔 때마다 따라 갱신됩니다
@@ -78,14 +79,15 @@ public class GroupConditionController {
 
     /** 회원이면 프로필 값으로, 게스트면 기본값으로 채웁니다. */
     private void loadFromProfile() {
-        UserDto me = Session.getCurrentUser();
-        if (me == null) {
+        // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
+        if (!Session.isMember()) {
             sourceLabel.setText("게스트는 저장된 프로필이 없어 기본값으로 시작해요 — 바꿀 것만 눌러 고치세요.");
             budgetBox.setValue("10,000원 이하");
             spicySlider.setValue(2);
             return;
         }
 
+        UserDto me = Session.getCurrentUser();
         sourceLabel.setText("내 프로필에서 가져왔어요 — 바꿀 것만 눌러 고치세요.");
         ProfileService profileService = new ProfileService();
 

@@ -44,6 +44,8 @@ public class Main extends Application {
         SetupWizardFx wizard = new SetupWizardFx();
         wizard.setOnFinish(() -> {
             AppConfig.reload();
+            // 마법사가 방금 심은 알레르기 마스터를 다시 읽습니다 (그 전에는 못 읽어 비어 있습니다)
+            com.safefood.dao.AllergyCatalog.reload();
             showApp(stage);
         });
         wizard.start(stage);

@@ -3,7 +3,6 @@ package com.safefood.view.controller;
 import com.safefood.dto.FavoriteDto;
 import com.safefood.dto.HistoryDto;
 import com.safefood.dto.UserDto;
-import com.safefood.network.GroupSession;
 import com.safefood.service.FavoriteService;
 import com.safefood.service.FeedbackService;
 import com.safefood.service.HistoryService;
@@ -53,15 +52,7 @@ public class HistoryController {
 
     @FXML
     private void initialize() {
-        if (com.safefood.dto.Session.getCurrentUser() != null) {
-            String nick = com.safefood.dto.Session.getCurrentUser().getNickname();
-            if (nick == null || nick.isBlank()) {
-                nick = com.safefood.dto.Session.getCurrentUser().getLoginId();
-            }
-            userLabel.setText((nick != null ? nick : "사용자") + "님");
-        } else {
-            userLabel.setText(GroupSession.get().displayName() + "님");
-        }
+        userLabel.setText(com.safefood.dto.Session.displayName("사용자") + "님");
 
         buildTabs();
         buildFilters();
@@ -123,7 +114,7 @@ public class HistoryController {
         String wanted = selectedType();
         UserDto me = com.safefood.dto.Session.getCurrentUser();
 
-        List<HistoryDto> allHistories = (me != null && me.getId() != -1)
+        List<HistoryDto> allHistories = com.safefood.dto.Session.isMember()
                 ? new HistoryService().getHistories(me.getId())
                 : new ArrayList<>();
 
@@ -169,7 +160,7 @@ public class HistoryController {
             rate.getStyleClass().add("ghost-quiet");
             rate.setDisable(rated);
             rate.setOnAction(event -> {
-                if (me == null || me.getId() == -1) {
+                if (!com.safefood.dto.Session.isMember()) {
                     AppNav.warn("게스트는 평가할 수 없습니다.");
                     return;
                 }
@@ -198,7 +189,7 @@ public class HistoryController {
 
     private void renderFavorites() {
         UserDto me = com.safefood.dto.Session.getCurrentUser();
-        List<FavoriteDto> favs = (me != null && me.getId() != -1)
+        List<FavoriteDto> favs = com.safefood.dto.Session.isMember()
                 ? new FavoriteService().getFavorites(me.getId())
                 : new ArrayList<>();
 
@@ -271,8 +262,6 @@ public class HistoryController {
 
     @FXML
     private void handleLogout() {
-        com.safefood.dto.Session.setCurrentUser(null);
-        GroupSession.get().setGuest(false);
-        AppNav.show("SafeFood 로그인", "login.fxml");
+        AppNav.logout();
     }
 }

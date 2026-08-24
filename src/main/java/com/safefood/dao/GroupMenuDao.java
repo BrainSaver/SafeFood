@@ -48,7 +48,11 @@ public class GroupMenuDao {
              GROUP BY m.id, m.name, r.name, m.category, m.price, m.spicy_level, r.rating
             """;
 
-    public List<CandidateMenu> findAllWithAllergies() {
+    /**
+     * @throws SQLException 조회 실패 — 호출부가 '메뉴 없음'과 구분할 수 있게 그대로 올립니다.
+     *                      삼키고 빈 목록을 돌려주면 알레르기 검증을 못 한 대체 후보가 나갑니다.
+     */
+    public List<CandidateMenu> findAllWithAllergies() throws SQLException {
         List<CandidateMenu> menus = new ArrayList<>();
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(FIND_ALL);
@@ -69,8 +73,6 @@ public class GroupMenuDao {
                         contains,
                         possible));
             }
-        } catch (SQLException e) {
-            System.err.println("[group] 추천 후보 조회 실패: " + e.getMessage());
         }
         return menus;
     }

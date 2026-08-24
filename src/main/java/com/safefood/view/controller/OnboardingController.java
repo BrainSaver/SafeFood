@@ -1,5 +1,6 @@
 package com.safefood.view.controller;
 
+import com.safefood.dao.AllergyCatalog;
 import com.safefood.dto.UserDto;
 import com.safefood.view.AppNav;
 import com.safefood.view.DemoData;
@@ -28,6 +29,12 @@ import java.util.Map;
  */
 public class OnboardingController {
 
+    /**
+     * 회원가입 화면이 넘겨 주는 방금 만든 계정의 아이디 — 온보딩이 저장할 대상입니다.
+     *
+     * <p>정적 값이라 다 쓰고 비우지 않으면 앱이 도는 동안 남습니다.
+     * 신원에 매인 값을 남겨 두면 다음 사람 차례에 잘못 쓰이므로 {@link #save()} 끝에서 비웁니다.
+     */
     public static String newUserId;
 
     private static final int LAST_STEP = 3;
@@ -88,7 +95,8 @@ public class OnboardingController {
         fillDistanceSeg();
 
         Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
-        Widgets.fillChips(allergyPane, DemoData.ALLERGIES, allergyChips);
+        // 고를 목록은 allergy 테이블 기준입니다 (DB를 못 읽으면 고시 19종으로 대신합니다)
+        Widgets.fillChips(allergyPane, AllergyCatalog.names(), allergyChips);
 
         for (ToggleButton chip : allergyChips) {
             chip.selectedProperty().addListener((observable, before, on) -> {
@@ -179,8 +187,7 @@ public class OnboardingController {
             return;
         }
         save();
-        UserDto me = com.safefood.dto.Session.getCurrentUser();
-        if (me != null && me.getId() == -1) {
+        if (com.safefood.dto.Session.isGuest()) {
             AppNav.dialog("같이 먹기", "group-option.fxml");
         } else {
             AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
@@ -199,8 +206,7 @@ public class OnboardingController {
     @FXML
     private void handleSkip() {
         save();
-        UserDto me = com.safefood.dto.Session.getCurrentUser();
-        if (me != null && me.getId() == -1) {
+        if (com.safefood.dto.Session.isGuest()) {
             AppNav.dialog("같이 먹기", "group-option.fxml");
         } else {
             AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
@@ -262,7 +268,7 @@ public class OnboardingController {
 
     private void save() {
         UserDto me = com.safefood.dto.Session.getCurrentUser();
-        boolean isGuest = (me != null && me.getId() == -1);
+        boolean isGuest = com.safefood.dto.Session.isGuest();
 
         int currentUserId = -1;
         if (!isGuest) {
@@ -299,16 +305,18 @@ public class OnboardingController {
             com.safefood.service.OnboardingService onboardingService =
                     new com.safefood.service.OnboardingService();
 
-            for (Map.Entry<String, Integer> entry : severityByAllergy.entrySet()) {
-                int allergyId = DemoData.ALLERGIES.indexOf(entry.getKey()) + 1;
-                if (allergyId > 0) {
-                    onboardingService.saveAllergy(currentUserId, allergyId, entry.getValue());
-                }
+            // 알레르기는 이름 → 번호 변환과 저장을 한 트랜잭션으로 처리하는 쪽으로 보냅니다
+            // (목록 순서로 번호를 짐작하면 다른 알레르기로 저장될 수 있습니다)
+            if (!new com.safefood.service.ProfileService()
+                    .updateAllergiesOnly(currentUserId, severityByAllergy)) {
+                AppNav.error("알레르기를 저장하지 못했습니다. 프로필 화면에서 다시 등록해 주세요.");
             }
 
             onboardingService.savePreferences(
                     currentUserId, spicyLevel, priceMax, maxDistance, preferredCategories);
         }
+
+        newUserId = null;   // 다 썼습니다 — 다음 사람 차례에 남아 있으면 안 됩니다
     }
 
     private String selectedDistance() {

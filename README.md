@@ -143,6 +143,7 @@ Java로 개발하는 B팀 팀 프로젝트입니다.
 ```
 SafeFood/
 ├── pom.xml                                # 빌드 설정 · 의존성 (JDBC 드라이버 등)
+├── run.bat                                # 앱 실행 (더블클릭) — 자바 찾기 · 빌드 · 실행
 ├── config.properties                      # 개인 설정 — 커밋 금지 (Setup Wizard가 생성)
 ├── config.properties.example              # 값이 빈 공유용 사본 — 커밋 가능
 ├── src/
@@ -333,6 +334,20 @@ socket.port=5000
 
 ### 5. 실행
 
+가장 쉬운 방법은 프로젝트 폴더의 **`run.bat` 더블클릭**입니다 (Windows).
+자바를 찾고, 실행 파일이 없으면 만들고, 앱을 띄우는 것까지 알아서 합니다.
+
+```bat
+run.bat
+run.bat build   :: 실행 파일을 다시 만들고 싶을 때
+```
+
+> `run.bat`은 PATH → `JAVA_HOME` → IntelliJ가 함께 깔아 주는 자바 순서로 찾습니다.
+> Maven도 마찬가지라, 둘 다 따로 설치하지 않은 PC에서도 대개 그냥 실행됩니다.
+> 콘솔 창을 닫으면 앱도 함께 종료됩니다.
+
+IntelliJ나 명령줄에서 직접 돌릴 수도 있습니다.
+
 ```bash
 # 컴파일 + 실행 (JDBC 드라이버는 Maven이 알아서 클래스패스에 넣습니다)
 mvn compile exec:java
@@ -379,7 +394,8 @@ mvn compile exec:java
 mvn clean package
 ```
 
-`target/safefood.jar` **하나**(약 14MB)에 JavaFX와 JDBC 드라이버까지 전부 들어갑니다.
+`target/safefood.jar` **하나**(약 46MB)에 JavaFX와 JDBC 드라이버까지 전부 들어갑니다.
+(주소 검색용 WebView 엔진 `jfxwebkit`이 들어가면서 14MB에서 늘었습니다.)
 JDK 21이 있는 PC라면 어디서나 이렇게 실행됩니다.
 
 ```bash

@@ -1,14 +1,13 @@
 package com.safefood.dao;
 
 import com.safefood.dto.PreferenceDto;
-import com.safefood.view.DemoData;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,23 +50,26 @@ public class ProfileDao {
         return list;
     }
 
-    // 내 알레르기와 심각도 가져오기 (매칭을 위해 MAP 사용)
+    /**
+     * 내 알레르기와 심각도 가져오기 (이름 → 심각도).
+     *
+     * <p>이름은 {@code allergy} 테이블에서 <b>조인해서</b> 읽습니다. 예전처럼 화면 목록의
+     * 순서로 id 를 되돌리면 마스터 순서가 바뀌는 순간 다른 알레르기로 보입니다
+     * ({@link AllergyCatalog} 참고).
+     */
     public Map<String, Integer> getAllergies(int userId) {
-        Map<String, Integer> map = new HashMap<>();
-        String sql = "SELECT allergy_id, severity FROM user_allergy WHERE user_id = ?";
+        Map<String, Integer> map = new LinkedHashMap<>();
+        String sql = "SELECT a.name AS allergy_name, ua.severity " +
+                     "FROM user_allergy ua " +
+                     "JOIN allergy a ON a.id = ua.allergy_id " +
+                     "WHERE ua.user_id = ? " +
+                     "ORDER BY a.id";
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)){
             pstmt.setInt(1, userId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
-                    int allergyId = rs.getInt("allergy_id");
-                    int  severity = rs.getInt("severity");
-
-                    // DB의 allergy_id(int)를 텍스트로 변환
-                    if(allergyId > 0 && allergyId <= DemoData.ALLERGIES.size()){
-                        String allergyName = DemoData.ALLERGIES.get(allergyId - 1);
-                        map.put(allergyName, severity);
-                    }
+                    map.put(rs.getString("allergy_name"), rs.getInt("severity"));
                 }
             }
         } catch (SQLException e) {
@@ -88,54 +90,130 @@ public class ProfileDao {
             pstmt.setInt(2, spicy_level);
             pstmt.setInt(3, priceMax);
             pstmt.setInt(4, maxDistance);
-            
+
             // UPDATE 용
             pstmt.setInt(5, spicy_level);
             pstmt.setInt(6, priceMax);
             pstmt.setInt(7, maxDistance);
-            
+
             pstmt.executeUpdate();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // 카테고리 / 알레르기 초기화 ( DELETE )
-    public void deleteCategory(int userId){
-        String sql = "DELETE FROM user_category WHERE user_id = ?";
-        try (Connection conn = DatabaseUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)){
-            pstmt.setInt(1, userId); pstmt.executeUpdate();
-        } catch (Exception e) { e.printStackTrace(); }
+    /**
+     * 알레르기 목록을 통째로 갈아 끼웁니다 — <b>한 트랜잭션</b>으로.
+     *
+     * <p>예전에는 DELETE 와 INSERT 가 각각 별도 커넥션이라, 중간에 끊기면 알레르기 목록이
+     * <b>비워진 채로</b> 남았습니다. 못 먹는 재료가 사라진 프로필로 추천이 돌아가는 상황이라
+     * 반드시 전부 되거나 전부 안 되어야 합니다.
+     *
+     * <p>이름을 번호로 바꾸는 일도 <b>DB 를 건드리기 전에</b> 끝냅니다. 마스터에 없는 이름이
+     * 하나라도 있으면 지우지 않고 그대로 실패합니다.
+     *
+     * @param severityByName 알레르기 이름 → 심각도(1~5). 빈 Map 이면 전부 지웁니다.
+     * @return 저장 성공 여부
+     */
+    public boolean replaceAllergies(int userId, Map<String, Integer> severityByName) {
+        Map<String, Integer> wanted = severityByName == null ? Map.of() : severityByName;
+
+        // 1. 먼저 전부 번호로 바꿔 봅니다 — 하나라도 못 바꾸면 DB 는 손대지 않습니다
+        Map<Integer, Integer> severityById = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : wanted.entrySet()) {
+            Integer allergyId = AllergyCatalog.idOf(entry.getKey());
+            if (allergyId == null) {
+                System.err.println("[profile] 알레르기 마스터에서 " + entry.getKey()
+                        + " 을(를) 찾지 못해 저장하지 않았습니다.");
+                return false;
+            }
+            severityById.put(allergyId, clampSeverity(entry.getValue()));
+        }
+
+        // 2. 지우고 다시 넣는 일을 한 트랜잭션으로
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            boolean previousAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement delete =
+                             conn.prepareStatement("DELETE FROM user_allergy WHERE user_id = ?")) {
+                    delete.setInt(1, userId);
+                    delete.executeUpdate();
+                }
+                if (!severityById.isEmpty()) {
+                    String insert = "INSERT INTO user_allergy (user_id, allergy_id, severity) VALUES (?, ?, ?)";
+                    try (PreparedStatement pstmt = conn.prepareStatement(insert)) {
+                        for (Map.Entry<Integer, Integer> entry : severityById.entrySet()) {
+                            pstmt.setInt(1, userId);
+                            pstmt.setInt(2, entry.getKey());
+                            pstmt.setInt(3, entry.getValue());
+                            pstmt.addBatch();
+                        }
+                        pstmt.executeBatch();
+                    }
+                }
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                System.err.println("[profile] 알레르기를 저장하지 못해 이전 상태로 되돌렸습니다: " + e.getMessage());
+                return false;
+            } finally {
+                conn.setAutoCommit(previousAutoCommit);
+            }
+        } catch (SQLException e) {
+            System.err.println("[profile] 알레르기 저장 중 연결 오류: " + e.getMessage());
+            return false;
+        }
     }
 
-    public void deleteAllergies(int userId){
-        String sql = "DELETE FROM user_allergy WHERE user_id = ?";
-        try (Connection conn = DatabaseUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)){
-            pstmt.setInt(1, userId); pstmt.executeUpdate();
-        } catch (Exception e) { e.printStackTrace(); }
+    /**
+     * 선호 카테고리를 통째로 갈아 끼웁니다 — 알레르기와 같은 이유로 한 트랜잭션입니다.
+     */
+    public boolean replaceCategories(int userId, List<String> categories) {
+        List<String> wanted = categories == null ? List.of() : categories;
+
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            boolean previousAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement delete =
+                             conn.prepareStatement("DELETE FROM user_category WHERE user_id = ?")) {
+                    delete.setInt(1, userId);
+                    delete.executeUpdate();
+                }
+                if (!wanted.isEmpty()) {
+                    String insert = "INSERT INTO user_category (user_id, category) VALUES (?, ?)";
+                    try (PreparedStatement pstmt = conn.prepareStatement(insert)) {
+                        for (String category : wanted) {
+                            pstmt.setInt(1, userId);
+                            pstmt.setString(2, category);
+                            pstmt.addBatch();
+                        }
+                        pstmt.executeBatch();
+                    }
+                }
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                System.err.println("[profile] 선호 카테고리를 저장하지 못해 이전 상태로 되돌렸습니다: "
+                        + e.getMessage());
+                return false;
+            } finally {
+                conn.setAutoCommit(previousAutoCommit);
+            }
+        } catch (SQLException e) {
+            System.err.println("[profile] 선호 카테고리 저장 중 연결 오류: " + e.getMessage());
+            return false;
+        }
     }
 
-
-    // 카테고리 / 알레르기 다시 추가 ( INSERT )
-
-    // 카테고리 추가
-    public void insertCategory(int userId, String category){
-        String  sql = "INSERT INTO user_category (user_id, category) VALUES (?, ?)";
-        try (Connection conn = DatabaseUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)){
-            pstmt.setInt(1, userId); pstmt.setString(2, category);
-            pstmt.executeUpdate();
-        } catch (Exception e) { e.printStackTrace(); }
+    /** user_allergy.severity 는 TINYINT 1~5 입니다 — 범위를 벗어난 값은 보통(3)으로 봅니다. */
+    private static int clampSeverity(Integer severity) {
+        if (severity == null) {
+            return 3;
+        }
+        return Math.max(1, Math.min(5, severity));
     }
-
-    // 알레르기 추가
-    public void insertAllergy(int userId, int allergyId, int severity){
-        String sql = "INSERT INTO user_allergy (user_id, allergy_id, severity) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)){
-            pstmt.setInt(1, userId); pstmt.setInt(2, allergyId);
-            pstmt.setInt(3, severity); pstmt.executeUpdate();
-        } catch (Exception e) { e.printStackTrace(); }
-    }
-
-
-
 }

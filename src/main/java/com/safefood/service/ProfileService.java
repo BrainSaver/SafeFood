@@ -2,7 +2,6 @@ package com.safefood.service;
 
 import com.safefood.dao.ProfileDao;
 import com.safefood.dto.PreferenceDto;
-import com.safefood.view.DemoData;
 
 import java.util.List;
 import java.util.Map;
@@ -28,20 +27,26 @@ public class ProfileService {
         return profileDao.getAllergies(userId);
     }
 
-    public void updatePreferencesOnly(int userId, int spicyLevel, int priceMax, int maxDistance, List<String> categories){
+    /**
+     * 맵기·예산·거리와 선호 카테고리를 저장합니다.
+     *
+     * @return 저장 성공 여부 — 화면이 실패를 알려 줄 수 있도록 돌려줍니다
+     */
+    public boolean updatePreferencesOnly(int userId, int spicyLevel, int priceMax, int maxDistance,
+                                         List<String> categories){
         profileDao.updatePreference(userId, spicyLevel, priceMax, maxDistance);
-        
-        profileDao.deleteCategory(userId);
-        for (String cat : categories) {
-            profileDao.insertCategory(userId, cat);
-        }
+        return profileDao.replaceCategories(userId, categories);
     }
 
-    public void updateAllergiesOnly(int userId, Map<String, Integer> allergies){
-        profileDao.deleteAllergies(userId);
-        for (Map.Entry<String, Integer> entry : allergies.entrySet()) {
-            int allergyId = com.safefood.view.DemoData.ALLERGIES.indexOf(entry.getKey()) + 1;
-            profileDao.insertAllergy(userId, allergyId, entry.getValue());
-        }
+    /**
+     * 알레르기 목록을 저장합니다.
+     *
+     * <p>번호 변환과 저장을 {@link ProfileDao#replaceAllergies} 가 한 트랜잭션으로 처리하므로,
+     * 실패하면 이전 목록이 그대로 남습니다 — 알레르기가 빈 프로필로 추천이 돌아가는 일은 없습니다.
+     *
+     * @return 저장 성공 여부
+     */
+    public boolean updateAllergiesOnly(int userId, Map<String, Integer> allergies){
+        return profileDao.replaceAllergies(userId, allergies);
     }
 }

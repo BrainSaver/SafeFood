@@ -124,10 +124,16 @@ public class WaitingRoomController implements GroupClient.Listener {
         goHome();
     }
 
-    /** 방을 나간 뒤 돌아갈 화면 — 게스트는 회원용 메인이 아니라 로그인 화면으로. */
+    /**
+     * 방을 나간 뒤 돌아갈 화면 — 게스트는 회원용 메인이 아니라 로그인 화면으로.
+     *
+     * <p>게스트가 로그인 화면으로 돌아가는 것은 <b>세션이 끝나는 것</b>입니다.
+     * 예전에는 화면만 바꿔서, 게스트가 등록해 둔 주소가 세션에 남았고 이어서 다른 아이디로
+     * 로그인하면 그 주소가 그대로 보였습니다.
+     */
     private void goHome() {
         if (session.isGuest()) {
-            AppNav.show("로그인", "login.fxml");
+            AppNav.logout();
         } else {
             AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
         }

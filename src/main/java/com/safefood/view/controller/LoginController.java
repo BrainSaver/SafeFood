@@ -87,7 +87,7 @@ public class LoginController {
 
         Widgets.hideError(guestError);
         UserDto guest = new UserDto(null, null, name);
-        guest.setId(-1);
+        guest.setId(com.safefood.dto.Session.GUEST_ID);   // 회원 여부는 Session.isMember()로만 판단합니다
         com.safefood.dto.Session.setCurrentUser(guest);
         GroupSession.get().setDisplayName(name);
         GroupSession.get().setGuest(true);

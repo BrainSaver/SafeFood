@@ -1,5 +1,7 @@
 package com.safefood.view;
 
+import com.safefood.dto.Session;
+import com.safefood.network.GroupSession;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.animation.SequentialTransition;
@@ -135,6 +137,19 @@ public final class AppNav {
         if (!stage.isShowing()) {
             stage.show();
         }
+    }
+
+    /**
+     * 로그아웃 — 세션을 비우고 로그인 화면으로 돌아갑니다.
+     *
+     * <p>화면마다 따로 처리하다 보니 프로필 화면만 {@code Session.setCurrentUser(null)} 을
+     * 빠뜨려, 로그아웃한 뒤에도 이전 회원으로 남아 있었습니다. 등록해 둔 위치 사본과 게스트
+     * 취향도 그대로 남아 다음 사람에게 보였습니다. 나가는 길을 여기 하나로 모읍니다.
+     */
+    public static void logout() {
+        Session.logout();
+        GroupSession.get().setGuest(false);
+        show("SafeFood 로그인", "login.fxml");
     }
 
     /**
