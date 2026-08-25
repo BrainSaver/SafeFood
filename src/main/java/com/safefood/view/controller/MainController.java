@@ -153,16 +153,9 @@ public class MainController {
         }
     }
 
-    private void renderExcludeNotice() {
-        String lastEatenMenu = "이전에 먹은 메뉴";
-        if (Session.isMember()) {
-            List<HistoryRow> eatenRows =
-                    historyDao.getUserHistoryRows(Session.currentUserId(), "먹음");
-            if (!eatenRows.isEmpty()) {
-                lastEatenMenu = eatenRows.get(0).menu();
-            }
-        }
-
+    /** 안내 문구 갱신. FX 스레드 전용이라 DB 를 만지지 않습니다 — 메뉴 이름은 load()가 넘겨 줍니다. */
+    private void renderExcludeNotice(String lastEatenMenu) {
+        String name = lastEatenMenu == null ? "이전에 먹은 메뉴" : lastEatenMenu;
         excludeLabel.setText(excludeEaten
                 ? "최근 드신 " + name + "은(는) 자동으로 제외했어요 ·"
                 : "최근 드신 " + name + "도 후보에 포함했어요 ·");
@@ -276,7 +269,7 @@ public class MainController {
             return null;
         }
         try {
-            List<DemoData.HistoryRow> eatenRows = historyDao.getUserHistoryRows(query.userId(), "먹음");
+            List<HistoryRow> eatenRows = historyDao.getUserHistoryRows(query.userId(), "먹음");
             return eatenRows.isEmpty() ? null : eatenRows.get(0).menu();
         } catch (RuntimeException e) {
             System.err.println("[MainController] 최근 식사 기록을 읽지 못했습니다: " + e.getMessage());

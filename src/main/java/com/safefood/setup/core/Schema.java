@@ -192,7 +192,6 @@ public final class Schema {
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
                         food_id       INT,
-                        category_id   INT,
                         FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
                         FOREIGN KEY (category_id)   REFERENCES category(id),
                         FOREIGN KEY (food_id)       REFERENCES food(id)
@@ -362,7 +361,7 @@ public final class Schema {
             "돼지고기", "쇠고기", "닭고기", "아황산류"
     );
 
-    /** 카테고리 마스터 데이터. */
+    /** 음식 카테고리 마스터 데이터. 메뉴 분류(menu.category_id)와 화면의 카테고리 선택지로 씁니다. */
     public static final List<String> CATEGORIES = List.of(
             "한식", "중식", "일식", "양식", "아시안", "패스트푸드", "카페/디저트", "분식"
     );
@@ -371,10 +370,5 @@ public final class Schema {
     static final List<String> MOODS = List.of(
             "느끼함", "스트레스", "해장", "더움", "추움",
             "피곤함", "가벼운 식사", "든든하게", "혼밥", "기념일"
-    );
-
-    /** 음식 카테고리 마스터 데이터. 메뉴 분류(menu.category_id)로 씁니다. */
-    static final List<String> CATEGORIES = List.of(
-            "한식", "중식", "일식", "양식", "아시안", "패스트푸드"
     );
 }
