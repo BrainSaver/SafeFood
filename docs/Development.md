@@ -111,8 +111,8 @@ mvn compile exec:java -Pwizard
 | 1 | JDBC 드라이버 확인 (Maven이 이미 준비) | `data/` 모드로만 진행할지 선택 |
 | 2 | 접속 정보 입력 → 연결 테스트 | 원인을 한글로 안내하고 재입력 / DB 건너뛰기 |
 | 3 | `CREATE DATABASE safefood` | 이후 DB 단계 건너뛰고 `data/` 모드로 진행 |
-| 4 | 테이블 22개 생성 | 이후 DB 단계 건너뜀 |
-| 5 | 알레르기·기분 태그 기본 데이터 삽입 | 건너뜀 (기본 목록은 6단계에서 `data/public/`에도 생성) |
+| 4 | 테이블 24개 생성 | 이후 DB 단계 건너뜀 |
+| 5 | 알레르기·기분 태그·카테고리 기본 데이터 삽입 | 건너뜀 (기본 목록은 6단계에서 `data/public/`에도 생성) |
 | 6 | `data/public`·`data/private` 폴더와 기본 파일 준비 | 알려 주고 7단계는 계속 진행 |
 | 7 | `config.properties` 작성 + `.gitignore` 확인 | — |
 
@@ -171,6 +171,7 @@ data/
 ├── public/                        # 앱에 필요한 공통 데이터 (커밋 가능)
 │   ├── allergy.txt                # 알레르기 마스터 19종
 │   ├── mood.txt                   # 기분 태그 마스터 10종
+│   ├── category.txt               # 카테고리 마스터 6종
 │   ├── food.txt                   # 음식 사전 (공공데이터, 선택)
 │   ├── ingredient.txt             # 재료 마스터 (선택)
 │   ├── food_ingredient.txt        # 음식별 재료 구성 (선택)
@@ -215,12 +216,13 @@ data/
 |------|------------|------|
 | `public/allergy.txt` | `allergy` | `name` |
 | `public/mood.txt` | `mood` | `name` |
+| `public/category.txt` | `category` | `name` |
 | `public/food.txt` | `food` | `id\|food_cd\|name\|category` |
 | `public/ingredient.txt` | `ingredient` | `id\|name` |
 | `public/food_ingredient.txt` | `food_ingredient` | `food_id\|ingredient_id\|quantity` |
 | `public/ingredient_allergy.txt` | `ingredient_allergy` | `ingredient_id\|allergy_id` |
 | `public/restaurant.txt` | `restaurant` | `id\|name\|category\|address\|phone\|open_time\|close_time\|latitude\|longitude\|rating\|review_count` |
-| `public/menu.txt` | `menu` | `id\|restaurant_id\|name\|price\|category\|spicy_level\|description\|food_id` |
+| `public/menu.txt` | `menu` | `id\|restaurant_id\|name\|price\|category_id\|spicy_level\|description\|food_id` |
 | `public/menu_allergy.txt` | `menu_allergy` | `menu_id\|allergy_id\|risk_level\|ingredient` |
 | `private/users.txt` | `user` | `id\|login_id\|password\|nickname\|created_at` |
 | `private/preferences.txt` | `user_preference` | `user_id\|spicy_level\|price_min\|price_max\|max_distance` |
@@ -267,7 +269,7 @@ ENUM 값도 DB와 같게 씁니다.
 아황산류
 ```
 
-`allergy.txt`·`mood.txt`를 뺀 나머지 `public/` 파일(음식 사전·재료·가게·메뉴 등)과
+`allergy.txt`·`mood.txt`·`category.txt`를 뺀 나머지 `public/` 파일(음식 사전·재료·가게·메뉴 등)과
 `private/`의 파일들은 **빈 파일로** 만들어집니다.
 
 ### DB 모드와의 관계
@@ -358,8 +360,8 @@ com.safefood.setup (화면)  ──→  com.safefood.setup.core (처리)
 | README의 **데이터베이스 스키마** 절 | 사람이 읽는 문서 |
 | 데이터베이스 설계서 (테이블 정의서 · 부록 A) | 설계 기준 |
 
-마스터 목록(알레르기·기분 태그)은 `data/public/`의 기본 파일도 `Schema.java`에서 가져다 쓰므로
-**따로 맞출 필요가 없습니다.** 다만 이미 만들어진 `allergy.txt`·`mood.txt`는 덮어쓰지 않으니,
+마스터 목록(알레르기·기분 태그·카테고리)은 `data/public/`의 기본 파일도 `Schema.java`에서 가져다 쓰므로
+**따로 맞출 필요가 없습니다.** 다만 이미 만들어진 `allergy.txt`·`mood.txt`·`category.txt`는 덮어쓰지 않으니,
 목록을 바꿨다면 해당 파일을 지우고 마법사를 다시 실행하세요.
 
 테이블 컬럼을 바꿨다면 `core/DataStoreInitializer.java`의 필드 순서 주석과

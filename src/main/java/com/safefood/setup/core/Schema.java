@@ -41,7 +41,13 @@ public final class Schema {
     public static final List<AddedColumn> ADDED_COLUMNS = List.of(
             // 중복 로그인 차단 — 로그인할 때마다 새 표를 발급하고, 표가 바뀌면 이전 기기는 물러납니다
             new AddedColumn("user", "session_token",
-                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL")
+                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL"),
+
+            // 메뉴 카테고리 정규화 — 문자열 category 컬럼 대신 category(id)를 가리킵니다.
+            // 기존 DB 의 category 문자열 값 이관과 옛 컬럼 삭제는 README 스키마 절의 ALTER 참고.
+            new AddedColumn("menu", "category_id",
+                    "ALTER TABLE menu ADD COLUMN category_id INT NULL, "
+                            + "ADD CONSTRAINT fk_menu_category FOREIGN KEY (category_id) REFERENCES category(id)")
     );
 
     public static final List<Table> TABLES = List.of(
@@ -153,6 +159,13 @@ public final class Schema {
 
             // ── 맛집 · 메뉴 ────────────────────────────────
 
+            new Table("category", """
+                    CREATE TABLE IF NOT EXISTS category (
+                        id   INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(20) NOT NULL UNIQUE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
             new Table("restaurant", """
                     CREATE TABLE IF NOT EXISTS restaurant (
                         id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -175,11 +188,12 @@ public final class Schema {
                         restaurant_id INT NOT NULL,
                         name          VARCHAR(50) NOT NULL,
                         price         INT NOT NULL,
-                        category      VARCHAR(20),
+                        category_id   INT,
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
                         food_id       INT,
                         FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
+                        FOREIGN KEY (category_id)   REFERENCES category(id),
                         FOREIGN KEY (food_id)       REFERENCES food(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
@@ -351,5 +365,10 @@ public final class Schema {
     static final List<String> MOODS = List.of(
             "느끼함", "스트레스", "해장", "더움", "추움",
             "피곤함", "가벼운 식사", "든든하게", "혼밥", "기념일"
+    );
+
+    /** 음식 카테고리 마스터 데이터. 메뉴 분류(menu.category_id)로 씁니다. */
+    static final List<String> CATEGORIES = List.of(
+            "한식", "중식", "일식", "양식", "아시안", "패스트푸드"
     );
 }

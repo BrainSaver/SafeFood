@@ -93,7 +93,7 @@ public final class SetupService {
     // ── [5/7] 기본 데이터 ────────────────────────────────
 
     private boolean insertMasterData(boolean tablesReady, DatabaseInitializer initializer) {
-        out.step(5, TOTAL_STEPS, "기본 데이터 삽입 (알레르기 · 기분 태그)");
+        out.step(5, TOTAL_STEPS, "기본 데이터 삽입 (알레르기 · 기분 태그 · 카테고리)");
         if (!tablesReady) {
             out.warn("테이블이 준비되지 않아 건너뜁니다. (기본 목록은 data/public/에도 만들어 둡니다)");
             return false;

@@ -421,9 +421,10 @@ DB 정상  ────────────────────→ 로�
 
 ## 🗄️ 데이터베이스 스키마
 
-테이블 23개 · 외래 키 32개. **데이터베이스 설계서 v2.0**이 기준입니다.
+테이블 24개 · 외래 키 34개. **데이터베이스 설계서 v2.0**이 기준입니다.
 (음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼,
-`user_location` 테이블은 v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
+`user_location` · `category` 테이블과 `menu.category_id`(문자열 category 대체)는
+v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 
 > ⚠️ **같은 스키마가 세 곳에 있습니다. 고칠 때는 셋을 함께 고쳐 주세요.**
 > 하나만 고치면 다음 사람이 틀린 쪽을 믿게 됩니다.
@@ -588,19 +589,31 @@ CREATE TABLE restaurant (
     review_count INT DEFAULT 0                  -- 리뷰 수
 );
 
+-- 메뉴 카테고리 마스터 (한식 / 중식 / 일식 / 양식 / 아시안 / 패스트푸드)
+CREATE TABLE category (
+    id   INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL UNIQUE
+);
+
 -- 메뉴
 CREATE TABLE menu (
     id            INT AUTO_INCREMENT PRIMARY KEY,
     restaurant_id INT NOT NULL,
     name          VARCHAR(50) NOT NULL,
     price         INT NOT NULL,                 -- 가격 필터용
-    category      VARCHAR(20),
+    category_id   INT,                          -- 카테고리 정규화 (category.id)
     spicy_level   TINYINT,                      -- 0 ~ 5
     description   VARCHAR(255),
     food_id       INT,                          -- 음식 사전 연결 (수기 등록 메뉴는 NULL)
     FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
+    FOREIGN KEY (category_id)   REFERENCES category(id),
     FOREIGN KEY (food_id)       REFERENCES food(id)
 );
+
+-- 이미 만들어 둔 DB 라면: category_id 추가는 마법사를 다시 돌리면 됩니다 (Schema.ADDED_COLUMNS).
+-- 기존 category 문자열 값의 이관과 옛 컬럼 삭제는 직접 실행하세요.
+-- UPDATE menu m JOIN category c ON c.name = m.category SET m.category_id = c.id;
+-- ALTER TABLE menu DROP COLUMN category;   -- 팀 전원이 이 코드로 갈아탄 뒤에 실행
 
 -- 메뉴 ↔ 알레르기 매칭 (위험도 포함)
 CREATE TABLE menu_allergy (
@@ -1003,7 +1016,7 @@ CREATE TABLE feedback (
 - [x] 애플리케이션 형태 결정 — **JavaFX 데스크톱 앱**
 - [x] 기능 우선순위 확정 (기능 48개를 1·2·3차로 구분)
 - [x] 설계 문서 작성 (기능 · DB · UI 설계서 v2.0)
-- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 23개 · 32개)
+- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 24개 · 34개)
 - [x] `dto` · `dao` 패키지 다시 만들기
 - [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
 - [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅
