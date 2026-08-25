@@ -3,12 +3,14 @@ package com.safefood.view.controller;
 import com.safefood.dao.CategoryCatalog;
 import com.safefood.dao.FavoriteDao;
 import com.safefood.dao.HistoryDao;
+import com.safefood.dto.HistoryRow;
 import com.safefood.dto.PreferenceDto;
+import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Session;
 import com.safefood.service.HistoryService;
 import com.safefood.service.RecommendService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
@@ -70,7 +72,7 @@ public class MainController {
         distanceBox.getItems().setAll("500m", "1km", "2km", "3km", "제한없음");
         distanceBox.setValue("1km");
 
-        budgetBox.getItems().setAll(DemoData.BUDGETS);
+        budgetBox.getItems().setAll(UiConstants.BUDGETS);
         budgetBox.setValue("15,000원 이하");
 
         fillMoodChips();
@@ -113,7 +115,7 @@ public class MainController {
     private void renderExcludeNotice() {
         String lastEatenMenu = "이전에 먹은 메뉴";
         if (Session.isMember()) {
-            List<DemoData.HistoryRow> eatenRows =
+            List<HistoryRow> eatenRows =
                     historyDao.getUserHistoryRows(Session.currentUserId(), "먹음");
             if (!eatenRows.isEmpty()) {
                 lastEatenMenu = eatenRows.get(0).menu();
@@ -240,9 +242,8 @@ public class MainController {
     /**
      * 카드 자리에 들어가는 안내 — 비었거나 실패했을 때 씁니다.
      *
-     * <p>예전에는 이 자리에 {@code DemoData.RECOMMENDATIONS}(김치찌개·돈코츠 라멘·감바스)를
-     * 그렸습니다. 그 세 건은 <b>회원의 알레르기를 전혀 반영하지 않은</b> 예시라, 빈 화면보다
-     * 위험했습니다.
+     * <p>예전에는 이 자리에 더미 예시 데이터를 그렸습니다.
+     * 회원의 알레르기를 전혀 반영하지 않은 예시라, 빈 화면보다 위험했습니다.
      */
     private VBox notice(String title, String detail) {
         Label heading = Widgets.label(title, "section-title");
@@ -255,7 +256,7 @@ public class MainController {
         return box;
     }
 
-    private HBox card(DemoData.Recommendation item, int menuId, int restId) {
+    private HBox card(RecommendationCard item, int menuId, int restId) {
         // 왼쪽 — 원형 순위 + 점수
         Label score = Widgets.micro(item.score() + "점");
         VBox rankBox = new VBox(4, Widgets.rankCircle(item.rank()), score);
@@ -350,7 +351,7 @@ public class MainController {
     }
 
     /** 차단된 메뉴 — 왜 빠졌는지와 대체 메뉴만 한 줄로 보여 줍니다. */
-    private HBox blockedRow(DemoData.Recommendation item) {
+    private HBox blockedRow(RecommendationCard item) {
         Label struck = new Label(item.menu() + " · " + item.restaurant());
         struck.getStyleClass().add("strike");
 

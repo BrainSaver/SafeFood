@@ -1,7 +1,7 @@
 package com.safefood.dao;
 
 import com.safefood.dto.HistoryDto;
-import com.safefood.view.DemoData;
+import com.safefood.dto.HistoryRow;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -144,10 +144,10 @@ public class HistoryDao {
     }
 
     /**
-     * 특정 회원의 히스토리 목록 조회 (메뉴명, 식당명 포함 - UI DemoData.HistoryRow)
+     * 특정 회원의 히스토리 목록 조회 (메뉴명, 식당명 포함 - UI HistoryRow)
      */
-    public List<DemoData.HistoryRow> getUserHistoryRows(int userId, String typeFilter) {
-        List<DemoData.HistoryRow> rows = new ArrayList<>();
+    public List<HistoryRow> getUserHistoryRows(int userId, String typeFilter) {
+        List<HistoryRow> rows = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
                 "SELECT h.created_at, h.type, m.name AS menu_name, r.name AS restaurant_name " +
                 "FROM history h " +
@@ -186,7 +186,7 @@ public class HistoryDao {
                     String note = "EATEN".equals(type) ? "식사 완료"
                             : ("BLOCKED".equals(type) ? "알레르기 포함으로 차단" : "알레르기 안전");
 
-                    rows.add(new DemoData.HistoryRow(date, type, menu, restaurant, note));
+                    rows.add(new HistoryRow(date, type, menu, restaurant, note));
                 }
             }
         } catch (SQLException e) {
