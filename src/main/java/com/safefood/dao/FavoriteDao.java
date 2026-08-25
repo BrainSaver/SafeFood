@@ -1,7 +1,7 @@
 package com.safefood.dao;
 
 import com.safefood.dto.FavoriteDto;
-import com.safefood.view.DemoData;
+import com.safefood.dto.FavoriteRow;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -49,9 +49,9 @@ public class FavoriteDao {
         return list;
     }
 
-    // 2. 찜 목록 꺼내오기 (UI DemoData.FavoriteRow 리스트)
-    public List<DemoData.FavoriteRow> getUserFavorites(int userId) {
-        List<DemoData.FavoriteRow> list = new ArrayList<>();
+    // 2. 찜 목록 꺼내오기 (UI FavoriteRow 리스트)
+    public List<FavoriteRow> getUserFavorites(int userId) {
+        List<FavoriteRow> list = new ArrayList<>();
         String sql = "SELECT r.name AS restaurant_name, m.name AS menu_name, r.rating, r.review_count " +
                      "FROM favorite f " +
                      "JOIN menu m ON f.menu_id = m.id " +
@@ -67,7 +67,7 @@ public class FavoriteDao {
                     String menu = rs.getString("menu_name");
                     double rating = rs.getDouble("rating");
                     int reviewCount = rs.getInt("review_count");
-                    list.add(new DemoData.FavoriteRow(rest, menu, rating, reviewCount));
+                    list.add(new FavoriteRow(rest, menu, rating, reviewCount));
                 }
             }
         } catch (SQLException e) {

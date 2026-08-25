@@ -192,6 +192,7 @@ public final class Schema {
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
                         food_id       INT,
+                        category_id   INT,
                         FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
                         FOREIGN KEY (category_id)   REFERENCES category(id),
                         FOREIGN KEY (food_id)       REFERENCES food(id)
@@ -359,6 +360,11 @@ public final class Schema {
             "우유", "계란", "메밀", "땅콩", "대두", "밀", "호두", "잣",
             "새우", "게", "오징어", "조개류", "고등어", "복숭아", "토마토",
             "돼지고기", "쇠고기", "닭고기", "아황산류"
+    );
+
+    /** 카테고리 마스터 데이터. */
+    public static final List<String> CATEGORIES = List.of(
+            "한식", "중식", "일식", "양식", "아시안", "패스트푸드", "카페/디저트", "분식"
     );
 
     /** 기분·컨디션 마스터 데이터. 추천 알고리즘의 기분 태그로 씁니다. */

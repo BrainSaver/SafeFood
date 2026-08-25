@@ -1,9 +1,10 @@
 package com.safefood.view.controller;
 
 import com.safefood.dao.AllergyCatalog;
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dto.UserDto;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -89,12 +90,12 @@ public class OnboardingController {
         spicySlider.valueProperty().addListener((observable, before, after) ->
                 spicyValue.setText((int) spicySlider.getValue() + "단계"));
 
-        budgetBox.getItems().setAll(DemoData.BUDGETS);
+        budgetBox.getItems().setAll(UiConstants.BUDGETS);
         budgetBox.setValue("12,000원 이하");
 
         fillDistanceSeg();
 
-        Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
+        Widgets.fillChips(categoryPane, CategoryCatalog.names(), categoryChips);
         // 고를 목록은 allergy 테이블 기준입니다 (DB를 못 읽으면 고시 19종으로 대신합니다)
         Widgets.fillChips(allergyPane, AllergyCatalog.names(), allergyChips);
 
@@ -115,7 +116,7 @@ public class OnboardingController {
 
     private void fillDistanceSeg() {
         distanceSeg.getChildren().clear();
-        List<String> options = DemoData.DISTANCES;
+        List<String> options = UiConstants.DISTANCES;
         for (int i = 0; i < options.size(); i++) {
             ToggleButton option =
                     Widgets.segOption(options.get(i), i == 0, i == options.size() - 1);
@@ -155,10 +156,10 @@ public class OnboardingController {
         ToggleGroup group = new ToggleGroup();
         HBox seg = new HBox();
         seg.setAlignment(Pos.CENTER_LEFT);
-        for (int level = 1; level <= DemoData.SEVERITIES.size(); level++) {
-            String label = DemoData.SEVERITIES.get(level - 1).replace("Class ", "");
+        for (int level = 1; level <= UiConstants.SEVERITIES.size(); level++) {
+            String label = UiConstants.SEVERITIES.get(level - 1).replace("Class ", "");
             ToggleButton option =
-                    Widgets.segOption(label, level == 1, level == DemoData.SEVERITIES.size());
+                    Widgets.segOption(label, level == 1, level == UiConstants.SEVERITIES.size());
             option.setToggleGroup(group);
             option.setUserData(level);
             option.setSelected(level == current);

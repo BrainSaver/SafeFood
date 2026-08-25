@@ -8,7 +8,7 @@ import com.safefood.network.GroupClient;
 import com.safefood.network.GroupSession;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
@@ -61,7 +61,7 @@ public class GroupConditionController {
         AppNav.onDialogClosed(root, () -> GroupSession.get().shutdown());
 
         Widgets.fillChips(allergyPane, AllergyCatalog.names(), allergyChips);
-        budgetBox.getItems().setAll(DemoData.BUDGETS);
+        budgetBox.getItems().setAll(UiConstants.BUDGETS);
 
         // 요약 줄은 편집기의 값이 바뀔 때마다 따라 갱신됩니다
         for (ToggleButton chip : allergyChips) {
@@ -111,9 +111,9 @@ public class GroupConditionController {
         if (priceMax <= 0) {
             return "제한없음";
         }
-        String best = DemoData.BUDGETS.get(0);
+        String best = UiConstants.BUDGETS.get(0);
         int bestGap = Integer.MAX_VALUE;
-        for (String option : DemoData.BUDGETS) {
+        for (String option : UiConstants.BUDGETS) {
             String digits = option.replaceAll("\\D", "");
             if (digits.isEmpty()) {
                 continue;   // "제한없음"

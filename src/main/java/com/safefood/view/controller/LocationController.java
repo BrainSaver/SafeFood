@@ -6,7 +6,7 @@ import com.safefood.dto.UserDto;
 import com.safefood.service.LocationService;
 import com.safefood.service.MapService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -183,7 +183,7 @@ public class LocationController {
 
     private void renderPlaces() {
         placePane.getChildren().clear();
-        for (DemoData.Place place : DemoData.PLACES) {
+        for (UiConstants.Place place : UiConstants.PLACES) {
             Button chip = new Button(place.name());
             chip.getStyleClass().add("chip");
             chip.setOnAction(event -> pick(place));
@@ -192,7 +192,7 @@ public class LocationController {
     }
 
     /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다 — 저장은 아직입니다. */
-    private void pick(DemoData.Place place) {
+    private void pick(UiConstants.Place place) {
         labelField.setText(place.name());
         zonecodeField.clear();   // 검색으로 받은 우편번호가 아니므로 비웁니다
         addressField.setText(place.address());

@@ -1,15 +1,18 @@
 package com.safefood.view.controller;
 
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dao.FavoriteDao;
 import com.safefood.dao.HistoryDao;
+import com.safefood.dto.HistoryRow;
 import com.safefood.dto.PreferenceDto;
+import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Session;
 import com.safefood.dto.UserDto;
 import com.safefood.service.AuthService;
 import com.safefood.service.HistoryService;
 import com.safefood.service.RecommendService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -105,13 +108,13 @@ public class MainController {
         greetingLabel.setText("오늘 뭐 먹지, " + name + "님?");
 
         categoryBox.getItems().add("전체");
-        categoryBox.getItems().addAll(DemoData.CATEGORIES);
+        categoryBox.getItems().addAll(CategoryCatalog.names());
         categoryBox.setValue("전체");
 
         distanceBox.getItems().setAll("500m", "1km", "2km", "3km", "제한없음");
         distanceBox.setValue("1km");
 
-        budgetBox.getItems().setAll(DemoData.BUDGETS);
+        budgetBox.getItems().setAll(UiConstants.BUDGETS);
         budgetBox.setValue("15,000원 이하");
 
         fillMoodChips();
@@ -150,15 +153,15 @@ public class MainController {
         }
     }
 
-    /**
-     * 안내 문구를 그립니다. 이름은 {@link #load} 가 추천과 <b>같은 왕복</b>에 묶어 받아 옵니다 —
-     * 예전에는 이 자리에서 따로 한 번 더 DB 를 다녀왔습니다.
-     *
-     * @param lastEatenMenu 최근 드신 메뉴 이름. 아직 못 받았거나 없으면 {@code null}
-     */
-    private void renderExcludeNotice(String lastEatenMenu) {
-        String name = (lastEatenMenu == null || lastEatenMenu.isBlank())
-                ? "이전에 먹은 메뉴" : lastEatenMenu;
+    private void renderExcludeNotice() {
+        String lastEatenMenu = "이전에 먹은 메뉴";
+        if (Session.isMember()) {
+            List<HistoryRow> eatenRows =
+                    historyDao.getUserHistoryRows(Session.currentUserId(), "먹음");
+            if (!eatenRows.isEmpty()) {
+                lastEatenMenu = eatenRows.get(0).menu();
+            }
+        }
 
         excludeLabel.setText(excludeEaten
                 ? "최근 드신 " + name + "은(는) 자동으로 제외했어요 ·"
@@ -367,9 +370,8 @@ public class MainController {
     /**
      * 카드 자리에 들어가는 안내 — 비었거나 실패했을 때 씁니다.
      *
-     * <p>예전에는 이 자리에 {@code DemoData.RECOMMENDATIONS}(김치찌개·돈코츠 라멘·감바스)를
-     * 그렸습니다. 그 세 건은 <b>회원의 알레르기를 전혀 반영하지 않은</b> 예시라, 빈 화면보다
-     * 위험했습니다.
+     * <p>예전에는 이 자리에 더미 예시 데이터를 그렸습니다.
+     * 회원의 알레르기를 전혀 반영하지 않은 예시라, 빈 화면보다 위험했습니다.
      */
     private VBox notice(String title, String detail) {
         Label heading = Widgets.label(title, "section-title");
@@ -382,7 +384,7 @@ public class MainController {
         return box;
     }
 
-    private HBox card(DemoData.Recommendation item, int menuId, int restId, boolean isFav) {
+    private HBox card(RecommendationCard item, int menuId, int restId, boolean isFav) {
         // 왼쪽 — 원형 순위 + 점수
         Label score = Widgets.micro(item.score() + "점");
         VBox rankBox = new VBox(4, Widgets.rankCircle(item.rank()), score);
@@ -491,7 +493,7 @@ public class MainController {
     }
 
     /** 차단된 메뉴 — 왜 빠졌는지와 대체 메뉴만 한 줄로 보여 줍니다. */
-    private HBox blockedRow(DemoData.Recommendation item) {
+    private HBox blockedRow(RecommendationCard item) {
         Label struck = new Label(item.menu() + " · " + item.restaurant());
         struck.getStyleClass().add("strike");
 

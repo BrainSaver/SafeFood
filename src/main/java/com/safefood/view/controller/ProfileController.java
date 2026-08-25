@@ -1,6 +1,7 @@
 package com.safefood.view.controller;
 
 import com.safefood.dao.AllergyCatalog;
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
@@ -8,8 +9,8 @@ import com.safefood.dto.UserDto;
 import com.safefood.service.LocationService;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
 import com.safefood.view.Theme;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
@@ -77,7 +78,7 @@ public class ProfileController {
     private void initialize() {
         fillDistanceSeg();
         fillThemes();
-        Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
+        Widgets.fillChips(categoryPane, CategoryCatalog.names(), categoryChips);
         preferenceSettle.setOnFinished(event -> savePreferences());
 
         // 입력칸은 검색도 겸합니다 — 치는 동안 아래 목록이 걸러집니다
@@ -163,7 +164,7 @@ public class ProfileController {
 
     private void fillDistanceSeg() {
         distanceSeg.getChildren().clear();
-        List<String> options = DemoData.DISTANCES;
+        List<String> options = UiConstants.DISTANCES;
         for (int i = 0; i < options.size(); i++) {
             ToggleButton option =
                     Widgets.segOption(options.get(i), i == 0, i == options.size() - 1);
