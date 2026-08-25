@@ -10,7 +10,6 @@ import com.safefood.dao.ProfileDao;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Safety;
-import com.safefood.service.GroupMergeService.MergedGroupCondition;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -525,68 +524,6 @@ public class RecommendService {
 
     public RecommendResult pickRouletteMenu(List<RecommendResult> recommendations) {
         return pickRouletteMenu(recommendations, 0);
-    }
-
-    // =========================================================================
-    // [G-04] 단체 모임 그룹 병합 조건 기반 추천 (소켓 방장 및 모임 추천용)
-    // =========================================================================
-    /**
-     * [G-04] 그룹 병합 조건(MergedGroupCondition)을 바탕으로 상위 메뉴 추천 목록 생성
-     */
-    public List<RecommendResult> getGroupRecommendations(MergedGroupCondition condition, int limit) {
-        List<RecommendResult> results = new ArrayList<>();
-        List<MenuDto> candidateMenus = menuDao.getAllCandidateMenus();
-        Map<Integer, MenuAllergies> allergiesByMenu = allergyDao.getAllMenuAllergies();
-
-        List<Integer> mergedAllergies = condition.getMergedAllergies();
-        int maxSpicy = condition.getMinSpicyLevel();
-        int maxBudget = condition.getMaxBudget();
-
-        for (MenuDto menu : candidateMenus) {
-            if (maxSpicy > 0 && menu.getSpicyLevel() > maxSpicy) {
-                continue;
-            }
-            if (maxBudget > 0 && menu.getPrice() > maxBudget) {
-                continue;
-            }
-
-            MenuAllergies menuAllergies = allergiesByMenu.getOrDefault(menu.getId(), MenuAllergies.EMPTY);
-            List<Integer> containsAllergies = menuAllergies.contains();
-            List<Integer> possibleAllergies = menuAllergies.possible();
-            if (!allergyService.isSafe(mergedAllergies, containsAllergies) || !allergyService.isSafe(mergedAllergies, possibleAllergies)) {
-                continue;
-            }
-
-            int finalScore = 100;
-            String reason = "그룹 구성원 전원의 알레르기, 맵기, 예산 조건을 모두 만족하는 안심 메뉴입니다.";
-
-            results.add(new RecommendResult(
-                    menu.getId(),
-                    menu.getRestaurantId(),
-                    menu.getName(),
-                    menu.getRestaurantName(),
-                    menu.getCategory(),
-                    menu.getPrice(),
-                    menu.getSpicyLevel(),
-                    finalScore,
-                    false,
-                    reason,
-                    menu.getRestaurantAddress(),
-                    menu.getHours(),
-                    menu.getRating(),
-                    menu.getReviewCount(),
-                    false,
-                    null
-            ));
-        }
-
-        results.sort(Comparator.comparingDouble(RecommendResult::getRating).reversed()
-                .thenComparing(Comparator.comparingInt(RecommendResult::getReviewCount).reversed()));
-
-        if (limit > 0 && results.size() > limit) {
-            return results.subList(0, limit);
-        }
-        return results;
     }
 
     // =========================================================================

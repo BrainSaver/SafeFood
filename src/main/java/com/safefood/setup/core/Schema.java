@@ -236,7 +236,7 @@ public final class Schema {
                         id          INT AUTO_INCREMENT PRIMARY KEY,
                         name        VARCHAR(50),
                         owner_id    INT NOT NULL,
-                        invite_code VARCHAR(10) NOT NULL UNIQUE,
+                        invite_code VARCHAR(20) NOT NULL UNIQUE,
                         status      ENUM('OPEN', 'VOTING', 'CLOSED') DEFAULT 'OPEN',
                         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (owner_id) REFERENCES `user`(id)

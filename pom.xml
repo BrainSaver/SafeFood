@@ -195,6 +195,22 @@
                 </plugins>
             </build>
         </profile>
+
+        <!-- 식당·메뉴 기본 데이터 반영: mvn compile exec:java -Pimport-seed -->
+        <profile>
+            <id>import-seed</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>com.safefood.tool.SeedImporter</mainClass>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
 </project>

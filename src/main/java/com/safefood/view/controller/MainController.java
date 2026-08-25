@@ -10,6 +10,7 @@ import com.safefood.dto.Session;
 import com.safefood.dto.UserDto;
 import com.safefood.service.AuthService;
 import com.safefood.service.HistoryService;
+import com.safefood.service.ProfileService;
 import com.safefood.service.RecommendService;
 import com.safefood.view.AppNav;
 import com.safefood.view.UiConstants;
@@ -65,6 +66,15 @@ public class MainController {
     /** 어제/최근 먹은 메뉴를 빼고 볼지 */
     private boolean excludeEaten = true;
 
+    /** 내정보의 음식 취향 — 화면이 열릴 때 읽어 옵션 초기값과 조회 조건에 씁니다. 없으면 null. */
+    private PreferenceDto myPreference;
+
+    /** 내정보의 선호 카테고리 — 단일 선택 콤보에 못 담으므로 추천 가산점(+20점)으로 반영합니다. */
+    private List<String> myCategories = List.of();
+
+    /** 취향을 옵션에 옮겨 담는 동안에는 리스너가 조회를 띄우지 않게 막습니다. */
+    private boolean loading = true;
+
     /**
      * DB 왕복 전용 스레드 — 화면 스레드에서 조회하면 그동안 창이 그대로 멎습니다.
      *
@@ -87,8 +97,8 @@ public class MainController {
      * <p>콤보·칩은 FX 스레드에서만 읽을 수 있으므로, 조회를 띄우기 <b>전에</b> 값을 여기 떠 둡니다.
      */
     private record Query(boolean member, int userId, String sessionToken, String category,
-                         int budget, int spicy, List<String> moods, boolean excludeEaten,
-                         Set<Integer> excluded) {
+                         int budget, int spicy, List<String> preferredCategories,
+                         List<String> moods, boolean excludeEaten, Set<Integer> excluded) {
     }
 
     /** 백그라운드가 만들어 온 화면 한 판. 여기까지는 화면 요소가 하나도 없습니다. */
@@ -120,11 +130,17 @@ public class MainController {
         fillMoodChips();
 
         categoryBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (loading) {
+                return;
+            }
             excludedForReroll.clear();
             currentRankOffset = 0;
             fillCards();
         });
         budgetBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (loading) {
+                return;
+            }
             excludedForReroll.clear();
             currentRankOffset = 0;
             fillCards();
@@ -135,7 +151,73 @@ public class MainController {
         // 이 자리에 리스너를 다시 답니다.
 
         renderExcludeNotice(null);
+        cardBox.getChildren().add(notice("추천을 고르는 중이에요",
+                "알레르기와 조건을 맞춰 보고 있습니다. 잠시만 기다려 주세요."));
+        loadPreferencesThenFill();
+    }
+
+    /**
+     * 내정보의 음식 취향을 옵션에 옮겨 담은 뒤 첫 추천을 띄웁니다 — 화면이 열릴 때 한 번.
+     *
+     * <p>회원 취향은 DB 에 있어 {@link #DB_EXECUTOR} 로 다녀오고, 게스트는 온보딩에서
+     * 받아 둔 값이 세션에 남아 있어 바로 적용합니다. 적용이 끝나기 전에는 {@link #loading}
+     * 이 리스너를 막고 있어, 값을 채우는 것이 '변경'으로 잡혀 조회가 겹치는 일은 없습니다.
+     */
+    private void loadPreferencesThenFill() {
+        if (!Session.isMember()) {
+            applyPreferences(Session.getGuestPreferences(), List.of());
+            return;
+        }
+        int userId = Session.currentUserId();
+        DB_EXECUTOR.execute(() -> {
+            ProfileService profileService = new ProfileService();
+            PreferenceDto pref = profileService.getMyPreference(userId);
+            List<String> categories = profileService.getMyCategories(userId);
+            Platform.runLater(() -> applyPreferences(pref, categories));
+        });
+    }
+
+    /**
+     * 읽어 온 취향을 옵션 초기값으로 반영합니다. <b>FX 스레드 전용</b>.
+     *
+     * <p>취향이 없으면(아직 설정 전이거나 못 읽음) 기본값 그대로 시작합니다.
+     */
+    private void applyPreferences(PreferenceDto pref, List<String> categories) {
+        myPreference = pref;
+        myCategories = categories == null ? List.of() : List.copyOf(categories);
+        if (pref != null) {
+            budgetBox.setValue(budgetLabelFor(pref.getPriceMax()));
+            distanceBox.setValue(distanceLabelFor(pref.getMaxDistance()));
+        }
+        loading = false;
         fillCards();
+    }
+
+    /** 취향의 예산 상한을 넘지 않는 가장 넓은 예산 옵션. 0(제한 안 함)이면 제한없음. */
+    private String budgetLabelFor(int priceMax) {
+        if (priceMax <= 0) {
+            return "제한없음";
+        }
+        String widest = null;
+        for (String option : UiConstants.BUDGETS) {
+            int value = parseBudget(option);
+            if (value > 0 && value <= priceMax) {
+                widest = option;   // 목록이 오름차순이라 마지막에 걸린 것이 가장 넓습니다
+            }
+        }
+        // 취향이 가장 작은 옵션보다도 낮으면 그 옵션으로 — 넘는 쪽보다 좁은 쪽이 안전합니다
+        return widest == null ? UiConstants.BUDGETS.get(0) : widest;
+    }
+
+    /** 취향의 최대 거리를 거리 옵션 라벨로 — 프로필 화면과 같은 눈금입니다. */
+    private static String distanceLabelFor(int meters) {
+        return switch (meters) {
+            case 500 -> "500m";
+            case 1000 -> "1km";
+            case 2000 -> "2km";
+            case 3000 -> "3km";
+            default -> "제한없음";
+        };
     }
 
     private void fillMoodChips() {
@@ -144,6 +226,9 @@ public class MainController {
         for (String mood : List.of("든든한 한끼", "속풀이·해장", "가벼운 식사")) {
             ToggleButton chip = Widgets.compactChip(mood);
             chip.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                if (loading) {
+                    return;
+                }
                 excludedForReroll.clear();
                 currentRankOffset = 0;
                 fillCards();
@@ -190,16 +275,21 @@ public class MainController {
 
         if (Session.isMember()) {
             UserDto me = Session.getCurrentUser();
+            // 맵기 상한은 내정보 취향의 값 — 아직 설정 전이면 전체(5단계)를 봅니다
+            int spicy = myPreference != null && myPreference.getSpicyLevel() > 0
+                    ? myPreference.getSpicyLevel() : 5;
             return new Query(true, Session.currentUserId(),
                     me == null ? null : me.getSessionToken(),
-                    selectedCategory, budget, 5, selectedMoods, excludeEaten, frozen);
+                    selectedCategory, budget, spicy, myCategories, selectedMoods,
+                    excludeEaten, frozen);
         }
 
         // 게스트 — 저장된 계정이 없으니 온보딩에서 받아 둔 취향만 씁니다
         PreferenceDto guestPref = Session.getGuestPreferences();
         int spicy = guestPref != null && guestPref.getSpicyLevel() > 0 ? guestPref.getSpicyLevel() : 5;
         int maxBudget = budget > 0 ? budget : (guestPref != null ? guestPref.getPriceMax() : 0);
-        return new Query(false, 0, null, selectedCategory, maxBudget, spicy, selectedMoods, false, frozen);
+        return new Query(false, 0, null, selectedCategory, maxBudget, spicy, List.of(),
+                selectedMoods, false, frozen);
     }
 
     /**
@@ -213,7 +303,7 @@ public class MainController {
     private List<RecommendService.RecommendResult> fetch(Query query, Set<Integer> excludedIds) {
         return recommendService.getPersonalizedRecommendations(
                 query.userId(),
-                query.member() ? null : List.of(),
+                query.preferredCategories(),
                 query.category(),
                 query.moods(),
                 query.spicy(),
