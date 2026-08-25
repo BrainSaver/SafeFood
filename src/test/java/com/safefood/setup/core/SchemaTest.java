@@ -44,6 +44,7 @@ class SchemaTest {
         assertTrue(indexOf("dining_group") < indexOf("history"), "history.group_id → dining_group(id)");
         assertTrue(indexOf("allergy") < indexOf("user_allergy"), "user_allergy.allergy_id → allergy(id)");
         assertTrue(indexOf("restaurant") < indexOf("menu"), "menu.restaurant_id → restaurant(id)");
+        assertTrue(indexOf("category") < indexOf("menu"), "menu.category_id → category(id)");
     }
 
     @Test
