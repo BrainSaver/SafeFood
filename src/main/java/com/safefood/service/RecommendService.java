@@ -139,14 +139,28 @@ public class RecommendService {
     }
 
     // =========================================================================
+    // [R-05] 기분·컨디션 연관 시맨틱 키워드 사전 (DB 매핑 누락 방지용)
     // =========================================================================
-    // [R-01 & R-05] 점수 연산 로직 (기본 100점 + 선호 카테고리 +20점 + 기분 태그 +15점)
+    private static final Map<String, List<String>> MOOD_KEYWORDS = Map.of(
+        "속풀이·해장", List.of(
+            "국", "탕", "찌개", "짬뽕", "라멘", "라면", "해장", "우동", "쌀국수", "칼국수", "수제비", "국밥", "순두부", "북어", "콩나물", "얼큰", "시원"
+        ),
+        "가벼운 식사", List.of(
+            "샐러드", "샌드위치", "김밥", "포케", "초밥", "롤", "토스트", "죽", "소바", "냉면", "우동", "베이글", "만두", "브런치"
+        ),
+        "든든한 한끼", List.of(
+            "고기", "돈까스", "스테이크", "갈비", "삼겹살", "보쌈", "족발", "덮밥", "정식", "백반", "국밥", "제육", "불고기", "카레", "치킨", "피자", "버거", "구이", "찜"
+        )
+    );
+
+    // =========================================================================
+    // [R-01 & R-05] 점수 연산 로직 (기본 100점 + 선호 카테고리 +20점 + 기분 태그 +25점)
     // =========================================================================
     /**
      * [R-01 & R-05] 메뉴별 추천 점수 계산
      * - 기본점수 100점 시작
      * - 선호 카테고리 일치 시 +20점 가산 (R-01)
-     * - 선택한 기분 태그 일치 시 +15점 가산 (R-05)
+     * - 선택한 기분 태그 일치 시 +25점 가산 (R-05)
      * - 알레르기(CONTAINS / POSSIBLE) 메뉴는 앞단에서 100% 완전 차단되므로 감점 없이 안심 점수 산출
      */
     public int calculateMenuScore(int baseScore, boolean isPreferredCategory, boolean isMatchedMood) {
@@ -157,9 +171,9 @@ public class RecommendService {
             score += 20;
         }
 
-        // [R-05 가산점] 선택한 기분 태그 매칭 시 +15점
+        // [R-05 가산점] 선택한 기분 태그 매칭 시 +25점
         if (isMatchedMood) {
-            score += 15;
+            score += 25;
         }
 
         return score;
@@ -215,21 +229,36 @@ public class RecommendService {
     /**
      * [R-05] 사용자가 선택한 기분 태그와 메뉴 간의 일치 여부 판별
      * - 1차: DB menu_mood 테이블의 태그 매칭
-     * - 2차: 메뉴명 및 설명 텍스트 키워드 매칭
+     * - 2차: 연관 키워드 사전(MOOD_KEYWORDS) 기반 메뉴명 및 설명 매칭
      */
     private String findMatchedMood(MenuDto menu, List<String> selectedMoods) {
-        if (selectedMoods == null || selectedMoods.isEmpty()) {
+        if (selectedMoods == null || selectedMoods.isEmpty() || menu == null) {
             return null;
         }
+        String menuName = menu.getName() != null ? menu.getName() : "";
+        String desc = menu.getDescription() != null ? menu.getDescription() : "";
+
         for (String mood : selectedMoods) {
             if (mood == null || mood.isBlank()) continue;
+
             // 1. menu_mood DB 직접 일치
             if (menu.getMoods() != null && menu.getMoods().contains(mood)) {
                 return mood;
             }
-            // 2. 키워드 기반 일치 ("스트레스 해소" -> "스트레스", "속풀이·해장" -> "해장")
+
+            // 2. 연관 키워드 사전 매칭 (예: "콩나물국밥" -> "국밥" 감지 시 '속풀이·해장' 매칭)
+            List<String> keywords = MOOD_KEYWORDS.get(mood);
+            if (keywords != null) {
+                for (String kw : keywords) {
+                    if (menuName.contains(kw) || desc.contains(kw)) {
+                        return mood;
+                    }
+                }
+            }
+
+            // 3. 키워드 기반 일치 정제 ("속풀이·해장" -> "해장")
             String clean = mood.replace(" 해소", "").replace("속풀이·", "").replace(" 한끼", "").replace(" 식사", "").trim();
-            if (menu.getName().contains(clean) || menu.getDescription().contains(clean)) {
+            if (menuName.contains(clean) || desc.contains(clean)) {
                 return mood;
             }
             if (menu.getMoods() != null) {
@@ -352,6 +381,9 @@ public class RecommendService {
 
         List<Integer> userAllergies = (userId > 0) ? allergyDao.getUserAllergyIds(userId) : List.of();
         List<Integer> eatenMenuIds = (excludeEaten && userId > 0) ? historyDao.getEatenMenuIds(userId) : List.of();
+        List<String> effectivePreferredCategories = (preferredCategories != null)
+                ? preferredCategories
+                : ((userId > 0) ? profileDao.getCategories(userId) : List.of());
 
         List<MenuDto> candidateMenus = menuDao.getAllCandidateMenus();
 
@@ -402,16 +434,16 @@ public class RecommendService {
 
             // [R-01] 선호 카테고리 매칭
             String category = (menu.getCategory() != null) ? menu.getCategory() : "";
-            boolean isPreferred = (preferredCategories != null && !category.isEmpty() && preferredCategories.contains(category));
+            boolean isPreferred = (!category.isEmpty() && effectivePreferredCategories.contains(category));
 
             // [R-05] 기분 태그 매칭
             String matchedMood = findMatchedMood(menu, selectedMoods);
             boolean isMoodMatched = (matchedMood != null);
 
-            // [R-01 & R-05] 추천 점수 연산 (100점 기본 + 선호 +20점 + 기분 +15점)
+            // [R-01 & R-05] 추천 점수 연산 (100점 기본 + 선호 +20점 + 기분 +25점)
             // 통과된 메뉴는 100% 알레르기 프리(SAFE) 보장
             int baseScore = 100;
-            int finalScore = baseScore + (isPreferred ? 20 : 0) + (isMoodMatched ? 15 : 0);
+            int finalScore = baseScore + (isPreferred ? 20 : 0) + (isMoodMatched ? 25 : 0);
 
             // [R-03 & R-05] 사유 문구 생성
             String reason = generateRecommendReason(category.isEmpty() ? "추천" : category, isPreferred, false, matchedMood);

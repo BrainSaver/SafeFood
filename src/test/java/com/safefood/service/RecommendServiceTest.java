@@ -51,17 +51,17 @@ class RecommendServiceTest {
     }
 
     @Test
-    @DisplayName("기분·컨디션 가산점(+15점) 적용 검증 (R-05)")
+    @DisplayName("기분·컨디션 가산점(+25점) 적용 검증 (R-05)")
     void testCalculateMenuScoreWithMood() {
         int baseScore = 100;
 
-        // 선호 O (+20), 기분 O (+15) -> 100 + 20 + 15 = 135점
+        // 선호 O (+20), 기분 O (+25) -> 100 + 20 + 25 = 145점
         int score = recommendService.calculateMenuScore(baseScore, true, true);
-        assertEquals(135, score);
+        assertEquals(145, score);
 
-        // 선호 X (+0), 기분 O (+15) -> 100 + 15 = 115점
+        // 선호 X (+0), 기분 O (+25) -> 100 + 25 = 125점
         int scoreMoodOnly = recommendService.calculateMenuScore(baseScore, false, true);
-        assertEquals(115, scoreMoodOnly);
+        assertEquals(125, scoreMoodOnly);
     }
 
     @Test
