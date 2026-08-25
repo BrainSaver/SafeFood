@@ -135,6 +135,13 @@ public final class Schema {
 
             // ── 맛집 · 메뉴 ────────────────────────────────
 
+            new Table("category", """
+                    CREATE TABLE IF NOT EXISTS category (
+                        id   INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(30) NOT NULL UNIQUE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
             new Table("restaurant", """
                     CREATE TABLE IF NOT EXISTS restaurant (
                         id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -157,12 +164,13 @@ public final class Schema {
                         restaurant_id INT NOT NULL,
                         name          VARCHAR(50) NOT NULL,
                         price         INT NOT NULL,
-                        category      VARCHAR(20),
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
                         food_id       INT,
+                        category_id   INT,
                         FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
-                        FOREIGN KEY (food_id)       REFERENCES food(id)
+                        FOREIGN KEY (food_id)       REFERENCES food(id),
+                        FOREIGN KEY (category_id)   REFERENCES category(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
@@ -327,6 +335,11 @@ public final class Schema {
             "우유", "계란", "메밀", "땅콩", "대두", "밀", "호두", "잣",
             "새우", "게", "오징어", "조개류", "고등어", "복숭아", "토마토",
             "돼지고기", "쇠고기", "닭고기", "아황산류"
+    );
+
+    /** 카테고리 마스터 데이터. */
+    public static final List<String> CATEGORIES = List.of(
+            "한식", "중식", "일식", "양식", "아시안", "패스트푸드", "카페/디저트"
     );
 
     /** 기분·컨디션 마스터 데이터. 추천 알고리즘의 기분 태그로 씁니다. */

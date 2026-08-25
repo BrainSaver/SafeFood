@@ -24,7 +24,7 @@ public class GroupMenuDao {
             SELECT m.id,
                    m.name AS menu_name,
                    r.name AS restaurant_name,
-                   m.category,
+                   COALESCE(c.name, r.category, '') AS category,
                    m.price,
                    COALESCE(m.spicy_level, 0) AS spicy_level,
                    COALESCE(r.rating, 0)      AS rating,
@@ -33,6 +33,7 @@ public class GroupMenuDao {
                    GROUP_CONCAT(DISTINCT CASE WHEN src.risk_level = 'POSSIBLE' THEN a.name END) AS possible_names
               FROM menu m
               JOIN restaurant r ON r.id = m.restaurant_id
+              LEFT JOIN category c ON c.id = m.category_id
               LEFT JOIN (
                     SELECT ma.menu_id, ma.allergy_id, ma.risk_level, 'CURATED' AS origin
                       FROM menu_allergy ma
@@ -45,7 +46,7 @@ public class GroupMenuDao {
                        AND NOT EXISTS (SELECT 1 FROM menu_allergy x WHERE x.menu_id = dm.id)
                    ) src ON src.menu_id = m.id
               LEFT JOIN allergy a ON a.id = src.allergy_id
-             GROUP BY m.id, m.name, r.name, m.category, m.price, m.spicy_level, r.rating
+             GROUP BY m.id, m.name, r.name, c.name, r.category, m.price, m.spicy_level, r.rating
             """;
 
     /**

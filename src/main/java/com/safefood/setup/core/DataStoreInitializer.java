@@ -88,6 +88,7 @@ final class DataStoreInitializer {
     );
 
     static {
+        PUBLIC_FILES.put("category.txt", Schema.CATEGORIES);
         PUBLIC_FILES.put("allergy.txt", Schema.ALLERGIES);
         PUBLIC_FILES.put("mood.txt", Schema.MOODS);
         PUBLIC_FILES.put("food.txt", List.of());
