@@ -140,8 +140,8 @@ public class MenuDao {
              ResultSet rs = pstmt.executeQuery()) {
 
             while (rs.next()) {
-                String openTime = rs.getTime("open_time") != null ? rs.getTime("open_time").toString().substring(0, 5) : "";
-                String closeTime = rs.getTime("close_time") != null ? rs.getTime("close_time").toString().substring(0, 5) : "";
+                String openTime = formatTime(rs.getString("open_time"));
+                String closeTime = formatTime(rs.getString("close_time"));
 
                 Integer foodId = rs.getObject("food_id") != null ? rs.getInt("food_id") : null;
                 Integer categoryId = rs.getObject("category_id") != null ? rs.getInt("category_id") : null;
@@ -196,8 +196,8 @@ public class MenuDao {
             pstmt.setInt(1, menuId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
-                    String openTime = rs.getTime("open_time") != null ? rs.getTime("open_time").toString().substring(0, 5) : "";
-                    String closeTime = rs.getTime("close_time") != null ? rs.getTime("close_time").toString().substring(0, 5) : "";
+                    String openTime = formatTime(rs.getString("open_time"));
+                    String closeTime = formatTime(rs.getString("close_time"));
 
                     Integer foodId = rs.getObject("food_id") != null ? rs.getInt("food_id") : null;
                     Integer categoryId = rs.getObject("category_id") != null ? rs.getInt("category_id") : null;
@@ -225,5 +225,16 @@ public class MenuDao {
             e.printStackTrace();
         }
         return null;
+    }
+
+    private static String formatTime(String timeStr) {
+        if (timeStr == null || timeStr.isBlank()) {
+            return "";
+        }
+        timeStr = timeStr.trim();
+        if (timeStr.length() >= 5) {
+            return timeStr.substring(0, 5);
+        }
+        return timeStr;
     }
 }

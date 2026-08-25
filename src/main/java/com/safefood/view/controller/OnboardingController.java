@@ -1,6 +1,7 @@
 package com.safefood.view.controller;
 
 import com.safefood.dao.AllergyCatalog;
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dto.UserDto;
 import com.safefood.view.AppNav;
 import com.safefood.view.DemoData;
@@ -94,7 +95,7 @@ public class OnboardingController {
 
         fillDistanceSeg();
 
-        Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
+        Widgets.fillChips(categoryPane, CategoryCatalog.names(), categoryChips);
         // 고를 목록은 allergy 테이블 기준입니다 (DB를 못 읽으면 고시 19종으로 대신합니다)
         Widgets.fillChips(allergyPane, AllergyCatalog.names(), allergyChips);
 

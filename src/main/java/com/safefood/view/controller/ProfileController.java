@@ -1,6 +1,7 @@
 package com.safefood.view.controller;
 
 import com.safefood.dao.AllergyCatalog;
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
@@ -77,7 +78,7 @@ public class ProfileController {
     private void initialize() {
         fillDistanceSeg();
         fillThemes();
-        Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
+        Widgets.fillChips(categoryPane, CategoryCatalog.names(), categoryChips);
         preferenceSettle.setOnFinished(event -> savePreferences());
 
         // 입력칸은 검색도 겸합니다 — 치는 동안 아래 목록이 걸러집니다

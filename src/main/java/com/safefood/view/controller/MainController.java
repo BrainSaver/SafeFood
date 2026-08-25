@@ -1,5 +1,6 @@
 package com.safefood.view.controller;
 
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dao.FavoriteDao;
 import com.safefood.dao.HistoryDao;
 import com.safefood.dto.PreferenceDto;
@@ -63,7 +64,7 @@ public class MainController {
         greetingLabel.setText("오늘 뭐 먹지, " + name + "님?");
 
         categoryBox.getItems().add("전체");
-        categoryBox.getItems().addAll(DemoData.CATEGORIES);
+        categoryBox.getItems().addAll(CategoryCatalog.names());
         categoryBox.setValue("전체");
 
         distanceBox.getItems().setAll("500m", "1km", "2km", "3km", "제한없음");
