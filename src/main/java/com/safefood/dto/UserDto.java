@@ -8,6 +8,7 @@ public class UserDto {
     private String password;
     private String nickname;
     private LocalDateTime createdAt;
+    private String sessionToken;
 
     // 기본 생성자
     public UserDto() {}
@@ -27,6 +28,14 @@ public class UserDto {
     public void setLoginId(String loginId) { this.loginId = loginId; }
 
     public String getPassword() { return password; }
+
+    /**
+     * 이 로그인이 받은 세션 표. 다른 기기에서 로그인하면 DB 값이 바뀌어 이 값과 어긋납니다.
+     * (같은 {@code user} 테이블 칼럼이라 여기 함께 담습니다.)
+     */
+    public String getSessionToken() { return sessionToken; }
+
+    public void setSessionToken(String sessionToken) { this.sessionToken = sessionToken; }
     public void setPassword(String password) { this.password = password; }
 
     public String getNickname() { return nickname; }

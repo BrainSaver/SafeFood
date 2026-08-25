@@ -9,8 +9,8 @@ import com.safefood.dto.UserDto;
 import com.safefood.service.LocationService;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
 import com.safefood.view.Theme;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
@@ -164,7 +164,7 @@ public class ProfileController {
 
     private void fillDistanceSeg() {
         distanceSeg.getChildren().clear();
-        List<String> options = DemoData.DISTANCES;
+        List<String> options = UiConstants.DISTANCES;
         for (int i = 0; i < options.size(); i++) {
             ToggleButton option =
                     Widgets.segOption(options.get(i), i == 0, i == options.size() - 1);

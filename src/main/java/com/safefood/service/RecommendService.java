@@ -8,8 +8,9 @@ import com.safefood.dao.MenuDao;
 import com.safefood.dao.MenuDao.MenuDto;
 import com.safefood.dao.ProfileDao;
 import com.safefood.dto.PreferenceDto;
+import com.safefood.dto.RecommendationCard;
+import com.safefood.dto.Safety;
 import com.safefood.service.GroupMergeService.MergedGroupCondition;
-import com.safefood.view.DemoData;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -109,12 +110,12 @@ public class RecommendService {
         public String getAlternative() { return alternative; }
 
         /**
-         * UI DemoData.Recommendation 레코드로 변환
+         * UI RecommendationCard 레코드로 변환
          */
-        public DemoData.Recommendation toRecommendation(int rank) {
-            DemoData.Safety safety = blocked ? DemoData.Safety.CONTAINS
-                    : (hasPenalty ? DemoData.Safety.POSSIBLE : DemoData.Safety.SAFE);
-            return new DemoData.Recommendation(
+        public RecommendationCard toRecommendation(int rank) {
+            Safety safety = blocked ? Safety.CONTAINS
+                    : (hasPenalty ? Safety.POSSIBLE : Safety.SAFE);
+            return new RecommendationCard(
                     rank,
                     finalScore,
                     menuName,

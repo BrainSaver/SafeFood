@@ -1,7 +1,7 @@
 package com.safefood.dao;
 
 import com.safefood.dto.FavoriteDto;
-import com.safefood.view.DemoData;
+import com.safefood.dto.FavoriteRow;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -9,7 +9,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * [ SafeFood - 즐겨찾기(Favorite / 찜하기) DAO ]
@@ -47,9 +49,9 @@ public class FavoriteDao {
         return list;
     }
 
-    // 2. 찜 목록 꺼내오기 (UI DemoData.FavoriteRow 리스트)
-    public List<DemoData.FavoriteRow> getUserFavorites(int userId) {
-        List<DemoData.FavoriteRow> list = new ArrayList<>();
+    // 2. 찜 목록 꺼내오기 (UI FavoriteRow 리스트)
+    public List<FavoriteRow> getUserFavorites(int userId) {
+        List<FavoriteRow> list = new ArrayList<>();
         String sql = "SELECT r.name AS restaurant_name, m.name AS menu_name, r.rating, r.review_count " +
                      "FROM favorite f " +
                      "JOIN menu m ON f.menu_id = m.id " +
@@ -65,7 +67,7 @@ public class FavoriteDao {
                     String menu = rs.getString("menu_name");
                     double rating = rs.getDouble("rating");
                     int reviewCount = rs.getInt("review_count");
-                    list.add(new DemoData.FavoriteRow(rest, menu, rating, reviewCount));
+                    list.add(new FavoriteRow(rest, menu, rating, reviewCount));
                 }
             }
         } catch (SQLException e) {
@@ -115,6 +117,35 @@ public class FavoriteDao {
         } catch (SQLException e) {
             return false;
         }
+    }
+
+    /**
+     * 회원이 찜한 메뉴 id 전체 — 카드마다 {@link #isFavorite} 를 부르는 대신 한 번에 받습니다.
+     *
+     * <p>추천 카드는 한 화면에 5장이라 예전에는 하트를 그리려고 커넥션을 5개 더 열었습니다
+     * (풀이 없어 매번 새로 맺습니다).
+     *
+     * @return 찜한 메뉴 id 집합. 조회에 실패하면 빈 집합 — 하트가 빈 하트로 보일 뿐이라
+     *         {@link #isFavorite} 와 같은 수준으로 안전하게 넘어갑니다.
+     */
+    public Set<Integer> getFavoriteMenuIds(int userId) {
+        Set<Integer> menuIds = new HashSet<>();
+        if (userId <= 0) {
+            return menuIds;
+        }
+        String sql = "SELECT menu_id FROM favorite WHERE user_id = ? AND menu_id IS NOT NULL";
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    menuIds.add(rs.getInt("menu_id"));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[favorite] 찜 목록을 불러오지 못했습니다: " + e.getMessage());
+        }
+        return menuIds;
     }
 
     // 5. 찜 취소하기 (메뉴 ID 기준)

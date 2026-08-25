@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * 알레르기 마스터({@code allergy} 테이블)의 이름 ↔ id 대응표.
  *
- * <p><b>왜 필요한가</b> — 예전에는 {@code DemoData.ALLERGIES} 목록의 <b>순서</b>를 id 로 썼습니다
+ * <p><b>왜 필요한가</b> — 예전에는 하드코딩된 목록의 <b>순서</b>를 id 로 썼습니다
  * ({@code indexOf(name) + 1}, {@code get(id - 1)}). 화면 목록과 DB 의 AUTO_INCREMENT 가 언제나
  * 같은 순서라는 보장이 없으므로, 목록 중간에 항목을 넣거나 마스터를 다시 심으면
  * <b>회원의 '새우'가 '게'로 저장·판정</b>될 수 있었습니다. 알레르기 앱에서 조용히 어긋나면

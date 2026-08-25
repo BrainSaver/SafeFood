@@ -176,7 +176,7 @@ public final class Widgets {
         return circle(rank == 0 ? "✕" : String.valueOf(rank), "rank-circle", variant);
     }
 
-    public static Label safetyBadge(DemoData.Safety safety) {
+    public static Label safetyBadge(com.safefood.dto.Safety safety) {
         Label badge = new Label(safety.shortLabel);
         badge.getStyleClass().addAll("safety", safety.styleClass);
         return badge;

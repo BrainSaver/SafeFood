@@ -1,7 +1,7 @@
 package com.safefood.view.controller;
 
+import com.safefood.dto.RecommendationCard;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
@@ -20,7 +20,7 @@ public class RestaurantDetailController {
     @FXML private Label reasonLabel;
     @FXML private ToggleButton favoriteButton;
 
-    private DemoData.Recommendation item;
+    private RecommendationCard item;
 
     @FXML
     private void initialize() {
@@ -28,7 +28,7 @@ public class RestaurantDetailController {
                 favoriteButton.setText(on ? "♥ 찜함" : "♡ 찜"));
     }
 
-    public void setItem(DemoData.Recommendation item) {
+    public void setItem(RecommendationCard item) {
         this.item = item;
         restaurantName.setText(item.restaurant());
         menuName.setText(item.menu());
