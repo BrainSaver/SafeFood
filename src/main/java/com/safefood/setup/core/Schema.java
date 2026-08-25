@@ -27,6 +27,29 @@ public final class Schema {
     public record Table(String name, String ddl) {
     }
 
+    /**
+     * 이미 만들어진 테이블에 <b>뒤늦게</b> 추가된 칼럼.
+     *
+     * <p>위의 DDL 은 전부 {@code CREATE TABLE IF NOT EXISTS} 라서, 테이블이 이미 있으면
+     * 구조를 손대지 않습니다. 그래서 칼럼을 새로 넣을 때는 DDL 만 고쳐 두면
+     * <b>새로 설치한 사람에게만</b> 반영되고 기존 DB 는 그대로 남습니다.
+     * 여기에 같이 적어 두면 설정 마법사가 기존 DB 에도 채워 넣습니다.
+     */
+    public record AddedColumn(String table, String column, String ddl) {
+    }
+
+    public static final List<AddedColumn> ADDED_COLUMNS = List.of(
+            // 중복 로그인 차단 — 로그인할 때마다 새 표를 발급하고, 표가 바뀌면 이전 기기는 물러납니다
+            new AddedColumn("user", "session_token",
+                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL"),
+
+            // 메뉴 카테고리 정규화 — 문자열 category 컬럼 대신 category(id)를 가리킵니다.
+            // 기존 DB 의 category 문자열 값 이관과 옛 컬럼 삭제는 README 스키마 절의 ALTER 참고.
+            new AddedColumn("menu", "category_id",
+                    "ALTER TABLE menu ADD COLUMN category_id INT NULL, "
+                            + "ADD CONSTRAINT fk_menu_category FOREIGN KEY (category_id) REFERENCES category(id)")
+    );
+
     public static final List<Table> TABLES = List.of(
 
             // ── 회원 · 취향 · 알레르기 ──────────────────────
@@ -37,7 +60,8 @@ public final class Schema {
                         login_id    VARCHAR(30)  NOT NULL UNIQUE,
                         password    VARCHAR(255) NOT NULL,
                         nickname    VARCHAR(30)  NOT NULL,
-                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        session_token VARCHAR(36) NULL
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
@@ -138,7 +162,7 @@ public final class Schema {
             new Table("category", """
                     CREATE TABLE IF NOT EXISTS category (
                         id   INT AUTO_INCREMENT PRIMARY KEY,
-                        name VARCHAR(30) NOT NULL UNIQUE
+                        name VARCHAR(20) NOT NULL UNIQUE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
@@ -164,13 +188,14 @@ public final class Schema {
                         restaurant_id INT NOT NULL,
                         name          VARCHAR(50) NOT NULL,
                         price         INT NOT NULL,
+                        category_id   INT,
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
                         food_id       INT,
                         category_id   INT,
                         FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
-                        FOREIGN KEY (food_id)       REFERENCES food(id),
-                        FOREIGN KEY (category_id)   REFERENCES category(id)
+                        FOREIGN KEY (category_id)   REFERENCES category(id),
+                        FOREIGN KEY (food_id)       REFERENCES food(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
 
@@ -346,5 +371,10 @@ public final class Schema {
     static final List<String> MOODS = List.of(
             "느끼함", "스트레스", "해장", "더움", "추움",
             "피곤함", "가벼운 식사", "든든하게", "혼밥", "기념일"
+    );
+
+    /** 음식 카테고리 마스터 데이터. 메뉴 분류(menu.category_id)로 씁니다. */
+    static final List<String> CATEGORIES = List.of(
+            "한식", "중식", "일식", "양식", "아시안", "패스트푸드"
     );
 }

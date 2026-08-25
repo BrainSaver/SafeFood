@@ -24,7 +24,7 @@ public class GroupMenuDao {
             SELECT m.id,
                    m.name AS menu_name,
                    r.name AS restaurant_name,
-                   COALESCE(c.name, r.category, '') AS category,
+                   c.name AS category,
                    m.price,
                    COALESCE(m.spicy_level, 0) AS spicy_level,
                    COALESCE(r.rating, 0)      AS rating,
@@ -46,7 +46,7 @@ public class GroupMenuDao {
                        AND NOT EXISTS (SELECT 1 FROM menu_allergy x WHERE x.menu_id = dm.id)
                    ) src ON src.menu_id = m.id
               LEFT JOIN allergy a ON a.id = src.allergy_id
-             GROUP BY m.id, m.name, r.name, c.name, r.category, m.price, m.spicy_level, r.rating
+             GROUP BY m.id, m.name, r.name, c.name, m.price, m.spicy_level, r.rating
             """;
 
     /**

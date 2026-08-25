@@ -126,9 +126,7 @@ public class MenuDao {
         List<MenuDto> menuList = new ArrayList<>();
         java.util.Map<Integer, List<String>> moodMap = getMenuMoodsMap();
 
-        String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, " +
-                     "       COALESCE(c.name, r.category, '') AS category, " +
-                     "       m.spicy_level, m.description, m.food_id, m.category_id, " +
+        String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, c.name AS category, m.spicy_level, m.description, " +
                      "       r.name AS restaurant_name, r.address AS restaurant_address, " +
                      "       r.open_time, r.close_time, r.rating, r.review_count " +
                      "FROM menu m " +
@@ -180,9 +178,7 @@ public class MenuDao {
      * 특정 메뉴 단건 조회
      */
     public MenuDto getMenuById(int menuId) {
-        String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, " +
-                     "       COALESCE(c.name, r.category, '') AS category, " +
-                     "       m.spicy_level, m.description, m.food_id, m.category_id, " +
+        String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, c.name AS category, m.spicy_level, m.description, " +
                      "       r.name AS restaurant_name, r.address AS restaurant_address, " +
                      "       r.open_time, r.close_time, r.rating, r.review_count " +
                      "FROM menu m " +
