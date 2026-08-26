@@ -86,11 +86,40 @@ public final class Widgets {
         return label;
     }
 
-    /** 읽기 전용 태그. {@code variants} 는 accent / accent2 / neutral / solid / warn / danger / outline. */
-    public static Label tag(String text, String... variants) {
+    /**
+     * 태그가 쓸 수 있는 색.
+     *
+     * <p>예전에는 문자열이라 {@code tag(name, "dangar")} 처럼 오타를 내도 <b>아무 일도
+     * 일어나지 않았습니다</b> — 예외도 경고도 없이 스타일만 안 먹었습니다. app.css 에
+     * 실제로 정의된 것만 여기 둡니다.
+     */
+    public enum Variant {
+        ACCENT("accent"),
+        ACCENT2("accent2"),
+        NEUTRAL("neutral"),
+        SOLID("solid"),
+        WARN("warn"),
+        DANGER("danger"),
+        OUTLINE("outline");
+
+        private final String styleClass;
+
+        Variant(String styleClass) {
+            this.styleClass = styleClass;
+        }
+
+        public String styleClass() {
+            return styleClass;
+        }
+    }
+
+    /** 읽기 전용 태그. */
+    public static Label tag(String text, Variant... variants) {
         Label tag = new Label(text);
         tag.getStyleClass().add("tag");
-        tag.getStyleClass().addAll(variants);
+        for (Variant variant : variants) {
+            tag.getStyleClass().add(variant.styleClass());
+        }
         return tag;
     }
 

@@ -14,5 +14,9 @@ map.api.key=
 
 menugen.api.key=
 
+# 나이스(NEIS) 교육정보 개방 포털 인증키 — '우리 아이 급식'에서만 씁니다.
+# open.neis.go.kr 에서 발급받아 채우면 학교 검색과 급식 조회가 열립니다.
+neis.api.key=
+
 socket.host=localhost
 socket.port=5000

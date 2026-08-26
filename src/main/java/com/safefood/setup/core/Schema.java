@@ -333,6 +333,32 @@ public final class Schema {
                         FOREIGN KEY (group_id)    REFERENCES dining_group(id),
                         FOREIGN KEY (feedback_id) REFERENCES feedback(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            // -- 우리 아이 급식 --------------------------------
+
+            new Table("child", """
+                    CREATE TABLE IF NOT EXISTS child (
+                        id         INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id    INT NOT NULL,
+                        name       VARCHAR(30) NOT NULL,
+                        atpt_code  VARCHAR(10),
+                        schul_code VARCHAR(10),
+                        schul_nm   VARCHAR(60),
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES `user`(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("child_allergy", """
+                    CREATE TABLE IF NOT EXISTS child_allergy (
+                        child_id   INT NOT NULL,
+                        allergy_id INT NOT NULL,
+                        severity   TINYINT NOT NULL DEFAULT 3,
+                        PRIMARY KEY (child_id, allergy_id),
+                        FOREIGN KEY (child_id)   REFERENCES child(id),
+                        FOREIGN KEY (allergy_id) REFERENCES allergy(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """)
     );
 
@@ -364,6 +390,22 @@ public final class Schema {
     /** 음식 카테고리 마스터 데이터. 메뉴 분류(menu.category_id)와 화면의 카테고리 선택지로 씁니다. */
     public static final List<String> CATEGORIES = List.of(
             "한식", "중식", "일식", "양식", "아시안", "패스트푸드", "카페/디저트", "분식"
+    );
+
+    /**
+     * 나이스(NEIS) 급식 식단에 붙는 알레르기 표기 번호 1~19번의 <b>실제 알레르겐</b>을
+     * 그 번호 순서대로 적어 둔 것입니다. 이름은 {@link #ALLERGIES}(우리 마스터)의 표기를 씁니다.
+     *
+     * <p><b>NEIS 번호는 우리 {@code allergy.id} 와 다릅니다.</b> 같은 19종이지만 순서가 달라
+     * 19개 중 5개만 우연히 일치하고 14개가 어긋납니다. 실제 식단으로 확인한 예:
+     * {@code 우유 (2)} · {@code 고등어구이 (7)} · {@code 돈육불고기 (10)} · {@code 오징어무침 (17)}.
+     * 번호를 그대로 {@code allergy_id} 로 쓰면 우유 알레르기가 계란으로, 돼지고기가 게로 읽힙니다.
+     *
+     * <p>그래서 번호는 <b>이름을 거쳐서만</b> 우리 id 로 바뀝니다 ({@code NeisAllergyCodes}).
+     */
+    public static final List<String> NEIS_ALLERGY_NAMES = List.of(
+            "계란", "우유", "메밀", "땅콩", "대두", "밀", "고등어", "게", "새우", "돼지고기",
+            "복숭아", "토마토", "아황산류", "호두", "닭고기", "쇠고기", "오징어", "조개류", "잣"
     );
 
     /** 기분·컨디션 마스터 데이터. 추천 알고리즘의 기분 태그로 씁니다. */

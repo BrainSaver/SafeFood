@@ -305,4 +305,14 @@ public class AuthService {
 
         return userDao.updateUserInfo(userId, passwordToSave, newNickname);
     }
+
+    public boolean deleteAccount(int userId, String plainPassword, String savedHashedPassword) {
+        if (userId <= 0 || plainPassword == null || plainPassword.isBlank()) {
+            return false;
+        }
+        if (!verifyPassword(plainPassword, savedHashedPassword)) {
+            return false;
+        }
+        return userDao.deleteUser(userId);
+    }
 }

@@ -129,7 +129,7 @@ public class GroupConditionController {
             return;
         }
         for (String name : picked) {
-            allergySummary.getChildren().add(Widgets.tag(name, "accent"));
+            allergySummary.getChildren().add(Widgets.tag(name, Widgets.Variant.ACCENT));
         }
     }
 
