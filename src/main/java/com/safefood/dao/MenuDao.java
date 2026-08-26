@@ -127,6 +127,7 @@ public class MenuDao {
         java.util.Map<Integer, List<String>> moodMap = getMenuMoodsMap();
 
         String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, c.name AS category, m.spicy_level, m.description, " +
+                     "       m.food_id, m.category_id, " +
                      "       r.name AS restaurant_name, r.address AS restaurant_address, " +
                      "       r.open_time, r.close_time, r.rating, r.review_count " +
                      "FROM menu m " +
@@ -179,6 +180,7 @@ public class MenuDao {
      */
     public MenuDto getMenuById(int menuId) {
         String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, c.name AS category, m.spicy_level, m.description, " +
+                     "       m.food_id, m.category_id, " +
                      "       r.name AS restaurant_name, r.address AS restaurant_address, " +
                      "       r.open_time, r.close_time, r.rating, r.review_count " +
                      "FROM menu m " +
