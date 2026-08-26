@@ -503,13 +503,8 @@ public class MainController {
                     });
         });
 
-        Button map = new Button("가게·지도 보기");
-        map.getStyleClass().add("ghost");
-        map.setOnAction(event -> AppNav.dialog(
-                item.menu() + " — 맛집 상세", "restaurant-detail.fxml",
-                (RestaurantDetailController controller) -> controller.setItem(item)));
-
         // 찜 여부는 카드마다 묻지 않고 load() 가 한 번에 받아 온 것을 씁니다
+        // (상세 창에도 이 버튼을 넘겨야 해서 '가게·지도 보기'보다 먼저 만듭니다)
         ToggleButton favorite = new ToggleButton(isFav ? "♥" : "♡");
         favorite.setSelected(isFav);
         favorite.getStyleClass().addAll("icon");
@@ -549,6 +544,19 @@ public class MainController {
                         AppNav.error("찜을 저장하지 못했습니다: " + error.getMessage());
                     });
         });
+
+        Button map = new Button("가게·지도 보기");
+        map.getStyleClass().add("ghost");
+        map.setOnAction(event -> AppNav.dialog(
+                item.menu() + " — 맛집 상세", "restaurant-detail.fxml",
+                (RestaurantDetailController controller) -> {
+                    controller.setItem(item);
+                    // 상세 창의 찜 버튼도 같은 행을 만집니다 — 거기서 바꾸면 카드 하트도 따라갑니다
+                    controller.bindFavorite(menuId, restId, favorite.isSelected(), state -> {
+                        favorite.setSelected(state);
+                        favorite.setText(state ? "♥" : "♡");
+                    });
+                }));
 
         HBox actions = new HBox(8, eat, map, Widgets.hSpacer(), favorite);
         actions.setAlignment(Pos.CENTER_LEFT);
