@@ -168,4 +168,64 @@ public class AllergyDao {
         }
         return byMenu;
     }
+
+    /**
+     * 특정 메뉴의 알레르기 성분 목록을 menu_allergy 테이블에 저장 (크롤러 및 동기화 파이프라인용)
+     */
+    public boolean saveMenuAllergies(int menuId, Set<Integer> allergyIds) {
+        if (menuId <= 0 || allergyIds == null || allergyIds.isEmpty()) {
+            return false;
+        }
+        String sql = "INSERT INTO menu_allergy (menu_id, allergy_id, risk_level, ingredient) " +
+                     "VALUES (?, ?, 'CONTAINS', '') " +
+                     "ON DUPLICATE KEY UPDATE risk_level = VALUES(risk_level)";
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            for (Integer allergyId : allergyIds) {
+                if (allergyId == null || allergyId <= 0) continue;
+                pstmt.setInt(1, menuId);
+                pstmt.setInt(2, allergyId);
+                pstmt.addBatch();
+            }
+            pstmt.executeBatch();
+            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 여러 메뉴의 알레르기 성분을 대량 일괄 저장 (Batch)
+     */
+    public int saveMenuAllergiesBatch(Map<Integer, Set<Integer>> allergiesByMenuId) {
+        if (allergiesByMenuId == null || allergiesByMenuId.isEmpty()) {
+            return 0;
+        }
+        String sql = "INSERT INTO menu_allergy (menu_id, allergy_id, risk_level, ingredient) " +
+                     "VALUES (?, ?, 'CONTAINS', '') " +
+                     "ON DUPLICATE KEY UPDATE risk_level = VALUES(risk_level)";
+        int totalInserted = 0;
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            conn.setAutoCommit(false);
+            for (Map.Entry<Integer, Set<Integer>> entry : allergiesByMenuId.entrySet()) {
+                int menuId = entry.getKey();
+                Set<Integer> allergies = entry.getValue();
+                if (allergies == null || allergies.isEmpty()) continue;
+                for (Integer allergyId : allergies) {
+                    if (allergyId == null || allergyId <= 0) continue;
+                    pstmt.setInt(1, menuId);
+                    pstmt.setInt(2, allergyId);
+                    pstmt.addBatch();
+                    totalInserted++;
+                }
+            }
+            pstmt.executeBatch();
+            conn.commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return totalInserted;
+    }
 }
