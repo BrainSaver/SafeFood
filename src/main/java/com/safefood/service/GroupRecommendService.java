@@ -32,7 +32,7 @@ public class GroupRecommendService {
         }
     }
 
-    public record GroupCandidate(String menu, String restaurant, int score, String reason) {
+    public record GroupCandidate(int menuId, String menu, String restaurant, int score, String reason) {
 
         @Override
         public String toString() {
@@ -192,7 +192,8 @@ public class GroupRecommendService {
     private record Scored(CandidateMenu menu, int score, int rankPenalty, String reason) {
 
         GroupCandidate toCandidate() {
-            return new GroupCandidate(menu.menuName(), menu.restaurantName(), score, reason);
+            return new GroupCandidate(menu.menuId(), menu.menuName(), menu.restaurantName(),
+                    score, reason);
         }
     }
 

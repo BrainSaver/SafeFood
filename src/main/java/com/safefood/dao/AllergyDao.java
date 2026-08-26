@@ -17,6 +17,15 @@ import java.util.Set;
  */
 public class AllergyDao {
 
+    private static final String DERIVED_CONTAINS = """
+            SELECT dm.id AS menu_id, ia.allergy_id
+              FROM menu dm
+              JOIN food_ingredient fi    ON fi.food_id = dm.food_id
+              JOIN ingredient_allergy ia ON ia.ingredient_id = fi.ingredient_id
+             WHERE dm.food_id IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM menu_allergy x WHERE x.menu_id = dm.id)
+            """;
+
     /**
      * 특정 회원의 알레르기 ID 목록 조회
      */
@@ -67,13 +76,18 @@ public class AllergyDao {
      */
     public List<Integer> getMenuAllergiesByRiskLevel(int menuId, String riskLevel) {
         List<Integer> allergyIds = new ArrayList<>();
-        String sql = "SELECT allergy_id FROM menu_allergy WHERE menu_id = ? AND risk_level = ?";
+        String sql = "SELECT allergy_id FROM menu_allergy WHERE menu_id = ? AND risk_level = ? "
+                   + "UNION "
+                   + "SELECT allergy_id FROM (" + DERIVED_CONTAINS + ") derived "
+                   + "WHERE derived.menu_id = ? AND ? = 'CONTAINS'";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, menuId);
             pstmt.setString(2, riskLevel);
+            pstmt.setInt(3, menuId);
+            pstmt.setString(4, riskLevel);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     allergyIds.add(rs.getInt("allergy_id"));
@@ -116,7 +130,10 @@ public class AllergyDao {
     public Map<Integer, MenuAllergies> getAllMenuAllergies() {
         Map<Integer, List<Integer>> containsByMenu = new HashMap<>();
         Map<Integer, List<Integer>> possibleByMenu = new HashMap<>();
-        String sql = "SELECT menu_id, allergy_id, risk_level FROM menu_allergy";
+        String sql = "SELECT menu_id, allergy_id, risk_level FROM menu_allergy "
+                   + "UNION ALL "
+                   + "SELECT menu_id, allergy_id, 'CONTAINS' AS risk_level "
+                   + "FROM (" + DERIVED_CONTAINS + ") derived";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);

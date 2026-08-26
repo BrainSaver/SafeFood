@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mealServiceDietInfo>
+  <head>
+    <list_total_count>2</list_total_count>
+    <RESULT>
+      <CODE>INFO-000</CODE>
+      <MESSAGE>정상 처리되었습니다.</MESSAGE>
+    </RESULT>
+  </head>
+  <row>
+    <ATPT_OFCDC_SC_CODE><![CDATA[B10]]></ATPT_OFCDC_SC_CODE>
+    <ATPT_OFCDC_SC_NM><![CDATA[서울특별시교육청]]></ATPT_OFCDC_SC_NM>
+    <SD_SCHUL_CODE><![CDATA[7031110]]></SD_SCHUL_CODE>
+    <SCHUL_NM><![CDATA[경기초등학교]]></SCHUL_NM>
+    <MMEAL_SC_CODE><![CDATA[2]]></MMEAL_SC_CODE>
+    <MMEAL_SC_NM><![CDATA[중식]]></MMEAL_SC_NM>
+    <MLSV_YMD><![CDATA[20260601]]></MLSV_YMD>
+    <MLSV_FGR><![CDATA[582.00]]></MLSV_FGR>
+    <DDISH_NM><![CDATA[통밀밥 (6)<br/>꼬마전복미역국 (5.6.18)<br/>고추장갈비찜 (5.6.10.12.13)<br/>유채나물무침 <br/>무장아찌 (5.6.8.9.18)<br/>초코쌀뻥 (2.5)<br/>우유 (2)]]></DDISH_NM>
+    <ORPLC_INFO><![CDATA[쇠고기(종류) : 국내산(육우)<br/>쇠고기 식육가공품 : 국내산<br/>돼지고기 식육가공품 : 국내산<br/>쌀 : 국내산<br/>콩 가공품 : 국내산<br/>낙지 : 베트남산<br/>명태 : 러시아산<br/>명태 수산가공품 : 러시아산<br/>오징어 수산가공품 : 국내산<br/>꽃게 수산가공품 : 국내산]]></ORPLC_INFO>
+    <CAL_INFO><![CDATA[626.8 Kcal]]></CAL_INFO>
+    <NTR_INFO><![CDATA[탄수화물(g) : 88.1<br/>단백질(g) : 25.5<br/>지방(g) : 18.3<br/>비타민A(R.E) : 187.7<br/>티아민(mg) : 0.5<br/>리보플라빈(mg) : 0.6<br/>비타민C(mg) : 24.1<br/>칼슘(mg) : 314.4<br/>철분(mg) : 2.7]]></NTR_INFO>
+    <MLSV_FROM_YMD><![CDATA[20260601]]></MLSV_FROM_YMD>
+    <MLSV_TO_YMD><![CDATA[20260601]]></MLSV_TO_YMD>
+    <LOAD_DTM><![CDATA[20260608]]></LOAD_DTM>
+  </row>
+  <row>
+    <ATPT_OFCDC_SC_CODE><![CDATA[B10]]></ATPT_OFCDC_SC_CODE>
+    <ATPT_OFCDC_SC_NM><![CDATA[서울특별시교육청]]></ATPT_OFCDC_SC_NM>
+    <SD_SCHUL_CODE><![CDATA[7031110]]></SD_SCHUL_CODE>
+    <SCHUL_NM><![CDATA[경기초등학교]]></SCHUL_NM>
+    <MMEAL_SC_CODE><![CDATA[2]]></MMEAL_SC_CODE>
+    <MMEAL_SC_NM><![CDATA[중식]]></MMEAL_SC_NM>
+    <MLSV_YMD><![CDATA[20260602]]></MLSV_YMD>
+    <MLSV_FGR><![CDATA[582.00]]></MLSV_FGR>
+    <DDISH_NM><![CDATA[쌀보리밥 <br/>콩나물국 (5)<br/>오징어무침 (1.5.6.13.17)<br/>돈육간장불고기 (5.6.10.13)<br/>석박지 (9)<br/>김구이 <br/>우유 (2)]]></DDISH_NM>
+    <ORPLC_INFO><![CDATA[쇠고기(종류) : 국내산(육우)<br/>쇠고기 식육가공품 : 국내산<br/>돼지고기 식육가공품 : 국내산<br/>쌀 : 국내산<br/>콩 가공품 : 국내산<br/>낙지 : 베트남산<br/>명태 : 러시아산<br/>명태 수산가공품 : 러시아산<br/>오징어 수산가공품 : 국내산<br/>꽃게 수산가공품 : 국내산]]></ORPLC_INFO>
+    <CAL_INFO><![CDATA[624.1 Kcal]]></CAL_INFO>
+    <NTR_INFO><![CDATA[탄수화물(g) : 85.2<br/>단백질(g) : 32.6<br/>지방(g) : 14.6<br/>비타민A(R.E) : 159.2<br/>티아민(mg) : 0.5<br/>리보플라빈(mg) : 0.6<br/>비타민C(mg) : 8.6<br/>칼슘(mg) : 256.3<br/>철분(mg) : 2.1]]></NTR_INFO>
+    <MLSV_FROM_YMD><![CDATA[20260602]]></MLSV_FROM_YMD>
+    <MLSV_TO_YMD><![CDATA[20260602]]></MLSV_TO_YMD>
+    <LOAD_DTM><![CDATA[20260609]]></LOAD_DTM>
+  </row>
+</mealServiceDietInfo>
+

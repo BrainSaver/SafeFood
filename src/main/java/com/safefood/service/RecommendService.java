@@ -10,7 +10,6 @@ import com.safefood.dao.ProfileDao;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Safety;
-import com.safefood.service.GroupMergeService.MergedGroupCondition;
 
 import java.util.ArrayList;
 import java.util.Comparator;
