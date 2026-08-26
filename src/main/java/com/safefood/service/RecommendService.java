@@ -14,6 +14,7 @@ import com.safefood.service.GroupMergeService.MergedGroupCondition;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -274,6 +275,91 @@ public class RecommendService {
     }
 
     // =========================================================================
+    // [R-01 & R-07] 실시간 크롤링 대응 식약처 19종 알레르기 연관 키워드 사전
+    // =========================================================================
+    private static final Map<String, List<String>> ALLERGY_KEYWORDS = Map.ofEntries(
+        Map.entry("쇠고기", List.of("소고기", "쇠고기", "불고기", "스테이크", "비프", "한우", "차돌", "양지", "우삼겹", "갈비탕", "육회", "도가니", "비프버거", "함박", "규동", "와규")),
+        Map.entry("돼지고기", List.of("돼지", "돈까스", "돈가스", "돈육", "제육", "삼겹살", "목살", "보쌈", "족발", "베이컨", "햄", "소시지", "순대", "카츠", "포크", "차슈", "부타동", "탕수육", "동파육")),
+        Map.entry("닭고기", List.of("닭", "치킨", "닭갈비", "삼계탕", "백숙", "찜닭", "치킨까스", "가라아게", "닭발", "오리", "야키토리", "오야코동", "닭볶음탕")),
+        Map.entry("대두", List.of("두부", "된장", "청국장", "간장", "콩", "순두부", "유부", "비지", "미소", "포케", "나또", "낫또", "인절미")),
+        Map.entry("새우", List.of("새우", "쉬림프", "새우튀김", "간장새우", "감바스", "멘보샤", "새우까스", "에비")),
+        Map.entry("게", List.of("게장", "간장게장", "양념게장", "꽃게", "크랩", "게살")),
+        Map.entry("오징어", List.of("오징어", "한치", "문어", "낙지", "쭈꾸미", "타코야끼", "타코")),
+        Map.entry("조개류", List.of("조개", "바지락", "홍합", "굴", "전복", "꼬막", "가리비", "소라", "봉골레", "백합", "재첩")),
+        Map.entry("고등어", List.of("고등어", "삼치", "꽁치")),
+        Map.entry("우유", List.of("치즈", "우유", "버터", "크림", "라떼", "요거트", "연유", "리코타", "모짜렐라", "파마산", "치즈카츠", "치즈돈까스")),
+        Map.entry("계란", List.of("계란", "달걀", "에그", "오믈렛", "에그타르트", "지단", "마요네즈", "카스테라")),
+        Map.entry("밀", List.of("라면", "우동", "파스타", "스파게티", "피자", "빵", "버거", "만두", "칼국수", "짜장면", "짬뽕", "튀김", "토스트", "와플", "소면", "당면", "국수", "수제비", "뇨끼")),
+        Map.entry("메밀", List.of("메밀", "소바", "막국수", "평양냉면")),
+        Map.entry("땅콩", List.of("땅콩", "피넛")),
+        Map.entry("호두", List.of("호두", "월넛")),
+        Map.entry("잣", List.of("잣")),
+        Map.entry("토마토", List.of("토마토", "케첩", "살사")),
+        Map.entry("복숭아", List.of("복숭아")),
+        Map.entry("아황산류", List.of("아황산", "와인"))
+    );
+
+    /**
+     * [R-01 & R-07] 메뉴명 및 설명 텍스트를 분석하여 알레르기 유발물질 ID 목록 자동 추출 (실시간 크롤링 대응)
+     */
+    public Set<Integer> deduceAllergiesFromText(MenuDto menu) {
+        if (menu == null) return Set.of();
+        Set<Integer> deduced = new HashSet<>();
+        String name = menu.getName() != null ? menu.getName() : "";
+        String desc = menu.getDescription() != null ? menu.getDescription() : "";
+        String text = name + " " + desc;
+
+        for (Map.Entry<String, List<String>> entry : ALLERGY_KEYWORDS.entrySet()) {
+            String allergyName = entry.getKey();
+            for (String keyword : entry.getValue()) {
+                if (text.contains(keyword)) {
+                    Integer id = AllergyCatalog.idOf(allergyName);
+                    if (id != null) {
+                        deduced.add(id);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // 복합 조리법(Compound Recipe) 룰 확장
+        // 1. 튀김/까스류 -> 밀, 계란 기본 포함
+        if (text.contains("돈까스") || text.contains("돈가스") || text.contains("카츠")
+                || text.contains("치킨") || text.contains("튀김") || text.contains("전") || text.contains("부침")) {
+            addAllergyIfAvailable(deduced, "밀");
+            addAllergyIfAvailable(deduced, "계란");
+        }
+        // 2. 양식/베이커리류 -> 밀, 우유 기본 포함
+        if (text.contains("파스타") || text.contains("피자") || text.contains("버거")
+                || text.contains("샌드위치") || text.contains("토스트") || text.contains("라자냐") || text.contains("그라탕")) {
+            addAllergyIfAvailable(deduced, "밀");
+            addAllergyIfAvailable(deduced, "우유");
+        }
+        // 3. 찌개/탕/국밥류 -> 대두 기본 포함
+        if (text.contains("찌개") || text.contains("탕") || text.contains("국밥")) {
+            addAllergyIfAvailable(deduced, "대두");
+        }
+
+        return deduced;
+    }
+
+    private void addAllergyIfAvailable(Set<Integer> set, String allergyName) {
+        Integer id = AllergyCatalog.idOf(allergyName);
+        if (id != null) {
+            set.add(id);
+        }
+    }
+
+    /**
+     * 가게만의 특색 메뉴명으로 작성되어 재료/알레르기 추정이 불가능한지 검사
+     */
+    public boolean isInformationInsufficient(MenuDto menu, MenuAllergies dbAllergies, Set<Integer> deducedAllergies) {
+        boolean hasDbInfo = (dbAllergies != null) && (!dbAllergies.contains().isEmpty() || !dbAllergies.possible().isEmpty());
+        boolean hasDeducedInfo = (deducedAllergies != null && !deducedAllergies.isEmpty());
+        return !hasDbInfo && !hasDeducedInfo;
+    }
+
+    // =========================================================================
     // [R-07] 알레르기 차단 메뉴 감지 및 대체 메뉴(Alternative) 추천
     // =========================================================================
     /**
@@ -285,7 +371,8 @@ public class RecommendService {
                                                                         Map<Integer, MenuAllergies> allergiesByMenu) {
         MenuAllergies blockedAllergies =
                 allergiesByMenu.getOrDefault(blockedMenu.getId(), MenuAllergies.EMPTY);
-        List<Integer> menuContains = blockedAllergies.contains();
+        Set<Integer> menuContains = new HashSet<>(blockedAllergies.contains());
+        menuContains.addAll(deduceAllergiesFromText(blockedMenu));
         List<Integer> menuPossible = blockedAllergies.possible();
 
         List<String> blockedAllergyNames = new ArrayList<>();
@@ -319,7 +406,9 @@ public class RecommendService {
             if (other.getId() == blockedMenu.getId()) continue;
             MenuAllergies otherAllergies =
                     allergiesByMenu.getOrDefault(other.getId(), MenuAllergies.EMPTY);
-            if (allergyService.isSafe(userAllergies, otherAllergies.contains())
+            Set<Integer> otherContains = new HashSet<>(otherAllergies.contains());
+            otherContains.addAll(deduceAllergiesFromText(other));
+            if (allergyService.isSafe(userAllergies, List.copyOf(otherContains))
                     && allergyService.isSafe(userAllergies, otherAllergies.possible())) {
                 if (other.getRestaurantId() == blockedMenu.getRestaurantId()) {
                     alternative = "같은 식당의 안심 메뉴인 '" + other.getName() + "'(을)를 대신 드실 수 있습니다.";
@@ -424,8 +513,16 @@ public class RecommendService {
             List<Integer> containsAllergies = menuAllergies.contains();
             List<Integer> possibleAllergies = menuAllergies.possible();
 
+            // [동적 크롤링 대응] 메뉴명/설명 기반 알레르기 유발물질 자동 추출 및 정보 미흡 여부 판정
+            Set<Integer> deducedAllergies = deduceAllergiesFromText(menu);
+            boolean isInsufficient = isInformationInsufficient(menu, menuAllergies, deducedAllergies);
+
+            // DB 알레르기 + 실시간 분석 알레르기 결합
+            Set<Integer> combinedContains = new HashSet<>(containsAllergies);
+            combinedContains.addAll(deducedAllergies);
+
             // [R-01 & R-07] CONTAINS(원재료 포함) 또는 POSSIBLE(혼입 가능성) 알레르기 성분 겹침 시 100% 완전 차단 (안전 제일주의)
-            boolean isContainsUnsafe = !allergyService.isSafe(userAllergies, containsAllergies);
+            boolean isContainsUnsafe = !allergyService.isSafe(userAllergies, List.copyOf(combinedContains));
             boolean isPossibleUnsafe = !allergyService.isSafe(userAllergies, possibleAllergies);
 
             if (isContainsUnsafe || isPossibleUnsafe) {
@@ -446,8 +543,15 @@ public class RecommendService {
             int baseScore = 100;
             int finalScore = baseScore + (isPreferred ? 20 : 0) + (isMoodMatched ? 25 : 0);
 
-            // [R-03 & R-05] 사유 문구 생성
-            String reason = generateRecommendReason(category.isEmpty() ? "추천" : category, isPreferred, false, matchedMood);
+            // [R-03 & R-05] 사유 문구 생성 (정보 미흡 특색 메뉴인 경우 명확히 경고/안내)
+            String reason;
+            if (isInsufficient) {
+                reason = (!userAllergies.isEmpty())
+                        ? "!![정보 미흡] 상세 식재료 및 알레르기 유발물질 정보가 확인되지 않은 특색 메뉴입니다. (주의 필요)"
+                        : "!![정보 미흡] 상세 재료 정보가 등록되지 않은 특색 메뉴입니다.";
+            } else {
+                reason = generateRecommendReason(category.isEmpty() ? "추천" : category, isPreferred, false, matchedMood);
+            }
 
             results.add(new RecommendResult(
                     menu.getId(),
@@ -583,7 +687,9 @@ public class RecommendService {
             }
 
             MenuAllergies menuAllergies = allergiesByMenu.getOrDefault(menu.getId(), MenuAllergies.EMPTY);
-            List<Integer> containsAllergies = menuAllergies.contains();
+            Set<Integer> combinedContains = new HashSet<>(menuAllergies.contains());
+            combinedContains.addAll(deduceAllergiesFromText(menu));
+            List<Integer> containsAllergies = List.copyOf(combinedContains);
             List<Integer> possibleAllergies = menuAllergies.possible();
             if (!allergyService.isSafe(mergedAllergies, containsAllergies) || !allergyService.isSafe(mergedAllergies, possibleAllergies)) {
                 continue;
