@@ -470,7 +470,10 @@ public class RecommendService {
         List<MenuDto> blockedMenus = new ArrayList<>();
 
         List<Integer> userAllergies = (userId > 0) ? allergyDao.getUserAllergyIds(userId) : List.of();
-        List<Integer> eatenMenuIds = (excludeEaten && userId > 0) ? historyDao.getEatenMenuIds(userId) : List.of();
+        // [R-06] 전날/최근 먹은 메뉴(EATEN) 목록 조회 (전날/최근 식사 1일치만 자동 제외)
+        List<Integer> eatenMenuIds = (excludeEaten && userId > 0)
+                ? historyDao.getRecentEatenMenuIds(userId, 1)
+                : List.of();
         List<String> effectivePreferredCategories = (preferredCategories != null)
                 ? preferredCategories
                 : ((userId > 0) ? profileDao.getCategories(userId) : List.of());
