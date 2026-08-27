@@ -82,20 +82,6 @@ public final class AllergyCatalog {
         cache = null;
     }
 
-    /**
-     * 마스터가 쓸 만한 상태인지 봅니다 — 앱을 켤 때 <b>화면 스레드 밖에서</b> 한 번 부릅니다.
-     *
-     * <p><b>왜 확인하는가</b> — {@code allergy.id} 는 자식 테이블(user_allergy · child_allergy ·
-     * menu_allergy · ingredient_allergy)이 그대로 들고 있는 값입니다. 그런데 마스터를 지웠다
-     * 다시 심으면 AUTO_INCREMENT 가 <b>이어서</b> 새 번호를 매기므로, 살아남은 자식 행이 전부
-     * 다른 알레르겐을 가리키게 됩니다 — 우유 알레르기가 계란으로 읽히는 식입니다.
-     * 지금은 외래 키가 그 삭제를 막고 있지만, 막히지 않았을 때 조용히 넘어가면 안 됩니다.
-     *
-     * <p>고치는 것까지 하지는 않습니다. 무엇이 어긋났는지 <b>알리기만</b> 합니다 —
-     * 사람이 데이터를 보고 결정할 일입니다.
-     *
-     * @return 사람이 읽을 문제 목록. 비어 있으면 정상
-     */
     public static List<String> verify() {
         List<String> problems = new ArrayList<>();
         Snapshot snapshot = snapshot();
@@ -130,7 +116,6 @@ public final class AllergyCatalog {
         return problems;
     }
 
-    /** 마스터에 다음으로 매겨질 id. 못 읽으면 0 (그때는 경고하지 않습니다). */
     private static int nextAutoIncrement() {
         String sql = "SELECT AUTO_INCREMENT FROM information_schema.tables"
                 + " WHERE table_schema = DATABASE() AND table_name = 'allergy'";

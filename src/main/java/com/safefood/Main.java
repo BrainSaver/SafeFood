@@ -40,13 +40,6 @@ public class Main extends Application {
         worker.start();
     }
 
-    /**
-     * 알레르기 마스터가 어긋났는지 켤 때 한 번 봅니다. 앱은 그대로 뜨고, 콘솔로만 알립니다 —
-     * 무엇을 고칠지는 데이터를 보고 사람이 정할 일입니다.
-     *
-     * <p>여기서 부르는 김에 마스터를 <b>화면 스레드 밖에서</b> 미리 읽어 둡니다. 커넥션 풀이
-     * 없어(DatabaseUtil 참고) 화면이 처음 그려질 때 읽으면 그 왕복만큼 창이 멎습니다.
-     */
     private static void checkAllergyMaster() {
         for (String problem : com.safefood.dao.AllergyCatalog.verify()) {
             System.err.println("[allergy] " + problem);

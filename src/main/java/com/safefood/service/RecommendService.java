@@ -431,11 +431,6 @@ public class RecommendService {
             blockedReason = allergyService.createBlockedReason(blockedAllergyNames);
         }
 
-        // 같은 식당 또는 동일 카테고리의 대체 메뉴 탐색 (CONTAINS와 POSSIBLE 모두 겹치지 않는 메뉴)
-        //
-        // 알레르기 정보가 <b>하나도 없는</b> 메뉴는 여기서 제외합니다. isSafe 는 아는 것이
-        // 없어도 true 를 돌려주므로, 거르지 않으면 재료를 전혀 모르는 메뉴를 '안심 메뉴'라고
-        // 이름 붙여 권하게 됩니다 — 차단당한 사람에게 가장 하면 안 되는 안내입니다.
         String alternative = null;
         for (MenuDto other : allMenus) {
             if (other.getId() == blockedMenu.getId()) continue;

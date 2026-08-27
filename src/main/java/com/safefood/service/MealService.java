@@ -99,8 +99,6 @@ public class MealService {
 
         Severities severities = severityByAllergyId(child.id());
         if (severities.failure() != null) {
-            // 절반만 아는 목록으로 판정하느니 아무것도 보여 주지 않습니다 —
-            // 빠진 알레르겐이 든 급식이 '표기상 없음'으로 보이는 편이 훨씬 위험합니다
             return new MealPeriod(List.of(), null, false, severities.failure());
         }
         Map<Integer, Integer> severityById = severities.byId();
@@ -133,22 +131,9 @@ public class MealService {
         return new MealPeriod(List.copyOf(days), fetchedOn, stale, days.isEmpty() ? failure : null);
     }
 
-    /**
-     * 아이의 알레르기를 id 로 옮긴 결과.
-     *
-     * @param failure 하나라도 못 옮겼을 때의 사유. null 이 아니면 <b>판정하면 안 됩니다</b>
-     */
     private record Severities(Map<Integer, Integer> byId, String failure) {
     }
 
-    /**
-     * 아이의 알레르기 id → 심각도.
-     *
-     * <p>이름을 마스터에서 못 찾으면 <b>조용히 빼지 않습니다</b>. 빼 버리면 그 알레르겐이 든
-     * 급식이 '표기상 없음({@link DishSafety#CLEAR})'으로 보입니다 — 새우 하나를 못 옮겼다고
-     * 새우 든 급식을 괜찮다고 말하게 됩니다. {@link NeisAllergyCodes} 가 번호 표를 통째로
-     * 버리는 것과 같은 규칙입니다.
-     */
     private Severities severityByAllergyId(int childId) {
         Map<Integer, Integer> byId = new LinkedHashMap<>();
         List<String> unresolved = new ArrayList<>();

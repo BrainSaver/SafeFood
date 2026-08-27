@@ -84,7 +84,6 @@ public final class SetupService {
                 out.ok("추가한 칼럼 " + columns.done() + "개 / 이미 있던 칼럼 " + columns.skipped() + "개");
             }
 
-            // 인덱스·제약도 같은 이유로 따로 붙입니다
             DatabaseInitializer.Result indexes = initializer.addMissingIndexes();
             if (indexes.done() > 0) {
                 out.ok("추가한 인덱스 " + indexes.done() + "개 / 이미 있던 인덱스 " + indexes.skipped() + "개");

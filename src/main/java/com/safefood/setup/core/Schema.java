@@ -50,16 +50,10 @@ public final class Schema {
                             + "ADD CONSTRAINT fk_menu_category FOREIGN KEY (category_id) REFERENCES category(id)")
     );
 
-    /**
-     * 이미 만들어진 테이블에 <b>뒤늦게</b> 추가된 인덱스·제약.
-     * {@link AddedColumn} 과 같은 이유로 따로 적어 둡니다.
-     */
     public record AddedIndex(String table, String index, String ddl) {
     }
 
     public static final List<AddedIndex> ADDED_INDEXES = List.of(
-            // 한 회원이 같은 이름의 아이를 둘 두면 급식 화면이 둘을 가르지 못합니다 (MealController 참고).
-            // 이미 동명이인이 저장돼 있으면 붙지 않으므로, 이름을 먼저 고쳐야 합니다.
             new AddedIndex("child", "uq_child_user_name",
                     "ALTER TABLE child ADD CONSTRAINT uq_child_user_name UNIQUE (user_id, name)")
     );
@@ -392,12 +386,6 @@ public final class Schema {
         throw new IllegalArgumentException(name + " 테이블은 스키마에 없습니다.");
     }
 
-    /**
-     * 뒤늦게 붙인 인덱스 DDL 한 장을 꺼냅니다. {@link #ddlOf} 와 같은 쓰임입니다 —
-     * 마법사를 다시 돌리지 않은 데이터베이스에 실행 중에 붙일 때 씁니다 (ChildDao 참고).
-     *
-     * @throws IllegalArgumentException 그런 인덱스가 없을 때
-     */
     public static String indexDdlOf(String table, String index) {
         for (AddedIndex added : ADDED_INDEXES) {
             if (added.table().equals(table) && added.index().equals(index)) {

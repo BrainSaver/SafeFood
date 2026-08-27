@@ -67,10 +67,6 @@ public class ChildController {
     private String schulCode;
     private String schulNm;
 
-    /**
-     * 화면의 알레르기 목록이 <b>지금 고른 아이의 것</b>인지. 아이를 고른 직후부터
-     * 목록이 도착할 때까지는 false 이고, 그동안에는 저장할 수 없습니다.
-     */
     private boolean allergiesReady = true;
 
     /** 아이 목록이 바뀌었음을 부른 화면에 알립니다. */
@@ -94,13 +90,6 @@ public class ChildController {
 
     // ---- 아이 목록 ----
 
-    /**
-     * 아이 목록을 다시 읽습니다.
-     *
-     * @param selectId 읽은 뒤 고를 아이의 id. -1 이면 지금 고쳐 쓰는 아이를 그대로 둡니다.
-     *                 저장 직후에 넘겨서, 방금 저장한 아이가 아닌 <b>첫 번째 아이</b>로
-     *                 화면이 넘어가는 일을 막습니다
-     */
     private void loadChildren(int selectId) {
         if (!Session.isMember()) {
             Widgets.showError(errorLabel, "게스트는 아이를 등록할 수 없습니다.");
@@ -154,7 +143,6 @@ public class ChildController {
         Widgets.hideError(errorLabel);
         renderDeleteButton();
 
-        // 앞 아이의 목록을 화면에 남겨 두면 안 됩니다 — 그대로 저장하면 이 아이에게 적힙니다
         owned.clear();
         setAllergiesReady(false);
         renderOwned();
@@ -170,14 +158,12 @@ public class ChildController {
                     renderCatalog();
                 },
                 error -> {
-                    // 못 읽은 것은 '알레르기 없음'이 아닙니다 — 덮어쓰지 못하게 잠가 둡니다
                     Widgets.showError(errorLabel, error.getMessage());
                     setAllergiesReady(false);
                     renderOwned();
                 });
     }
 
-    /** 저장해도 되는 상태인지 표시합니다. 게스트는 어느 쪽이든 저장할 수 없습니다. */
     private void setAllergiesReady(boolean ready) {
         allergiesReady = ready;
         saveButton.setDisable(!ready || !Session.isMember());
@@ -185,7 +171,6 @@ public class ChildController {
 
     @FXML
     private void handleNewChild() {
-        // 앞서 띄운 아이의 알레르기 조회가 돌아와 새 아이의 목록을 채우지 못하게 버립니다
         loader.discardPending();
         editing = null;
         nameField.clear();
@@ -273,7 +258,6 @@ public class ChildController {
     private void renderOwned() {
         ownedPane.getChildren().clear();
         if (owned.isEmpty()) {
-            // 아직 못 읽은 것과 정말 없는 것을 가릅니다 — 둘을 같게 보이면 '없음'으로 저장됩니다
             ownedPane.getChildren().add(Widgets.sub(allergiesReady
                     ? "등록한 알레르기가 없습니다." : "알레르기를 불러오는 중이에요…"));
             return;
@@ -340,7 +324,6 @@ public class ChildController {
             return;
         }
         if (!allergiesReady) {
-            // 지금 화면에 있는 목록은 이 아이의 것이 아닙니다
             Widgets.showError(errorLabel, "알레르기를 불러오는 중이에요. 잠시 뒤에 다시 눌러 주세요.");
             return;
         }
@@ -361,7 +344,6 @@ public class ChildController {
                 saved -> {
                     saveButton.setDisable(false);
                     if (!saved.ok()) {
-                        // 한 트랜잭션이라 실패했으면 아이도 알레르기도 그대로입니다
                         Widgets.showError(errorLabel, saved.failure());
                         return;
                     }

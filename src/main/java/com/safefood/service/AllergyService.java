@@ -38,10 +38,10 @@ public class AllergyService {
      */
     public boolean isSafe(List<Integer> userAllergyIds, List<Integer> menuContainsAllergyIds) {
         if (userAllergyIds == null || userAllergyIds.isEmpty()) {
-            return true; // 사용자가 보유한 알레르기가 없으면 겹칠 것도 없습니다
+            return true;
         }
         if (menuContainsAllergyIds == null || menuContainsAllergyIds.isEmpty()) {
-            return true; // 아는 알레르겐이 없습니다 — '없다'가 아니라 '모른다'일 수 있습니다
+            return true;
         }
 
         for (Integer userAllergy : userAllergyIds) {

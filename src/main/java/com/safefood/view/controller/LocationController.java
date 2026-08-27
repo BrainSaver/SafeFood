@@ -51,33 +51,12 @@ public class LocationController {
     /** 저장·해제가 끝났음을 부른 화면에 알립니다 (프로필이 라벨을 다시 그립니다). */
     private Runnable onSaved;
 
-    /**
-     * 지금 돌고 있는 좌표 조회. 화면 스레드 밖에서 도는 일이라 <b>끝나는 시점이 사용자보다
-     * 느립니다</b> — 주소를 고르자마자 저장을 누르면 좌표 칸이 아직 비어 있어서 주소만
-     * 저장됐습니다(그렇게 들어간 행이 실제로 있었습니다).
-     *
-     * <p>그래서 두 가지를 이 참조로 처리합니다. 저장은 조회가 끝날 때까지 미루고
-     * ({@link #saveWhenFound}), 사용자가 좌표를 다른 방법으로 채우면(대표 지점) 뒤늦게
-     * 도착한 결과가 그것을 덮어쓰지 않게 조회를 멈춥니다.
-     */
     private Task<MapService.Coordinates> geocoding;
 
-    /** 조회가 끝나면 이어서 저장할지 — 기다렸다 다시 누르게 하지 않으려고 둡니다. */
     private boolean saveWhenFound;
 
-    /**
-     * 장소 이름을 <b>사용자가</b> 정했는지.
-     *
-     * <p>비어 있을 때만 채우던 때에는, 등록해 둔 곳이 있으면 창을 열 때 그 이름이 칸을 채워서
-     * 주소를 새로 골라도 <b>옛 건물 이름이 그대로 남았습니다</b> — 주소는 이사한 곳인데 이름은
-     * 전에 살던 건물인 상태가 됩니다. 그렇다고 늘 덮어쓰면 '집'처럼 직접 붙인 이름을 지웁니다.
-     *
-     * <p>그래서 "누가 넣은 이름인지"로 가릅니다. 직접 친 이름과 대표 지점으로 고른 이름은
-     * 지키고, 자동으로 채워 둔 이름만 새 건물 이름으로 갱신합니다.
-     */
     private boolean labelChosenByUser;
 
-    /** 자동으로 채우는 중 — 그 사이의 변경은 사용자가 정한 것으로 세지 않습니다. */
     private boolean fillingLabel;
 
     public void setOnSaved(Runnable onSaved) {
@@ -92,10 +71,6 @@ public class LocationController {
         renderPlaces();
         fill(myLocation());
 
-        /*
-         * 저장돼 있던 이름을 fill 이 넣은 뒤에 답니다. 그 이름까지 '사용자가 정한 것'으로 세면
-         * 예전 동작으로 돌아갑니다 — 한 번 등록한 곳은 이름이 영영 갱신되지 않습니다.
-         */
         labelField.textProperty().addListener((observable, before, after) -> {
             if (!fillingLabel) {
                 labelChosenByUser = true;
@@ -111,7 +86,6 @@ public class LocationController {
         if (cached != null) {
             return cached;
         }
-        // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
         if (!Session.isMember()) {
             return null;   // 게스트 — 세션에 없으면 없는 것입니다
         }
@@ -145,7 +119,6 @@ public class LocationController {
         return value == null ? "" : value;
     }
 
-    /** 자동으로 넣는 장소 이름 — 사용자가 정한 것으로 세지 않게 표시해 두고 넣습니다. */
     private void fillLabel(String buildingName) {
         fillingLabel = true;
         labelField.setText(buildingName);
@@ -166,10 +139,6 @@ public class LocationController {
         addressField.setText(text(picked.preferred()));
         detailField.clear();
 
-        /*
-         * 건물 이름으로 장소 이름을 채워 줍니다. 비어 있으면 언제든 채우고, 차 있으면 그것이
-         * 자동으로 넣어 둔 이름일 때만 새 건물 이름으로 바꿉니다 ({@link #labelChosenByUser}).
-         */
         if (!text(picked.buildingName()).isBlank()
                 && (labelField.getText().isBlank() || !labelChosenByUser)) {
             fillLabel(picked.buildingName());
@@ -185,7 +154,6 @@ public class LocationController {
      * (여기서 기다리면 창이 몇 초씩 멎습니다).
      */
     private void findCoordinates(String address) {
-        // 앞 주소를 묻던 조회가 남아 있으면 멈춥니다 — 늦게 온 답이 새 주소의 좌표를 덮어씁니다
         cancelLookup();
 
         if (!MapService.hasApiKey()) {
@@ -231,19 +199,16 @@ public class LocationController {
         worker.start();
     }
 
-    /** 좌표를 찾는 중인지 — 이때 저장하면 주소만 들어갑니다. */
     private boolean isLookingUp() {
         return geocoding != null && geocoding.isRunning();
     }
 
-    /** 돌고 있는 조회를 멈춥니다 — 멈춘 조회는 성공·실패 어느 쪽도 부르지 않습니다. */
     private void cancelLookup() {
         if (geocoding != null) {
             geocoding.cancel();
         }
     }
 
-    /** 좌표가 채워졌으니 미뤄 둔 저장을 이어서 합니다. */
     private void resumePendingSave() {
         if (!saveWhenFound) {
             return;
@@ -252,12 +217,6 @@ public class LocationController {
         handleSave();
     }
 
-    /**
-     * 좌표를 못 얻었을 때 — 미뤄 둔 저장은 <b>하지 않고</b> 왜 멈췄는지만 알립니다.
-     *
-     * <p>여기서 그냥 저장해 버리면 좌표 없는 위치가 조용히 등록됩니다. 대표 지점으로 채울지
-     * 주소만으로 둘지는 사용자가 정하는 편이 낫습니다.
-     */
     private void holdPendingSave() {
         if (!saveWhenFound) {
             return;
@@ -286,10 +245,7 @@ public class LocationController {
 
     /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다 — 저장은 아직입니다. */
     private void pick(UiConstants.Place place) {
-        // 일부러 fillLabel 을 쓰지 않습니다 — 눌러서 고른 이름은 사용자가 정한 것이라, 뒤에
-        // 주소를 검색해도 건물 이름으로 갈아치우지 않습니다
         labelField.setText(place.name());
-        // 조회가 돌고 있으면 멈춥니다 — 방금 고른 좌표를 뒤늦게 온 답이 밀어냅니다
         cancelLookup();
 
         zonecodeField.clear();   // 검색으로 받은 우편번호가 아니므로 비웁니다
@@ -346,7 +302,6 @@ public class LocationController {
 
     @FXML
     private void handleSave() {
-        // 좌표 조회가 아직 돌고 있으면 칸이 비어 있습니다 — 지금 저장하면 주소만 들어갑니다
         if (isLookingUp()) {
             saveWhenFound = true;
             Widgets.hideError(errorLabel);
@@ -391,11 +346,6 @@ public class LocationController {
                 address.isEmpty() ? null : address,
                 latitude, longitude);
 
-        /*
-         * 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못
-         * 거릅니다. 예전에는 그 번호를 그대로 넣어 user_location 의 외래키에 걸렸고, 게스트는
-         * "데이터베이스 연결을 확인해 주세요" 만 보고 위치를 아예 등록하지 못했습니다.
-         */
         boolean member = Session.isMember();
         if (member && !locationService.saveMyLocation(Session.currentUserId(), location)) {
             Widgets.showError(errorLabel, "저장 중 오류가 발생했습니다. 데이터베이스 연결을 확인해 주세요.");
@@ -428,13 +378,11 @@ public class LocationController {
 
     @FXML
     private void handleClear() {
-        // 지우기로 마음을 바꿨으니 미뤄 둔 저장은 버립니다 (확인 창이 떠 있는 동안 조회가 끝날 수 있습니다)
         saveWhenFound = false;
 
         if (!AppNav.confirm("등록한 위치를 지울까요?\n거리 조건과 중간 지점 계산에서 빠집니다.")) {
             return;
         }
-        // 저장과 같은 이유로 null 검사가 아니라 isMember() 로 거릅니다 (게스트는 지울 행이 없습니다)
         if (Session.isMember() && !locationService.clearMyLocation(Session.currentUserId())) {
             Widgets.showError(errorLabel, "지우는 중 오류가 발생했습니다. 데이터베이스 연결을 확인해 주세요.");
             return;
@@ -448,7 +396,6 @@ public class LocationController {
 
     @FXML
     private void handleCancel() {
-        // 닫힌 창이 뒤늦게 저장을 이어 가지 않도록
         saveWhenFound = false;
         AppNav.close(root);
     }

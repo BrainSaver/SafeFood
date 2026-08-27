@@ -60,9 +60,6 @@ public class MealController {
     private void initialize() {
         navController.setActive(NavController.Tab.MEAL);
 
-        // 고른 아이는 <b>자리 번호</b>로 되찾습니다. 이름+학교 문자열로 찾으면 같은 학교에
-        // 같은 이름의 아이가 둘일 때 언제나 첫째가 잡혀, 둘째를 골라도 첫째의 알레르기로
-        // 급식을 판정합니다.
         childBox.getSelectionModel().selectedIndexProperty().addListener((obs, before, after) -> {
             if (switching) {
                 return;
@@ -110,7 +107,6 @@ public class MealController {
                     "'아이 관리'에서 아이 이름과 학교, 알레르기를 등록하면 급식을 확인할 수 있어요.");
             return;
         }
-        // 보던 아이는 id 로 찾습니다 — 이름표는 동명이인을 가르지 못합니다
         int keep = 0;
         if (selected != null) {
             for (int i = 0; i < children.size(); i++) {
@@ -120,7 +116,7 @@ public class MealController {
                 }
             }
         }
-        childBox.getSelectionModel().select(keep);   // 리스너가 selected 설정과 조회를 이어 갑니다
+        childBox.getSelectionModel().select(keep);
     }
 
     private static String labelOf(Child child) {
