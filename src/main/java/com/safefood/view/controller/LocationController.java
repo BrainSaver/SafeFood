@@ -65,6 +65,21 @@ public class LocationController {
     /** 조회가 끝나면 이어서 저장할지 — 기다렸다 다시 누르게 하지 않으려고 둡니다. */
     private boolean saveWhenFound;
 
+    /**
+     * 장소 이름을 <b>사용자가</b> 정했는지.
+     *
+     * <p>비어 있을 때만 채우던 때에는, 등록해 둔 곳이 있으면 창을 열 때 그 이름이 칸을 채워서
+     * 주소를 새로 골라도 <b>옛 건물 이름이 그대로 남았습니다</b> — 주소는 이사한 곳인데 이름은
+     * 전에 살던 건물인 상태가 됩니다. 그렇다고 늘 덮어쓰면 '집'처럼 직접 붙인 이름을 지웁니다.
+     *
+     * <p>그래서 "누가 넣은 이름인지"로 가릅니다. 직접 친 이름과 대표 지점으로 고른 이름은
+     * 지키고, 자동으로 채워 둔 이름만 새 건물 이름으로 갱신합니다.
+     */
+    private boolean labelChosenByUser;
+
+    /** 자동으로 채우는 중 — 그 사이의 변경은 사용자가 정한 것으로 세지 않습니다. */
+    private boolean fillingLabel;
+
     public void setOnSaved(Runnable onSaved) {
         this.onSaved = onSaved;
     }
@@ -76,6 +91,17 @@ public class LocationController {
 
         renderPlaces();
         fill(myLocation());
+
+        /*
+         * 저장돼 있던 이름을 fill 이 넣은 뒤에 답니다. 그 이름까지 '사용자가 정한 것'으로 세면
+         * 예전 동작으로 돌아갑니다 — 한 번 등록한 곳은 이름이 영영 갱신되지 않습니다.
+         */
+        labelField.textProperty().addListener((observable, before, after) -> {
+            if (!fillingLabel) {
+                labelChosenByUser = true;
+            }
+        });
+
         checkCoordinates();
     }
 
@@ -119,6 +145,13 @@ public class LocationController {
         return value == null ? "" : value;
     }
 
+    /** 자동으로 넣는 장소 이름 — 사용자가 정한 것으로 세지 않게 표시해 두고 넣습니다. */
+    private void fillLabel(String buildingName) {
+        fillingLabel = true;
+        labelField.setText(buildingName);
+        fillingLabel = false;
+    }
+
     // ── 주소 검색 ───────────────────────────────────────────────
 
     @FXML
@@ -133,9 +166,13 @@ public class LocationController {
         addressField.setText(text(picked.preferred()));
         detailField.clear();
 
-        // 건물 이름이 있으면 장소 이름을 비워 두지 않게 채워 줍니다 (사용자가 고쳐도 됩니다)
-        if (labelField.getText().isBlank() && !text(picked.buildingName()).isBlank()) {
-            labelField.setText(picked.buildingName());
+        /*
+         * 건물 이름으로 장소 이름을 채워 줍니다. 비어 있으면 언제든 채우고, 차 있으면 그것이
+         * 자동으로 넣어 둔 이름일 때만 새 건물 이름으로 바꿉니다 ({@link #labelChosenByUser}).
+         */
+        if (!text(picked.buildingName()).isBlank()
+                && (labelField.getText().isBlank() || !labelChosenByUser)) {
+            fillLabel(picked.buildingName());
         }
         Widgets.hideError(errorLabel);
         detailField.requestFocus();
@@ -249,6 +286,8 @@ public class LocationController {
 
     /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다 — 저장은 아직입니다. */
     private void pick(UiConstants.Place place) {
+        // 일부러 fillLabel 을 쓰지 않습니다 — 눌러서 고른 이름은 사용자가 정한 것이라, 뒤에
+        // 주소를 검색해도 건물 이름으로 갈아치우지 않습니다
         labelField.setText(place.name());
         // 조회가 돌고 있으면 멈춥니다 — 방금 고른 좌표를 뒤늦게 온 답이 밀어냅니다
         cancelLookup();
