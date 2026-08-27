@@ -95,12 +95,13 @@ public class HistoryDao {
     }
 
     /**
-     * 특정 회원의 최근 N일 이내 '먹음(EATEN)' 메뉴 ID 목록 조회 (전날/최근 먹은 메뉴 제외용)
+     * 특정 회원의 최근 N일 이내 또는 가장 최근 식사 일자의 '먹음(EATEN)' 메뉴 ID 목록 조회 (전날/최근 먹은 메뉴 제외용)
      */
     public List<Integer> getRecentEatenMenuIds(int userId, int days) {
         List<Integer> eatenMenuIds = new ArrayList<>();
         String sql = "SELECT DISTINCT menu_id FROM history " +
-                     "WHERE user_id = ? AND type = 'EATEN' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+                     "WHERE user_id = ? AND type = 'EATEN' " +
+                     "AND DATE(created_at) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
