@@ -21,19 +21,27 @@ public class AllergyService {
     // 1. 알레르기 안전성 판정 (CONTAINS 위험도 검증)
     // =========================================================================
     /**
-     * 사용자의 보유 알레르기와 메뉴의 CONTAINS(원재료 포함) 알레르기를 대조하여
-     * 메뉴가 안전한지 여부를 판단
+     * 사용자의 보유 알레르기와 메뉴에 <b>알려진</b> 알레르기 목록이 겹치는지 봅니다.
+     *
+     * <p><b>true 는 '안전'이 아니라 '겹치는 것이 없음'입니다.</b> 우리가 아는 목록이
+     * 비어 있어도 true 가 나오는데, 실제 DB 에는 알레르기 정보가 하나도 없는 메뉴가
+     * 전체의 30%(1,576개 중 477개)입니다. 그 메뉴들은 '안전해서' 통과하는 것이 아니라
+     * <b>모르기 때문에</b> 통과합니다.
+     *
+     * <p>그래서 부르는 쪽은 정보가 있는지를 따로 봐야 합니다 —
+     * {@code RecommendService.isInformationInsufficient} 가 그 자리이고, 정보 미흡 메뉴는
+     * 점수를 깎고 '안심 메뉴'로 권하지 않습니다.
      *
      * @param userAllergyIds 사용자가 가지고 있는 알레르기 ID 목록 (예: [4] - 땅콩)
      * @param menuContainsAllergyIds 메뉴에 확실히 포함된 CONTAINS 알레르기 ID 목록
-     * @return 안전하면 true, 하나라도 겹치면 false (추천 후보 제외 대상)
+     * @return 겹치는 것이 없으면 true, 하나라도 겹치면 false (추천 후보 제외 대상)
      */
     public boolean isSafe(List<Integer> userAllergyIds, List<Integer> menuContainsAllergyIds) {
         if (userAllergyIds == null || userAllergyIds.isEmpty()) {
-            return true; // 사용자가 보유한 알레르기가 없으면 무조건 안전
+            return true; // 사용자가 보유한 알레르기가 없으면 겹칠 것도 없습니다
         }
         if (menuContainsAllergyIds == null || menuContainsAllergyIds.isEmpty()) {
-            return true; // 메뉴에 알레르기 유발물질이 없으면 무조건 안전
+            return true; // 아는 알레르겐이 없습니다 — '없다'가 아니라 '모른다'일 수 있습니다
         }
 
         for (Integer userAllergy : userAllergyIds) {

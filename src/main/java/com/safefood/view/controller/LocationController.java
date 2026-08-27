@@ -2,7 +2,6 @@ package com.safefood.view.controller;
 
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.Session;
-import com.safefood.dto.UserDto;
 import com.safefood.service.LocationService;
 import com.safefood.service.MapService;
 import com.safefood.view.AppNav;
@@ -52,6 +51,20 @@ public class LocationController {
     /** 저장·해제가 끝났음을 부른 화면에 알립니다 (프로필이 라벨을 다시 그립니다). */
     private Runnable onSaved;
 
+    /**
+     * 지금 돌고 있는 좌표 조회. 화면 스레드 밖에서 도는 일이라 <b>끝나는 시점이 사용자보다
+     * 느립니다</b> — 주소를 고르자마자 저장을 누르면 좌표 칸이 아직 비어 있어서 주소만
+     * 저장됐습니다(그렇게 들어간 행이 실제로 있었습니다).
+     *
+     * <p>그래서 두 가지를 이 참조로 처리합니다. 저장은 조회가 끝날 때까지 미루고
+     * ({@link #saveWhenFound}), 사용자가 좌표를 다른 방법으로 채우면(대표 지점) 뒤늦게
+     * 도착한 결과가 그것을 덮어쓰지 않게 조회를 멈춥니다.
+     */
+    private Task<MapService.Coordinates> geocoding;
+
+    /** 조회가 끝나면 이어서 저장할지 — 기다렸다 다시 누르게 하지 않으려고 둡니다. */
+    private boolean saveWhenFound;
+
     public void setOnSaved(Runnable onSaved) {
         this.onSaved = onSaved;
     }
@@ -72,11 +85,11 @@ public class LocationController {
         if (cached != null) {
             return cached;
         }
-        UserDto me = Session.getCurrentUser();
-        if (me == null) {
+        // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
+        if (!Session.isMember()) {
             return null;   // 게스트 — 세션에 없으면 없는 것입니다
         }
-        LocationDto saved = locationService.getMyLocation(me.getId());
+        LocationDto saved = locationService.getMyLocation(Session.currentUserId());
         Session.setMyLocation(saved);
         return saved;
     }
@@ -135,6 +148,9 @@ public class LocationController {
      * (여기서 기다리면 창이 몇 초씩 멎습니다).
      */
     private void findCoordinates(String address) {
+        // 앞 주소를 묻던 조회가 남아 있으면 멈춥니다 — 늦게 온 답이 새 주소의 좌표를 덮어씁니다
+        cancelLookup();
+
         if (!MapService.hasApiKey()) {
             markCoordTag("아직 없음", "neutral");
             hint("config.properties 의 map.api.key(카카오 REST API 키)를 채우면 주소에서 좌표를 자동으로 찾습니다. "
@@ -156,22 +172,62 @@ public class LocationController {
             if (found == null) {
                 markCoordTag("못 찾음", "warn");
                 hint("이 주소로는 좌표를 찾지 못했어요. 아래에서 대표 지점을 고르거나 직접 넣어 주세요.");
+                holdPendingSave();
                 return;
             }
             latField.setText(String.valueOf(found.latitude()));
             lngField.setText(String.valueOf(found.longitude()));
             // 좌표 칸이 바뀌면서 checkCoordinates 가 태그·안내를 정리합니다
+            resumePendingSave();
         });
         lookup.setOnFailed(event -> {
             markCoordTag("못 찾음", "warn");
             Throwable error = lookup.getException();
             hint("좌표를 찾는 중 문제가 생겼어요: "
                     + (error == null ? "알 수 없는 오류" : error.getMessage()));
+            holdPendingSave();
         });
 
+        geocoding = lookup;
         Thread worker = new Thread(lookup, "geocode");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    /** 좌표를 찾는 중인지 — 이때 저장하면 주소만 들어갑니다. */
+    private boolean isLookingUp() {
+        return geocoding != null && geocoding.isRunning();
+    }
+
+    /** 돌고 있는 조회를 멈춥니다 — 멈춘 조회는 성공·실패 어느 쪽도 부르지 않습니다. */
+    private void cancelLookup() {
+        if (geocoding != null) {
+            geocoding.cancel();
+        }
+    }
+
+    /** 좌표가 채워졌으니 미뤄 둔 저장을 이어서 합니다. */
+    private void resumePendingSave() {
+        if (!saveWhenFound) {
+            return;
+        }
+        saveWhenFound = false;
+        handleSave();
+    }
+
+    /**
+     * 좌표를 못 얻었을 때 — 미뤄 둔 저장은 <b>하지 않고</b> 왜 멈췄는지만 알립니다.
+     *
+     * <p>여기서 그냥 저장해 버리면 좌표 없는 위치가 조용히 등록됩니다. 대표 지점으로 채울지
+     * 주소만으로 둘지는 사용자가 정하는 편이 낫습니다.
+     */
+    private void holdPendingSave() {
+        if (!saveWhenFound) {
+            return;
+        }
+        saveWhenFound = false;
+        Widgets.showError(errorLabel, "좌표를 찾지 못해 아직 저장하지 않았어요. "
+                + "대표 지점을 고르거나, '저장'을 다시 누르면 주소만으로 등록됩니다.");
     }
 
     // ── 대표 지점 (좌표 대신 채우기) ────────────────────────────
@@ -194,6 +250,9 @@ public class LocationController {
     /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다 — 저장은 아직입니다. */
     private void pick(UiConstants.Place place) {
         labelField.setText(place.name());
+        // 조회가 돌고 있으면 멈춥니다 — 방금 고른 좌표를 뒤늦게 온 답이 밀어냅니다
+        cancelLookup();
+
         zonecodeField.clear();   // 검색으로 받은 우편번호가 아니므로 비웁니다
         addressField.setText(place.address());
         detailField.clear();
@@ -248,6 +307,14 @@ public class LocationController {
 
     @FXML
     private void handleSave() {
+        // 좌표 조회가 아직 돌고 있으면 칸이 비어 있습니다 — 지금 저장하면 주소만 들어갑니다
+        if (isLookingUp()) {
+            saveWhenFound = true;
+            Widgets.hideError(errorLabel);
+            hint("좌표를 찾고 있어요 — 다 찾으면 바로 저장할게요.");
+            return;
+        }
+
         Double latitude = LocationService.parseCoordinate(latField.getText());
         Double longitude = LocationService.parseCoordinate(lngField.getText());
         boolean latBlank = latField.getText() == null || latField.getText().isBlank();
@@ -285,8 +352,13 @@ public class LocationController {
                 address.isEmpty() ? null : address,
                 latitude, longitude);
 
-        UserDto me = Session.getCurrentUser();
-        if (me != null && !locationService.saveMyLocation(me.getId(), location)) {
+        /*
+         * 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못
+         * 거릅니다. 예전에는 그 번호를 그대로 넣어 user_location 의 외래키에 걸렸고, 게스트는
+         * "데이터베이스 연결을 확인해 주세요" 만 보고 위치를 아예 등록하지 못했습니다.
+         */
+        boolean member = Session.isMember();
+        if (member && !locationService.saveMyLocation(Session.currentUserId(), location)) {
             Widgets.showError(errorLabel, "저장 중 오류가 발생했습니다. 데이터베이스 연결을 확인해 주세요.");
             return;
         }
@@ -300,7 +372,7 @@ public class LocationController {
         if (!location.hasCoordinates()) {
             AppNav.warn("좌표가 없어 거리 계산에는 아직 쓰이지 않아요.");
         }
-        if (me == null) {
+        if (!member) {
             AppNav.info("게스트라 이 위치는 앱을 켜 둔 동안만 유지됩니다.");
         }
     }
@@ -317,11 +389,14 @@ public class LocationController {
 
     @FXML
     private void handleClear() {
+        // 지우기로 마음을 바꿨으니 미뤄 둔 저장은 버립니다 (확인 창이 떠 있는 동안 조회가 끝날 수 있습니다)
+        saveWhenFound = false;
+
         if (!AppNav.confirm("등록한 위치를 지울까요?\n거리 조건과 중간 지점 계산에서 빠집니다.")) {
             return;
         }
-        UserDto me = Session.getCurrentUser();
-        if (me != null && !locationService.clearMyLocation(me.getId())) {
+        // 저장과 같은 이유로 null 검사가 아니라 isMember() 로 거릅니다 (게스트는 지울 행이 없습니다)
+        if (Session.isMember() && !locationService.clearMyLocation(Session.currentUserId())) {
             Widgets.showError(errorLabel, "지우는 중 오류가 발생했습니다. 데이터베이스 연결을 확인해 주세요.");
             return;
         }
@@ -334,6 +409,8 @@ public class LocationController {
 
     @FXML
     private void handleCancel() {
+        // 닫힌 창이 뒤늦게 저장을 이어 가지 않도록
+        saveWhenFound = false;
         AppNav.close(root);
     }
 

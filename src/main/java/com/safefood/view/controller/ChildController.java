@@ -30,8 +30,12 @@ import java.util.Map;
  * <p>학교는 나이스에서 그때그때 검색합니다. 우리 DB 에 학교 테이블을 두지 않고, 고른 학교의
  * 코드 두 개만 아이 행에 적어 둡니다.
  *
- * <p>알레르기 저장은 {@code ChildDao.replaceAllergies} 가 한 트랜잭션으로 처리합니다 —
- * 중간에 실패해도 이전 목록이 그대로 남습니다.
+ * <p>저장은 {@code ChildDao.insertWithAllergies} · {@code updateWithAllergies} 가 아이와 알레르기를
+ * 한 트랜잭션으로 처리합니다 — 중간에 실패해도 이전 상태가 그대로 남습니다.
+ *
+ * <p><b>알레르기 목록이 도착하기 전에는 저장할 수 없습니다.</b> 아이를 고르면 알레르기는
+ * 뒤따라 오는데, 그 사이에 저장을 누르면 <b>앞 아이의 알레르기가 이 아이에게 적힙니다.</b>
+ * 그래서 고른 순간 목록을 비우고 저장 단추를 잠갔다가, 도착하면 풉니다.
  */
 public class ChildController {
 
@@ -63,12 +67,11 @@ public class ChildController {
     private String schulCode;
     private String schulNm;
 
-    /** 아이 저장 결과 — 아이 자체와 알레르기를 따로 알려 실패 문구를 가릅니다. */
-    private record SaveResult(boolean childOk, boolean allergiesOk) {
-        boolean saved() {
-            return childOk && allergiesOk;
-        }
-    }
+    /**
+     * 화면의 알레르기 목록이 <b>지금 고른 아이의 것</b>인지. 아이를 고른 직후부터
+     * 목록이 도착할 때까지는 false 이고, 그동안에는 저장할 수 없습니다.
+     */
+    private boolean allergiesReady = true;
 
     /** 아이 목록이 바뀌었음을 부른 화면에 알립니다. */
     private Runnable onChanged;
@@ -86,12 +89,19 @@ public class ChildController {
             }
         });
         renderCatalog();
-        loadChildren();
+        loadChildren(-1);
     }
 
     // ---- 아이 목록 ----
 
-    private void loadChildren() {
+    /**
+     * 아이 목록을 다시 읽습니다.
+     *
+     * @param selectId 읽은 뒤 고를 아이의 id. -1 이면 지금 고쳐 쓰는 아이를 그대로 둡니다.
+     *                 저장 직후에 넘겨서, 방금 저장한 아이가 아닌 <b>첫 번째 아이</b>로
+     *                 화면이 넘어가는 일을 막습니다
+     */
+    private void loadChildren(int selectId) {
         if (!Session.isMember()) {
             Widgets.showError(errorLabel, "게스트는 아이를 등록할 수 없습니다.");
             saveButton.setDisable(true);
@@ -102,10 +112,18 @@ public class ChildController {
                 loaded -> {
                     children = new ArrayList<>(loaded);
                     renderChildChips();
-                    if (editing == null && !children.isEmpty()) {
-                        select(children.get(0));
-                    } else {
+                    Child target = null;
+                    if (selectId > 0) {
+                        target = children.stream()
+                                .filter(child -> child.id() == selectId).findFirst().orElse(null);
+                    }
+                    if (target == null && editing == null && !children.isEmpty()) {
+                        target = children.get(0);
+                    }
+                    if (target == null) {
                         renderDeleteButton();
+                    } else {
+                        select(target);
                     }
                 },
                 error -> Widgets.showError(errorLabel, error.getMessage()));
@@ -136,25 +154,46 @@ public class ChildController {
         Widgets.hideError(errorLabel);
         renderDeleteButton();
 
+        // 앞 아이의 목록을 화면에 남겨 두면 안 됩니다 — 그대로 저장하면 이 아이에게 적힙니다
+        owned.clear();
+        setAllergiesReady(false);
+        renderOwned();
+        renderCatalog();
+
         int childId = child.id();
         loader.load(() -> childDao.getAllergies(childId),
                 allergies -> {
                     owned.clear();
                     owned.putAll(allergies);
+                    setAllergiesReady(true);
                     renderOwned();
                     renderCatalog();
                 },
-                error -> Widgets.showError(errorLabel, error.getMessage()));
+                error -> {
+                    // 못 읽은 것은 '알레르기 없음'이 아닙니다 — 덮어쓰지 못하게 잠가 둡니다
+                    Widgets.showError(errorLabel, error.getMessage());
+                    setAllergiesReady(false);
+                    renderOwned();
+                });
+    }
+
+    /** 저장해도 되는 상태인지 표시합니다. 게스트는 어느 쪽이든 저장할 수 없습니다. */
+    private void setAllergiesReady(boolean ready) {
+        allergiesReady = ready;
+        saveButton.setDisable(!ready || !Session.isMember());
     }
 
     @FXML
     private void handleNewChild() {
+        // 앞서 띄운 아이의 알레르기 조회가 돌아와 새 아이의 목록을 채우지 못하게 버립니다
+        loader.discardPending();
         editing = null;
         nameField.clear();
         atptCode = null;
         schulCode = null;
         schulNm = null;
         owned.clear();
+        setAllergiesReady(true);
         renderPickedSchool();
         renderOwned();
         renderCatalog();
@@ -234,7 +273,9 @@ public class ChildController {
     private void renderOwned() {
         ownedPane.getChildren().clear();
         if (owned.isEmpty()) {
-            ownedPane.getChildren().add(Widgets.sub("등록한 알레르기가 없습니다."));
+            // 아직 못 읽은 것과 정말 없는 것을 가릅니다 — 둘을 같게 보이면 '없음'으로 저장됩니다
+            ownedPane.getChildren().add(Widgets.sub(allergiesReady
+                    ? "등록한 알레르기가 없습니다." : "알레르기를 불러오는 중이에요…"));
             return;
         }
         for (Map.Entry<String, Integer> entry : owned.entrySet()) {
@@ -298,6 +339,11 @@ public class ChildController {
             Widgets.showError(errorLabel, "아이 이름을 입력해 주세요.");
             return;
         }
+        if (!allergiesReady) {
+            // 지금 화면에 있는 목록은 이 아이의 것이 아닙니다
+            Widgets.showError(errorLabel, "알레르기를 불러오는 중이에요. 잠시 뒤에 다시 눌러 주세요.");
+            return;
+        }
 
         Widgets.hideError(errorLabel);
         saveButton.setDisable(true);
@@ -309,29 +355,19 @@ public class ChildController {
         String schul = schulCode;
         String school = schulNm;
 
-        loader.submit(() -> {
-                    int childId;
-                    boolean ok;
-                    if (target == null) {
-                        childId = childDao.insert(userId, name, atpt, schul, school);
-                        ok = childId > 0;
-                    } else {
-                        childId = target.id();
-                        ok = childDao.update(childId, name, atpt, schul, school);
-                    }
-                    return new SaveResult(ok, ok && childDao.replaceAllergies(childId, allergies));
-                },
-                result -> {
+        loader.submit(() -> target == null
+                        ? childDao.insertWithAllergies(userId, name, atpt, schul, school, allergies)
+                        : childDao.updateWithAllergies(target.id(), name, atpt, schul, school, allergies),
+                saved -> {
                     saveButton.setDisable(false);
-                    if (!result.saved()) {
-                        Widgets.showError(errorLabel, result.childOk()
-                                ? "알레르기를 저장하지 못했습니다. 이전 목록은 그대로 남아 있습니다."
-                                : "아이 정보를 저장하지 못했습니다. 연결을 확인해 주세요.");
+                    if (!saved.ok()) {
+                        // 한 트랜잭션이라 실패했으면 아이도 알레르기도 그대로입니다
+                        Widgets.showError(errorLabel, saved.failure());
                         return;
                     }
                     editing = null;
                     notifyChanged();
-                    loadChildren();
+                    loadChildren(saved.childId());
                     AppNav.success(name + " 정보를 저장했어요.");
                 },
                 error -> {
@@ -352,7 +388,7 @@ public class ChildController {
         saveButton.setDisable(true);
         loader.submit(() -> childDao.delete(target.id()),
                 ok -> {
-                    saveButton.setDisable(false);
+                    setAllergiesReady(allergiesReady);
                     if (!ok) {
                         Widgets.showError(errorLabel, "지우지 못했습니다. 연결을 확인해 주세요.");
                         return;
@@ -360,11 +396,11 @@ public class ChildController {
                     editing = null;
                     handleNewChild();
                     notifyChanged();
-                    loadChildren();
+                    loadChildren(-1);
                     AppNav.info(target.name() + " 을(를) 지웠어요.");
                 },
                 error -> {
-                    saveButton.setDisable(false);
+                    setAllergiesReady(allergiesReady);
                     Widgets.showError(errorLabel, "지우는 중 오류가 났습니다: " + error.getMessage());
                 });
     }

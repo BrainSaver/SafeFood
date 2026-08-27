@@ -116,6 +116,53 @@ public final class DatabaseInitializer {
     }
 
     /**
+     * 뒤늦게 추가된 인덱스·제약을 기존 테이블에 붙입니다. {@link #addMissingColumns()} 와 같은 자리입니다.
+     *
+     * <p><b>이미 어긋난 데이터가 있으면 붙지 않습니다</b> — 예를 들어 한 회원에게 같은 이름의
+     * 아이가 이미 둘 있으면 {@code uq_child_user_name} 이 거부됩니다(1062). 그때는 마법사를
+     * 멈추지 않고 <b>무엇을 고쳐야 하는지 알리고 넘어갑니다</b>.
+     */
+    Result addMissingIndexes() throws SQLException {
+        int added = 0;
+        int skipped = 0;
+        try (Connection connection = DriverManager.getConnection(
+                     config.databaseUrl(), config.user(), config.password());
+             Statement statement = connection.createStatement()) {
+
+            for (Schema.AddedIndex index : Schema.ADDED_INDEXES) {
+                if (!tableExists(connection, index.table())
+                        || indexExists(connection, index.table(), index.index())) {
+                    skipped++;
+                    continue;
+                }
+                try {
+                    statement.executeUpdate(index.ddl());
+                    added++;
+                    out.detail("+ " + index.table() + "." + index.index());
+                } catch (SQLException e) {
+                    skipped++;
+                    out.warn(index.table() + "." + index.index() + " 을(를) 붙이지 못했습니다: "
+                            + explain(e) + " (겹치는 데이터를 먼저 정리해 주세요)");
+                }
+            }
+        }
+        return new Result(added, skipped);
+    }
+
+    private boolean indexExists(Connection connection, String tableName, String indexName)
+            throws SQLException {
+        try (ResultSet indexes = connection.getMetaData()
+                .getIndexInfo(config.database(), null, tableName, false, false)) {
+            while (indexes.next()) {
+                if (indexName.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * 알레르기·기분·카테고리 마스터 데이터를 채웁니다.
      * 세 테이블 모두 name이 UNIQUE라서 INSERT IGNORE로 중복 삽입을 막을 수 있습니다.
      */
