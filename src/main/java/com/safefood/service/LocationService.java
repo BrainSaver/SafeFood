@@ -86,4 +86,29 @@ public class LocationService {
             return null;
         }
     }
+
+    /**
+     * 두 위경도 좌표 사이의 실제 직선 거리 (미터 단위, 하버사인 공식)
+     */
+    public static double calculateDistanceMeter(double lat1, double lng1, double lat2, double lng2) {
+        final double R = 6371000.0; // 지구 반지름 (m)
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2.0) * Math.sin(dLat / 2.0)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2.0) * Math.sin(dLng / 2.0);
+        double c = 2.0 * Math.atan2(Math.sqrt(a), Math.sqrt(1.0 - a));
+        return R * c;
+    }
+
+    /**
+     * 거리를 보기 좋은 문자열로 변환 (예: 450m, 1.2km)
+     */
+    public static String formatDistance(double meters) {
+        if (meters < 1000.0) {
+            return String.format(java.util.Locale.US, "%dm", (int) Math.round(meters));
+        } else {
+            return String.format(java.util.Locale.US, "%.1fkm", meters / 1000.0);
+        }
+    }
 }
