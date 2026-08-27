@@ -168,7 +168,10 @@ public final class SetupWizard {
     /** 3~7단계 실행에 필요한 값을 모두 모아 둡니다. (실행 중에는 다시 묻지 않습니다) */
     private static SetupRequest askRemaining(Path projectRoot, Connection connection) {
         Ui.section("앱 설정");
-        String mapApiKey = Ui.askOptional("지도 API 키");
+        // 카카오 앱 키는 두 개이고 서로를 대신하지 못합니다 — 어느 쪽인지 이름에 못박아 둡니다.
+        Ui.detail("카카오 개발자 콘솔 › 내 애플리케이션 › 앱 키 에 두 키가 나란히 있습니다.");
+        String mapJsKey = Ui.askOptional("카카오 JavaScript 키 (지도 표시)");
+        String mapApiKey = Ui.askOptional("카카오 REST API 키 (주소 → 좌표)");
         String socketHost = Ui.ask("소켓 서버 호스트", DEFAULT_HOST);
         int socketPort = Ui.askPort("소켓 서버 포트", DEFAULT_SOCKET_PORT);
 
@@ -180,7 +183,7 @@ public final class SetupWizard {
         }
 
         return new SetupRequest(projectRoot, connection.config(), connection.connected(),
-                mapApiKey, socketHost, socketPort, overwriteConfig);
+                mapJsKey, mapApiKey, socketHost, socketPort, overwriteConfig);
     }
 
     // ── 마무리 ───────────────────────────────────────────
@@ -199,7 +202,12 @@ public final class SetupWizard {
             Ui.detail("- 지금은 data/ 폴더에 정보를 저장합니다.");
             Ui.detail("- MySQL 서버를 켜고 마법사를 다시 실행하면 남은 준비를 이어서 합니다.");
         }
-        Ui.detail("- map.api.key를 비워 뒀다면 발급 후 config.properties에 채워 넣으세요.");
+        if (request.mapJsKey().isEmpty()) {
+            Ui.detail("- 지도를 띄우려면 kakao.js.key(JavaScript 키)를 config.properties에 채워 넣으세요.");
+        }
+        if (request.mapApiKey().isEmpty()) {
+            Ui.detail("- 주소에서 좌표를 찾으려면 map.api.key(REST API 키)를 채워 넣으세요.");
+        }
         Ui.detail("- config.properties와 data/private/는 절대 커밋하지 마세요.");
         Ui.detail("- 자세한 설명: docs/SetupWizard.md");
         Ui.blank();

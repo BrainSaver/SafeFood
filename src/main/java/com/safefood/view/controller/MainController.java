@@ -42,6 +42,12 @@ public class MainController {
     @FXML private ComboBox<String> categoryBox;
     @FXML private ComboBox<String> distanceBox;
     @FXML private ComboBox<String> budgetBox;
+    /**
+     * 정렬만 {@code ComboBox<String>} 이 아닙니다 — 다른 콤보는 "15,000원 이하" 같은 글자에서
+     * 숫자를 도로 뽑아 쓰지만, 정렬은 고른 값을 그대로 서비스에 넘길 수 있어 글자로 되돌릴
+     * 이유가 없습니다. 콤보에 보이는 글자는 {@code SortOrder.toString()} 입니다.
+     */
+    @FXML private ComboBox<RecommendService.SortOrder> sortBox;
     @FXML private FlowPane moodPane;
     @FXML private VBox cardBox;
     @FXML private VBox blockedBox;
@@ -83,7 +89,8 @@ public class MainController {
      */
     private record Query(boolean member, int userId, String sessionToken, String category,
                          int budget, int spicy, List<String> preferredCategories,
-                         List<String> moods, boolean excludeEaten, Set<Integer> excluded) {
+                         List<String> moods, boolean excludeEaten, Set<Integer> excluded,
+                         RecommendService.SortOrder sortOrder) {
     }
 
     /** 내정보에서 읽어 온 취향 한 벌. */
@@ -116,6 +123,9 @@ public class MainController {
         budgetBox.getItems().setAll(UiConstants.BUDGETS);
         budgetBox.setValue("15,000원 이하");
 
+        sortBox.getItems().setAll(RecommendService.SortOrder.values());
+        sortBox.setValue(RecommendService.SortOrder.RECOMMENDED);
+
         fillMoodChips();
 
         categoryBox.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -130,6 +140,16 @@ public class MainController {
             if (loading) {
                 return;
             }
+            excludedForReroll.clear();
+            currentRankOffset = 0;
+            fillCards();
+        });
+        sortBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (loading) {
+                return;
+            }
+            // 다시 뽑기로 치워 둔 메뉴도 함께 되돌립니다 — 그대로 두면 '가격 낮은 순'을 골라도
+            // 정작 제일 싼 메뉴가 빠진 채 줄이 서서, 맨 위 카드가 최저가가 아니게 됩니다.
             excludedForReroll.clear();
             currentRankOffset = 0;
             fillCards();
@@ -262,6 +282,8 @@ public class MainController {
         int budget = parseBudget(budgetBox.getValue());
         List<String> selectedMoods = List.copyOf(Widgets.selected(moodChips));
         Set<Integer> frozen = Set.copyOf(excluded);
+        RecommendService.SortOrder sortOrder = sortBox.getValue() != null
+                ? sortBox.getValue() : RecommendService.SortOrder.RECOMMENDED;
 
         if (Session.isMember()) {
             UserDto me = Session.getCurrentUser();
@@ -271,7 +293,7 @@ public class MainController {
             return new Query(true, Session.currentUserId(),
                     me == null ? null : me.getSessionToken(),
                     selectedCategory, budget, spicy, myCategories, selectedMoods,
-                    excludeEaten, frozen);
+                    excludeEaten, frozen, sortOrder);
         }
 
         // 게스트 — 저장된 계정이 없으니 온보딩에서 받아 둔 취향만 씁니다
@@ -279,7 +301,7 @@ public class MainController {
         int spicy = guestPref != null && guestPref.getSpicyLevel() > 0 ? guestPref.getSpicyLevel() : 5;
         int maxBudget = budget > 0 ? budget : (guestPref != null ? guestPref.getPriceMax() : 0);
         return new Query(false, 0, null, selectedCategory, maxBudget, spicy, List.of(),
-                selectedMoods, false, frozen);
+                selectedMoods, false, frozen, sortOrder);
     }
 
     /**
@@ -300,7 +322,8 @@ public class MainController {
                 query.budget(),
                 query.excludeEaten(),
                 excludedIds,
-                true);
+                true,
+                query.sortOrder());
     }
 
     /**
@@ -456,12 +479,13 @@ public class MainController {
         rankBox.setMinWidth(56);
         rankBox.setPrefWidth(56);
 
-        // 제목 줄 — 메뉴 · 가게·거리·평점 · 안전 · 맵기
+        // 제목 줄 — 메뉴 · 가게·가격·거리·평점 · 안전 · 맵기
         Label menu = new Label(item.menu());
         menu.getStyleClass().add("menu-name");
 
-        Label meta = new Label(item.restaurant() + " · " + item.distance()
-                + " · ★ " + item.rating());
+        // 가격을 가게 바로 뒤에 둡니다 — 카드끼리 견주는 값이라 눈이 같은 자리에서 훑게
+        Label meta = new Label(item.restaurant() + " · " + item.priceText()
+                + " · " + item.distance() + " · ★ " + item.rating());
         meta.getStyleClass().add("restaurant-name");
 
         HBox titleRow = new HBox(10, menu, meta, Widgets.hSpacer(),
@@ -637,7 +661,7 @@ public class MainController {
             return;
         }
 
-        String priceStr = pick.getPrice() > 0 ? String.format("%,d원", pick.getPrice()) : "가격 정보 없음";
+        String priceStr = RecommendationCard.priceText(pick.getPrice());
         AppNav.info("🎰 [오늘의 룰렛 당첨 메뉴!]\n\n"
                 + "🍽 메뉴명: " + pick.getMenuName() + " (" + pick.getCategory() + ")\n"
                 + "🏪 식당명: " + pick.getRestaurantName() + " (★ " + pick.getRating() + ")\n"

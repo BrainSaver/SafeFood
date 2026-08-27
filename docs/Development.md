@@ -742,12 +742,14 @@ CANDIDATES|1.김치찌개(할머니손맛),2.제육볶음(백반집),3.비빔밥
 앱을 띄우지 않고 추천 로직만 확인할 수 있습니다.
 
 ```bash
-mvn -q compile
+mvn compile exec:java -Pprobe-group
 ```
 
-컴파일 후 `GroupRecommendService`의 `main`을 실행하면 조건별 후보와
-`훑은 메뉴 / 알레르기로 제외 / 후보` 개수가 출력됩니다.
+조건별 후보와 `훑은 메뉴 / 알레르기로 제외 / 후보` 개수가 출력됩니다.
 `config.properties`를 읽으므로 **프로젝트 루트에서** 실행하세요.
+
+판정 규칙 자체(실패 / 데이터 없음 / 전부 차단의 구분)는 DB 없이
+`GroupRecommendServiceTest`가 확인하므로, 이 도구는 **실제 데이터로 눈으로 볼 때**만 씁니다.
 
 <br>
 

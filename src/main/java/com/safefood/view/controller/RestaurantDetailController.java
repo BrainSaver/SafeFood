@@ -122,8 +122,9 @@ public class RestaurantDetailController {
         String hours = (item.hours() != null && !item.hours().isBlank()) ? item.hours() : "영업시간 정보 없음";
         String dist = (item.distance() != null && !item.distance().isBlank()) ? " (" + item.distance() + ")" : "";
 
-        // DB 식당 주소 · 영업시간 · 평점 · 거리를 메타 정보로 표시
-        metaLabel.setText("📍 " + addr + " · 영업 " + hours + " · ★ " + item.rating() + dist);
+        // DB 식당 주소 · 영업시간 · 가격 · 평점 · 거리를 메타 정보로 표시
+        metaLabel.setText("📍 " + addr + " · 영업 " + hours
+                + " · 💰 " + item.priceText() + " · ★ " + item.rating() + dist);
 
         loadMap(item);
     }
@@ -145,7 +146,7 @@ public class RestaurantDetailController {
 
         RecommendationCard card = new RecommendationCard(
                 item.getRank(), item.getScore(), item.getMenu(), item.getRestaurant(),
-                com.safefood.dto.Safety.SAFE, item.getSpicyLevel(), item.getReason(),
+                com.safefood.dto.Safety.SAFE, item.getSpicyLevel(), 0, item.getReason(),
                 address, hours, item.getRating(), "", item.isBlocked(), item.getAlternative(), null, null
         );
         loadMap(card);

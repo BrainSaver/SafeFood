@@ -122,6 +122,7 @@ public final class SetupWizardFx extends Application {
     private Label dbNote;
     private Label dbError;
 
+    private TextField mapJsKeyField;
     private TextField mapKeyField;
     private TextField socketHostField;
     private TextField socketPortField;
@@ -362,6 +363,9 @@ public final class SetupWizardFx extends Application {
         VBox page = page("앱 설정",
                 "지금 몰라도 됩니다. 비워 두고 나중에 config.properties에서 고쳐도 됩니다.");
 
+        // 카카오 앱 키는 두 개이고 서로를 대신하지 못합니다 — 어느 쪽인지 이름에 못박아 둡니다.
+        mapJsKeyField = new TextField();
+        mapJsKeyField.setPromptText("아직 없으면 비워 두세요");
         mapKeyField = new TextField();
         mapKeyField.setPromptText("아직 없으면 비워 두세요");
         socketHostField = new TextField(DEFAULT_HOST);
@@ -371,9 +375,10 @@ public final class SetupWizardFx extends Application {
         form.getStyleClass().add("form");
         form.setHgap(12);
         form.setVgap(10);
-        addRow(form, 0, "지도 API 키", mapKeyField);
-        addRow(form, 1, "소켓 서버 호스트", socketHostField);
-        addRow(form, 2, "소켓 서버 포트", socketPortField);
+        addRow(form, 0, "카카오 JavaScript 키", mapJsKeyField);
+        addRow(form, 1, "카카오 REST API 키", mapKeyField);
+        addRow(form, 2, "소켓 서버 호스트", socketHostField);
+        addRow(form, 3, "소켓 서버 포트", socketPortField);
 
         optionsError = new Label();
         optionsError.getStyleClass().add("error");
@@ -644,6 +649,7 @@ public final class SetupWizardFx extends Application {
                 projectRoot,
                 readDbConfig(),
                 usesDatabase(),
+                mapJsKeyField.getText().trim(),
                 mapKeyField.getText().trim(),
                 socketHostField.getText().trim(),
                 Integer.parseInt(socketPortField.getText().trim()),
@@ -711,8 +717,13 @@ public final class SetupWizardFx extends Application {
         if (!done.databaseDone()) {
             next.getChildren().add(sub("· 지금은 data/ 폴더에 정보를 저장합니다. MySQL을 켜고 다시 실행하면 이어서 준비합니다."));
         }
+        if (request.mapJsKey().isEmpty()) {
+            next.getChildren().add(sub("· 지도를 띄우려면 카카오 JavaScript 키를"
+                    + " config.properties의 kakao.js.key에 채워 넣으세요."));
+        }
         if (request.mapApiKey().isEmpty()) {
-            next.getChildren().add(sub("· 지도 API 키를 발급받으면 config.properties의 map.api.key에 채워 넣으세요."));
+            next.getChildren().add(sub("· 주소에서 좌표를 찾으려면 카카오 REST API 키를"
+                    + " config.properties의 map.api.key에 채워 넣으세요."));
         }
         next.getChildren().addAll(
                 sub("· config.properties와 data/private/는 절대 커밋하지 마세요."),

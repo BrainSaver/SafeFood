@@ -120,16 +120,14 @@ public class EditInfoController {
             return;
         }
 
-        if (!authService.updateProfile(me.getId(), newPw, newNick, me.getPassword())) {
+        // 세션 사본(닉네임·비밀번호 해시)까지 updateProfile 이 맞춥니다 — 여기서 손대면
+        // 저장된 해시 대신 사용자가 입력한 평문이 들어가 이후 비밀번호 확인이 전부 실패합니다.
+        if (!authService.updateProfile(me, newPw, newNick)) {
             Widgets.showError(errorLabel, "저장 중 오류가 발생했습니다.");
             return;
         }
 
         Widgets.hideError(errorLabel);
-        me.setNickname(newNick);
-        if (!newPw.isBlank()) {
-            me.setPassword(newPw);
-        }
         if (onSaved != null) {
             onSaved.run();
         }

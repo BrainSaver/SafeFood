@@ -52,6 +52,62 @@ public class RecommendService {
     }
 
     /**
+     * 추천 목록을 어떤 차례로 보여줄지.
+     *
+     * <p><b>거르는 일이 아니라 줄 세우는 일입니다</b> — 어느 것을 골라도 후보 자체는 같습니다.
+     * 예산·맵기·알레르기로 이미 걸러 낸 목록의 <b>순서만</b> 바뀝니다.
+     *
+     * <p>{@code toString()} 이 그대로 화면의 콤보 글자가 됩니다.
+     */
+    public enum SortOrder {
+
+        /** 점수 내림차순 (동점이면 별점 높은 순) — 기본값. */
+        RECOMMENDED("추천순"),
+        PRICE_LOW("가격 낮은 순"),
+        PRICE_HIGH("가격 높은 순");
+
+        private final String label;
+
+        SortOrder(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    /**
+     * {@link SortOrder} 를 실제 비교 규칙으로.
+     *
+     * <p><b>가격을 모르는 메뉴(0 이하)는 방향과 상관없이 뒤로 보냅니다.</b> 그대로 두면
+     * '가격 낮은 순'이 사실상 '가격 정보 없는 순'이 되어, 값을 견주려고 정렬한 사람에게
+     * 견줄 수 없는 것부터 보여 주게 됩니다.
+     *
+     * <p>가격이 같으면 추천 점수가 높은 쪽을 위로 둡니다 — 같은 값이면 더 잘 맞는 것이 먼저입니다.
+     *
+     * <p>(DB 없이 규칙만 확인할 수 있도록 시험에 열어 둡니다 — {@code RecommendServiceTest})
+     */
+    static Comparator<RecommendResult> comparatorFor(SortOrder order) {
+        Comparator<RecommendResult> byScore =
+                Comparator.comparingInt(RecommendResult::getFinalScore).reversed()
+                        .thenComparing(Comparator.comparingDouble(RecommendResult::getRating).reversed());
+
+        if (order == null || order == SortOrder.RECOMMENDED) {
+            return byScore;
+        }
+
+        Comparator<RecommendResult> knownPriceFirst =
+                Comparator.comparing(result -> result.getPrice() <= 0);   // false(가격 있음) < true
+        Comparator<RecommendResult> byPrice = order == SortOrder.PRICE_LOW
+                ? Comparator.comparingInt(RecommendResult::getPrice)
+                : Comparator.comparingInt(RecommendResult::getPrice).reversed();
+
+        return knownPriceFirst.thenComparing(byPrice).thenComparing(byScore);
+    }
+
+    /**
      * [추천 결과 DTO] UI 카드(SC-04) 및 비즈니스 연동용 데이터 객체
      */
     public static class RecommendResult {
@@ -152,6 +208,7 @@ public class RecommendService {
                     (restaurantName != null && !restaurantName.isEmpty()) ? restaurantName : "안심 식당",
                     safety,
                     spicyLevel,
+                    price,
                     reason,
                     (address != null && !address.isEmpty()) ? address : "주소 정보 없음",
                     (hours != null && !hours.isEmpty()) ? hours : "영업시간 정보 없음",
@@ -492,6 +549,7 @@ public class RecommendService {
      * @param excludeEaten 히스토리 먹은 메뉴(EATEN) 제외 여부 (R-06)
      * @param excludeMenuIds 재추천(Reroll) 시 직전 노출 메뉴 ID 제외 (R-04)
      * @param includeBlockedCard 알레르기 차단 및 대체 메뉴 카드 포함 여부 (R-07)
+     * @param sortOrder 결과를 늘어놓을 차례 ({@code null} 이면 {@link SortOrder#RECOMMENDED})
      */
     public List<RecommendResult> getPersonalizedRecommendations(int userId,
                                                                List<String> preferredCategories,
@@ -501,7 +559,8 @@ public class RecommendService {
                                                                int maxBudget,
                                                                boolean excludeEaten,
                                                                Set<Integer> excludeMenuIds,
-                                                               boolean includeBlockedCard) {
+                                                               boolean includeBlockedCard,
+                                                               SortOrder sortOrder) {
         List<RecommendResult> results = new ArrayList<>();
         List<MenuDto> blockedMenus = new ArrayList<>();
 
@@ -619,11 +678,12 @@ public class RecommendService {
             ));
         }
 
-        // [R-01] 점수 내림차순 정렬 (동점 시 별점 높은 순)
-        results.sort(Comparator.comparingInt(RecommendResult::getFinalScore).reversed()
-                .thenComparing(Comparator.comparingDouble(RecommendResult::getRating).reversed()));
+        // [R-01] 화면이 고른 차례로 정렬 (기본: 점수 내림차순, 동점 시 별점 높은 순)
+        results.sort(comparatorFor(sortOrder));
 
         // [R-07] 대체 메뉴 제안 카드 추가 (최대 1건)
+        // ⚠️ 정렬 뒤에 붙입니다 — 이건 "못 드시는 메뉴, 대신 이것" 안내라 목록의 일부가 아니라
+        //    맨 끝에 오는 꼬리표입니다. 정렬 앞에 넣으면 가격순으로 목록 한가운데 섞여 들어갑니다.
         if (includeBlockedCard && !blockedMenus.isEmpty()) {
             MenuDto representativeBlocked = blockedMenus.get(0);
             for (MenuDto b : blockedMenus) {
@@ -649,14 +709,14 @@ public class RecommendService {
                                                                int maxSpicyLevel,
                                                                int maxBudget,
                                                                boolean excludeEaten) {
-        return getPersonalizedRecommendations(userId, preferredCategories, selectedCategory, null, maxSpicyLevel, maxBudget, excludeEaten, null, true);
+        return getPersonalizedRecommendations(userId, preferredCategories, selectedCategory, null, maxSpicyLevel, maxBudget, excludeEaten, null, true, SortOrder.RECOMMENDED);
     }
 
     /**
      * [R-01] 최소 파라미터 맞춤 추천 편의 오버로딩
      */
     public List<RecommendResult> getPersonalizedRecommendations(int userId, List<String> preferredCategories) {
-        return getPersonalizedRecommendations(userId, preferredCategories, null, null, 5, 0, false, null, true);
+        return getPersonalizedRecommendations(userId, preferredCategories, null, null, 5, 0, false, null, true, SortOrder.RECOMMENDED);
     }
 
     /**
@@ -670,7 +730,8 @@ public class RecommendService {
         int maxSpicy = (pref != null && pref.getSpicyLevel() > 0) ? pref.getSpicyLevel() : 5;
         int maxBudget = (pref != null && pref.getPriceMax() > 0) ? pref.getPriceMax() : 0;
 
-        return getPersonalizedRecommendations(userId, categories, selectedCategory, selectedMoods, maxSpicy, maxBudget, excludeEaten, excludeMenuIds, true);
+        return getPersonalizedRecommendations(userId, categories, selectedCategory, selectedMoods,
+                maxSpicy, maxBudget, excludeEaten, excludeMenuIds, true, SortOrder.RECOMMENDED);
     }
 
     /**
@@ -709,23 +770,4 @@ public class RecommendService {
         return pickRouletteMenu(recommendations, 0);
     }
 
-    // =========================================================================
-    // [실행 및 테스트] main 메서드
-    // =========================================================================
-    public static void main(String[] args) {
-        RecommendService service = new RecommendService();
-        List<String> myFavoriteCategories = List.of("한식", "일식");
-        List<String> myMoods = List.of("스트레스 해소");
-
-        System.out.println("=== 1. 개인 맞춤 추천 결과 (R-01, R-03, R-05, R-07) ===");
-        List<RecommendResult> recommendations = service.getPersonalizedRecommendations(
-                100, myFavoriteCategories, null, myMoods, 5, 0, false, null, true);
-        for (RecommendResult result : recommendations) {
-            System.out.println(result + (result.isBlocked() ? " [BLOCKED] 대체: " + result.getAlternative() : ""));
-        }
-
-        System.out.println("\n=== 2. 룰렛 추천 추첨 결과 (R-08) ===");
-        RecommendResult roulettePick = service.pickRouletteMenu(recommendations, 5);
-        System.out.println("당첨 메뉴: " + roulettePick);
-    }
 }

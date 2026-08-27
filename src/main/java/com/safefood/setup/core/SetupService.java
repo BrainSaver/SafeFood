@@ -146,13 +146,13 @@ public final class SetupService {
         boolean written = false;
 
         if (!Files.exists(configFile)) {
-            ConfigFileWriter.write(configFile, request.db(), request.mapApiKey(),
+            ConfigFileWriter.write(configFile, request.db(), request.mapJsKey(), request.mapApiKey(),
                     request.socketHost(), request.socketPort());
             written = true;
         } else if (request.overwriteConfig()) {
             Path backup = ConfigFileWriter.backup(configFile);
             out.detail("백업 완료: " + backup.getFileName());
-            ConfigFileWriter.write(configFile, request.db(), request.mapApiKey(),
+            ConfigFileWriter.write(configFile, request.db(), request.mapJsKey(), request.mapApiKey(),
                     request.socketHost(), request.socketPort());
             written = true;
         } else {
