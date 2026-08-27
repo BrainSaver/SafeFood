@@ -7,9 +7,11 @@ import com.safefood.dao.HistoryDao;
 import com.safefood.dao.MenuDao;
 import com.safefood.dao.MenuDao.MenuDto;
 import com.safefood.dao.ProfileDao;
+import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Safety;
+import com.safefood.dto.Session;
 import com.safefood.service.GroupMergeService.MergedGroupCondition;
 
 import java.util.ArrayList;
@@ -69,11 +71,22 @@ public class RecommendService {
         private final int reviewCount;
         private final boolean blocked;
         private final String alternative;
+        private final Double latitude;
+        private final Double longitude;
 
         public RecommendResult(int menuId, int restaurantId, String menuName, String restaurantName,
                                String category, int price, int spicyLevel, int finalScore,
                                boolean hasPenalty, String reason, String address, String hours,
                                double rating, int reviewCount, boolean blocked, String alternative) {
+            this(menuId, restaurantId, menuName, restaurantName, category, price, spicyLevel, finalScore,
+                    hasPenalty, reason, address, hours, rating, reviewCount, blocked, alternative, null, null);
+        }
+
+        public RecommendResult(int menuId, int restaurantId, String menuName, String restaurantName,
+                               String category, int price, int spicyLevel, int finalScore,
+                               boolean hasPenalty, String reason, String address, String hours,
+                               double rating, int reviewCount, boolean blocked, String alternative,
+                               Double latitude, Double longitude) {
             this.menuId = menuId;
             this.restaurantId = restaurantId;
             this.menuName = menuName;
@@ -90,6 +103,8 @@ public class RecommendService {
             this.reviewCount = reviewCount;
             this.blocked = blocked;
             this.alternative = alternative;
+            this.latitude = latitude;
+            this.longitude = longitude;
         }
 
         public int getMenuId() { return menuId; }
@@ -108,6 +123,8 @@ public class RecommendService {
         public int getReviewCount() { return reviewCount; }
         public boolean isBlocked() { return blocked; }
         public String getAlternative() { return alternative; }
+        public Double getLatitude() { return latitude; }
+        public Double getLongitude() { return longitude; }
 
         /**
          * UI RecommendationCard 레코드로 변환
@@ -115,6 +132,19 @@ public class RecommendService {
         public RecommendationCard toRecommendation(int rank) {
             Safety safety = blocked ? Safety.CONTAINS
                     : (hasPenalty ? Safety.POSSIBLE : Safety.SAFE);
+
+            String distanceStr = "위치 미등록";
+            LocationDto myLoc = Session.getMyLocation();
+            if (myLoc == null && Session.isMember()) {
+                myLoc = new com.safefood.dao.LocationDao().getLocation(Session.currentUserId());
+            }
+            if (myLoc != null && myLoc.hasCoordinates() && latitude != null && longitude != null) {
+                double meters = LocationService.calculateDistanceMeter(
+                        myLoc.getLatitude(), myLoc.getLongitude(), latitude, longitude
+                );
+                distanceStr = LocationService.formatDistance(meters);
+            }
+
             return new RecommendationCard(
                     rank,
                     finalScore,
@@ -123,12 +153,14 @@ public class RecommendService {
                     safety,
                     spicyLevel,
                     reason,
-                    (address != null && !address.isEmpty()) ? address : "서울시 강남구 테헤란로",
-                    (hours != null && !hours.isEmpty()) ? hours : "11:00 ~ 21:00",
+                    (address != null && !address.isEmpty()) ? address : "주소 정보 없음",
+                    (hours != null && !hours.isEmpty()) ? hours : "영업시간 정보 없음",
                     rating > 0 ? rating : 4.5,
-                    "450m",
+                    distanceStr,
                     blocked,
-                    alternative
+                    alternative,
+                    latitude,
+                    longitude
             );
         }
 
@@ -320,7 +352,9 @@ public class RecommendService {
                 blockedMenu.getRating(),
                 blockedMenu.getReviewCount(),
                 true,
-                alternative
+                alternative,
+                blockedMenu.getLatitude(),
+                blockedMenu.getLongitude()
         );
     }
 
@@ -433,7 +467,9 @@ public class RecommendService {
                     menu.getRating(),
                     menu.getReviewCount(),
                     false,
-                    null
+                    null,
+                    menu.getLatitude(),
+                    menu.getLongitude()
             ));
         }
 

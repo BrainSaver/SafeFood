@@ -13,6 +13,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.web.WebView?>
 
 <VBox xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
       fx:controller="com.safefood.view.controller.RestaurantDetailController"
@@ -21,12 +22,7 @@
     <!-- 지도 — 전체 폭, 여백 없음 -->
     <StackPane fx:id="mapArea" styleClass="hero-map" prefHeight="230"
                alignment="CENTER">
-        <Label text="지도 (Kakao Map WebView)" styleClass="sub"/>
-        <Label text="●" styleClass="map-pin" StackPane.alignment="BOTTOM_LEFT">
-            <StackPane.margin>
-                <Insets bottom="-22" left="36"/>
-            </StackPane.margin>
-        </Label>
+        <WebView fx:id="mapWebView" prefHeight="230" minHeight="230" maxHeight="230"/>
     </StackPane>
 
     <VBox spacing="12">

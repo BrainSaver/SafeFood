@@ -26,6 +26,34 @@ public class LoginController {
 
     private final AuthService authService = new AuthService();
 
+    @FXML
+    private void initialize() {
+        if (idField != null) {
+            idField.setOnAction(event -> {
+                if (passwordField != null && passwordField.getText().isEmpty()) {
+                    passwordField.requestFocus();
+                } else {
+                    handleLogin();
+                }
+            });
+        }
+        if (passwordField != null) {
+            passwordField.setOnAction(event -> handleLogin());
+        }
+        if (nameField != null) {
+            nameField.setOnAction(event -> {
+                if (guestCodeField != null && guestCodeField.getText().isEmpty()) {
+                    handleGuest();
+                } else {
+                    handleGuest();
+                }
+            });
+        }
+        if (guestCodeField != null) {
+            guestCodeField.setOnAction(event -> handleGuest());
+        }
+    }
+
     // ══ 회원 ════════════════════════════════════════════════════
 
     @FXML

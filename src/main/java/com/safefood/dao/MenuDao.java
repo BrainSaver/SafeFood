@@ -9,12 +9,12 @@ import java.util.List;
 
 /**
  * [ SafeFood - 메뉴 DAO ]
- * DB의 menu 테이블 조회 담당
+ * DB의 menu 및 restaurant 테이블 조회 담당
  */
 public class MenuDao {
 
     /**
-     * 추천 후보 메뉴 DTO (식당 정보 포함)
+     * 추천 후보 메뉴 DTO (식당 정보 및 위도/경도 포함)
      */
     public static class MenuDto {
         private int id;
@@ -32,23 +32,26 @@ public class MenuDao {
         private String closeTime;
         private double rating;
         private int reviewCount;
+        private Double latitude;
+        private Double longitude;
         private List<String> moods = new ArrayList<>();
 
         public MenuDto(int id, int restaurantId, String name, int price, String category, int spicyLevel) {
-            this(id, restaurantId, name, price, category, spicyLevel, "", null, null, "", "", "", "", 0.0, 0);
+            this(id, restaurantId, name, price, category, spicyLevel, "", null, null, "", "", "", "", 0.0, 0, null, null);
         }
 
         public MenuDto(int id, int restaurantId, String name, int price, String category, int spicyLevel,
                        String description, String restaurantName, String restaurantAddress,
                        String openTime, String closeTime, double rating, int reviewCount) {
             this(id, restaurantId, name, price, category, spicyLevel, description, null, null,
-                    restaurantName, restaurantAddress, openTime, closeTime, rating, reviewCount);
+                    restaurantName, restaurantAddress, openTime, closeTime, rating, reviewCount, null, null);
         }
 
         public MenuDto(int id, int restaurantId, String name, int price, String category, int spicyLevel,
                        String description, Integer foodId, Integer categoryId,
                        String restaurantName, String restaurantAddress,
-                       String openTime, String closeTime, double rating, int reviewCount) {
+                       String openTime, String closeTime, double rating, int reviewCount,
+                       Double latitude, Double longitude) {
             this.id = id;
             this.restaurantId = restaurantId;
             this.name = name != null ? name : "";
@@ -64,6 +67,8 @@ public class MenuDao {
             this.closeTime = closeTime != null ? closeTime : "";
             this.rating = rating;
             this.reviewCount = reviewCount;
+            this.latitude = latitude;
+            this.longitude = longitude;
             this.moods = new ArrayList<>();
         }
 
@@ -82,6 +87,8 @@ public class MenuDao {
         public String getCloseTime() { return closeTime; }
         public double getRating() { return rating; }
         public int getReviewCount() { return reviewCount; }
+        public Double getLatitude() { return latitude; }
+        public Double getLongitude() { return longitude; }
         public List<String> getMoods() { return moods; }
         public void setMoods(List<String> moods) { this.moods = moods != null ? moods : new ArrayList<>(); }
 
@@ -110,17 +117,17 @@ public class MenuDao {
 
             while (rs.next()) {
                 int menuId = rs.getInt("menu_id");
-                String mood = rs.getString("mood_name");
-                map.computeIfAbsent(menuId, k -> new ArrayList<>()).add(mood);
+                String moodName = rs.getString("mood_name");
+                map.computeIfAbsent(menuId, k -> new ArrayList<>()).add(moodName);
             }
         } catch (SQLException e) {
-            // 테이블이 비어있거나 미생성 시 안전하게 빈 맵 반환
+            e.printStackTrace();
         }
         return map;
     }
 
     /**
-     * 전체 추천 후보 메뉴 목록 조회 (식당 정보 LEFT JOIN + 카테고리 JOIN + 기분 태그 포함)
+     * 전체 추천 후보 메뉴 목록 조회 (식당 정보 LEFT JOIN + 카테고리 JOIN + 식당 위경도 조회)
      */
     public List<MenuDto> getAllCandidateMenus() {
         List<MenuDto> menuList = new ArrayList<>();
@@ -129,7 +136,8 @@ public class MenuDao {
         String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, c.name AS category, m.spicy_level, m.description, " +
                      "       m.food_id, m.category_id, " +
                      "       r.name AS restaurant_name, r.address AS restaurant_address, " +
-                     "       r.open_time, r.close_time, r.rating, r.review_count " +
+                     "       r.open_time, r.close_time, r.rating, r.review_count, " +
+                     "       r.latitude, r.longitude " +
                      "FROM menu m " +
                      "LEFT JOIN restaurant r ON m.restaurant_id = r.id " +
                      "LEFT JOIN category c ON m.category_id = c.id";
@@ -144,6 +152,8 @@ public class MenuDao {
 
                 Integer foodId = rs.getObject("food_id") != null ? rs.getInt("food_id") : null;
                 Integer categoryId = rs.getObject("category_id") != null ? rs.getInt("category_id") : null;
+                Double lat = rs.getObject("latitude") != null ? rs.getDouble("latitude") : null;
+                Double lng = rs.getObject("longitude") != null ? rs.getDouble("longitude") : null;
 
                 MenuDto dto = new MenuDto(
                         rs.getInt("id"),
@@ -160,7 +170,9 @@ public class MenuDao {
                         openTime,
                         closeTime,
                         rs.getDouble("rating"),
-                        rs.getInt("review_count")
+                        rs.getInt("review_count"),
+                        lat,
+                        lng
                 );
 
                 if (moodMap.containsKey(dto.getId())) {
@@ -169,7 +181,6 @@ public class MenuDao {
                 menuList.add(dto);
             }
         } catch (SQLException e) {
-            // 빈 목록을 돌려주면 화면이 '조건에 맞는 메뉴가 없음'으로 오해합니다
             throw new DataAccessException("추천 후보 메뉴를 불러오지 못했습니다.", e);
         }
         return menuList;
@@ -182,7 +193,8 @@ public class MenuDao {
         String sql = "SELECT m.id, m.restaurant_id, m.name, m.price, c.name AS category, m.spicy_level, m.description, " +
                      "       m.food_id, m.category_id, " +
                      "       r.name AS restaurant_name, r.address AS restaurant_address, " +
-                     "       r.open_time, r.close_time, r.rating, r.review_count " +
+                     "       r.open_time, r.close_time, r.rating, r.review_count, " +
+                     "       r.latitude, r.longitude " +
                      "FROM menu m " +
                      "LEFT JOIN restaurant r ON m.restaurant_id = r.id " +
                      "LEFT JOIN category c ON m.category_id = c.id " +
@@ -199,6 +211,8 @@ public class MenuDao {
 
                     Integer foodId = rs.getObject("food_id") != null ? rs.getInt("food_id") : null;
                     Integer categoryId = rs.getObject("category_id") != null ? rs.getInt("category_id") : null;
+                    Double lat = rs.getObject("latitude") != null ? rs.getDouble("latitude") : null;
+                    Double lng = rs.getObject("longitude") != null ? rs.getDouble("longitude") : null;
 
                     return new MenuDto(
                             rs.getInt("id"),
@@ -215,7 +229,9 @@ public class MenuDao {
                             openTime,
                             closeTime,
                             rs.getDouble("rating"),
-                            rs.getInt("review_count")
+                            rs.getInt("review_count"),
+                            lat,
+                            lng
                     );
                 }
             }
