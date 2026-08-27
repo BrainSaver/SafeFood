@@ -399,14 +399,22 @@ public class RecommendService {
             blockedReason = allergyService.createBlockedReason(blockedAllergyNames);
         }
 
-        // 같은 식당 또는 동일 카테고리의 100% 안전한 대체 메뉴 탐색 (CONTAINS와 POSSIBLE 모두 안전한 메뉴)
+        // 같은 식당 또는 동일 카테고리의 대체 메뉴 탐색 (CONTAINS와 POSSIBLE 모두 겹치지 않는 메뉴)
+        //
+        // 알레르기 정보가 <b>하나도 없는</b> 메뉴는 여기서 제외합니다. isSafe 는 아는 것이
+        // 없어도 true 를 돌려주므로, 거르지 않으면 재료를 전혀 모르는 메뉴를 '안심 메뉴'라고
+        // 이름 붙여 권하게 됩니다 — 차단당한 사람에게 가장 하면 안 되는 안내입니다.
         String alternative = null;
         for (MenuDto other : allMenus) {
             if (other.getId() == blockedMenu.getId()) continue;
             MenuAllergies otherAllergies =
                     allergiesByMenu.getOrDefault(other.getId(), MenuAllergies.EMPTY);
+            Set<Integer> otherDeduced = deduceAllergiesFromText(other);
+            if (isInformationInsufficient(other, otherAllergies, otherDeduced)) {
+                continue;
+            }
             Set<Integer> otherContains = new HashSet<>(otherAllergies.contains());
-            otherContains.addAll(deduceAllergiesFromText(other));
+            otherContains.addAll(otherDeduced);
             if (allergyService.isSafe(userAllergies, List.copyOf(otherContains))
                     && allergyService.isSafe(userAllergies, otherAllergies.possible())) {
                 if (other.getRestaurantId() == blockedMenu.getRestaurantId()) {
@@ -538,9 +546,14 @@ public class RecommendService {
             boolean isMoodMatched = (matchedMood != null);
 
             // [R-01 & R-05] 추천 점수 연산 (100점 기본 + 선호 +20점 + 기분 +25점)
-            // 통과된 메뉴는 100% 알레르기 프리(SAFE) 보장
+            //
+            // 여기까지 온 메뉴는 '아는 알레르겐이 겹치지 않는' 메뉴이지, 확인된 안전 메뉴가
+            // 아닙니다. 알레르기가 있는 사람에게는 <b>재료를 아는 메뉴</b>가 먼저 보여야 하므로,
+            // 정보 미흡 메뉴는 확인된 메뉴 아래로 내립니다 (선호 +20 · 기분 +25 를 합친 것보다
+            // 크게 깎아, 가산점이 붙어도 뒤집히지 않게 합니다).
             int baseScore = 100;
-            int finalScore = baseScore + (isPreferred ? 20 : 0) + (isMoodMatched ? 25 : 0);
+            int unknownPenalty = (isInsufficient && !userAllergies.isEmpty()) ? 50 : 0;
+            int finalScore = baseScore + (isPreferred ? 20 : 0) + (isMoodMatched ? 25 : 0) - unknownPenalty;
 
             // [R-03 & R-05] 사유 문구 생성 (정보 미흡 특색 메뉴인 경우 명확히 경고/안내)
             String reason;

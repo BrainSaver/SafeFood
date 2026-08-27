@@ -51,6 +51,10 @@ public class AllergyDao {
 
     /**
      * 특정 회원의 알레르기 ID 및 심각도(severity) Map 조회
+     *
+     * @throws DataAccessException 조회 실패 — 삼키고 빈 Map 을 돌려주면 혼입 가능성(POSSIBLE)
+     *                             감점이 0 점이 되어 위험한 메뉴가 그대로 상위에 오릅니다.
+     *                             {@link #getUserAllergyIds} 와 같은 규칙입니다
      */
     public Map<Integer, Integer> getUserSeverityMap(int userId) {
         Map<Integer, Integer> severityMap = new HashMap<>();
@@ -66,7 +70,7 @@ public class AllergyDao {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new DataAccessException("회원 알레르기 심각도를 불러오지 못했습니다.", e);
         }
         return severityMap;
     }
