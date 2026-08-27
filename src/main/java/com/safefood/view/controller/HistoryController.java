@@ -43,7 +43,7 @@ public class HistoryController {
     @FXML private HBox tabSeg;
     @FXML private HBox filterRow;
     @FXML private VBox timelineBox;
-    @FXML private Label userLabel;
+    @FXML private NavController navController;
 
     private final ToggleGroup tabGroup = new ToggleGroup();
     private final ToggleGroup filterGroup = new ToggleGroup();
@@ -52,7 +52,7 @@ public class HistoryController {
 
     @FXML
     private void initialize() {
-        userLabel.setText(com.safefood.dto.Session.displayName("사용자") + "님");
+        navController.setActive(NavController.Tab.HISTORY);
 
         buildTabs();
         buildFilters();
@@ -207,7 +207,7 @@ public class HistoryController {
         remove.getStyleClass().add("ghost-quiet");
 
         HBox line = new HBox(12,
-                Widgets.tag("찜", "accent"),
+                Widgets.tag("찜", Widgets.Variant.ACCENT),
                 Widgets.label(row.getRestaurant(), "section-title"),
                 Widgets.sub(row.getMenu()),
                 Widgets.hSpacer(),
@@ -245,23 +245,7 @@ public class HistoryController {
 
     // ── 내비게이션 ──────────────────────────────────────────────
 
-    @FXML
-    private void handleMain() {
-        AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
-    }
 
-    @FXML
-    private void handleProfile() {
-        AppNav.show("프로필 및 설정 관리", "profile.fxml");
-    }
 
-    @FXML
-    private void handleGroup() {
-        AppNav.dialog("같이 먹기 옵션 선택", "group-option.fxml");
-    }
 
-    @FXML
-    private void handleLogout() {
-        AppNav.logout();
-    }
 }

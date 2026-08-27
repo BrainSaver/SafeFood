@@ -13,39 +13,28 @@ import java.util.Set;
 /**
  * 지금 참여 중인 그룹 세션 — 앱 전역 1개.
  *
- * <p>화면(다이얼로그)이 바뀌어도 접속·명단·로그·후보 상태가 유지되도록 여기에 모아 둡니다.
- * 수신 스레드가 이 클래스의 상태를 갱신하고, 화면은 {@link #setUiListener}로 알림만 받아
- * 스냅샷을 다시 그립니다. JavaFX에 의존하지 않으므로 콘솔 시험({@link SocketMain})에서도 그대로 씁니다.
+ * <p>화면이 바뀌어도 접속·명단·로그·후보 상태가 유지되도록 여기에 모아 둡니다.
+ * 수신 스레드가 상태를 갱신하고, 화면은 {@link #setUiListener}로 알림만 받아 다시 그립니다.
  */
 public final class GroupSession implements GroupClient.Listener {
 
-    /** 화면 표시용 참여자 한 줄 — 입장 순서 첫 번째가 방장입니다. */
+    /** 입장 순서 첫 번째가 방장입니다. */
     public record MemberView(String name, boolean owner, boolean ready) {
     }
 
-    /** 추천 후보 한 개 — CANDIDATES 메시지를 파싱한 것. */
     public record CandidateView(int no, String menu, String restaurant) {
     }
 
-    /**
-     * 대기실 화면에 흐르는 사건 한 줄 — 사람이 읽는 문장으로 바꿔 둔 것.
-     *
-     * <p>{@link #logLines()} 는 프로토콜 원문({@code JOINED|길동현})이라 개발용 콘솔 몫이고,
-     * 이쪽은 말풍선·시스템 알림으로 그리기 위한 것입니다.
-     */
+    /** 대기실에 흐르는 사건 한 줄 — 프로토콜 원문({@link #logLines()})과 달리 사람이 읽는 문장입니다. */
     public record Event(EventKind kind, String sender, String text) {
     }
 
     public enum EventKind {
-        /** 가운데 정렬 알림 — 참여·퇴장·준비 */
         SYSTEM,
-        /** 좋은 소식 — 후보 도착, 최종 확정 */
         SYSTEM_GOOD,
-        /** 조건 병합 완료 — 화면은 여기서 {@link #mergedLines()} 를 카드로 펼칩니다 */
+        /** 화면은 여기서 {@link #mergedLines()} 를 카드로 펼칩니다 */
         MERGED,
-        /** 나쁜 소식 — 오류, 방 종료, 연결 끊김 */
         SYSTEM_BAD,
-        /** 사람이 보낸 채팅 — 말풍선 */
         CHAT
     }
 
@@ -57,7 +46,7 @@ public final class GroupSession implements GroupClient.Listener {
     }
 
     private String displayName = "게스트";
-    private boolean guest = true;   // 로그인 방식 — 방을 나간 뒤 돌아갈 화면을 정할 때 씁니다
+    private boolean guest = true;   // 방을 나간 뒤 돌아갈 화면을 정할 때 씁니다
 
     private GroupServer server;   // 방장일 때만 존재
     private GroupClient client;
@@ -71,16 +60,15 @@ public final class GroupSession implements GroupClient.Listener {
     private List<CandidateView> candidates = List.of();
     private Map<Integer, Integer> voteCounts = Map.of();
     private String resultText;
-    private String inviteCode = "";   // 대기실 머리에 다시 보여 주기 위해 들고 있습니다
+    private String inviteCode = "";
     private boolean remoteClosed;
     private boolean disconnected;
+    private boolean candidatesReceived;
 
     private GroupSession() {
     }
 
-    // ---- 시작 · 종료 ----
-
-    /** 방장: 서버를 열고, 자기 서버에 클라이언트로 접속합니다 (README — 방장도 자기 서버에 접속). */
+    /** 방장: 서버를 열고, 자기 서버에 클라이언트로 접속합니다. */
     public synchronized void hostRoom(int port, String inviteCode) throws IOException {
         shutdown();
         server = GroupServer.open(port, inviteCode);
@@ -97,14 +85,14 @@ public final class GroupSession implements GroupClient.Listener {
         events.add(good("방이 열렸어요 — 초대 코드를 일행에게 보내세요"));
     }
 
-    /** 참여자: 방장 주소로 접속만 합니다. JOIN 전송은 {@code client().join(...)}으로 이어서. */
+    /** 참여자: 접속만 합니다. JOIN 전송은 {@code client().join(...)}으로 이어서. */
     public synchronized void joinRoom(String host, int port) throws IOException {
         shutdown();
         client = GroupClient.connect(host, port);
         client.setListener(this);
     }
 
-    /** 서버·클라이언트를 정리하고 상태를 비웁니다. 여러 번 불러도 안전합니다. */
+    /** 여러 번 불러도 안전합니다. */
     public synchronized void shutdown() {
         uiListener = null;
         if (server != null) {
@@ -126,14 +114,14 @@ public final class GroupSession implements GroupClient.Listener {
         inviteCode = "";
         remoteClosed = false;
         disconnected = false;
+        candidatesReceived = false;
     }
 
-    /** 참여자 쪽에서 방에 붙을 때 쓴 코드를 기록해 둡니다 (방장은 {@link #hostRoom}이 채웁니다). */
+    /** 참여자 쪽에서 방에 붙을 때 쓴 코드 (방장은 {@link #hostRoom}이 채웁니다). */
     public synchronized void setInviteCode(String code) {
         inviteCode = code == null ? "" : code;
     }
 
-    /** 이 방의 초대 코드. 모르면 빈 문자열. */
     public synchronized String inviteCode() {
         return inviteCode;
     }
@@ -157,7 +145,10 @@ public final class GroupSession implements GroupClient.Listener {
                 }
                 case READY -> readyNames.add(message.part(0));
                 case MERGED -> mergedLines = List.copyOf(message.body());
-                case CANDIDATES -> candidates = parseCandidates(message.part(0));
+                case CANDIDATES -> {
+                    candidates = parseCandidates(message.part(0));
+                    candidatesReceived = true;
+                }
                 case VOTE_STATUS -> voteCounts = parseVoteStatus(message.part(0));
                 case RESULT -> resultText = message.part(0)
                         + (message.part(1).isEmpty() ? "" : " (" + message.part(1) + ")");
@@ -208,7 +199,6 @@ public final class GroupSession implements GroupClient.Listener {
         return List.copyOf(logs);
     }
 
-    /** 대기실 말풍선·시스템 알림용 사건 목록. */
     public synchronized List<Event> events() {
         return List.copyOf(events);
     }
@@ -219,6 +209,10 @@ public final class GroupSession implements GroupClient.Listener {
 
     public synchronized List<CandidateView> candidates() {
         return candidates;
+    }
+
+    public synchronized boolean candidatesReceived() {
+        return candidatesReceived;
     }
 
     public synchronized int votesFor(int candidateNo) {
@@ -233,7 +227,7 @@ public final class GroupSession implements GroupClient.Listener {
         return total;
     }
 
-    /** 확정된 최종 메뉴. 아직 확정 전이면 null. */
+    /** 확정 전이면 null. */
     public synchronized String result() {
         return resultText;
     }
@@ -262,7 +256,7 @@ public final class GroupSession implements GroupClient.Listener {
 
     /**
      * 방이 이미 끝난 세션인지 — 화면 전환 사이에 CLOSED·끊김이 도착해 알림을 놓친 경우를
-     * 대기실이 입장 시점에 감지할 때 씁니다. 접속한 적 없는 상태(화면 미리보기)는 false.
+     * 대기실이 입장 시점에 감지할 때 씁니다. 접속한 적 없는 상태는 false.
      */
     public synchronized boolean isDead() {
         return remoteClosed || disconnected || (client != null && !client.isAlive());
@@ -272,7 +266,6 @@ public final class GroupSession implements GroupClient.Listener {
         return displayName;
     }
 
-    /** 로그인(회원 닉네임) 또는 게스트 이름 입력 때 설정합니다. */
     public synchronized void setDisplayName(String name) {
         if (name != null && !name.isBlank()) {
             displayName = name.trim();
@@ -283,7 +276,6 @@ public final class GroupSession implements GroupClient.Listener {
         return guest;
     }
 
-    /** 회원 로그인 시 false, 게스트 입장 시 true — 방을 나간 뒤 돌아갈 화면이 달라집니다. */
     public synchronized void setGuest(boolean guest) {
         this.guest = guest;
     }
@@ -296,12 +288,7 @@ public final class GroupSession implements GroupClient.Listener {
         logs.add("[" + LocalTime.now().format(LOG_TIME) + "] " + text);
     }
 
-    /**
-     * 프로토콜 메시지 한 줄을 사람이 읽는 문장으로 옮겨 {@link #events} 에 쌓습니다.
-     *
-     * <p>화면에 흐름으로 보여 줄 값이 없는 타입(내가 보낸 JOIN·INFO·VOTE 등)은 건너뜁니다 —
-     * 원문이 필요하면 개발용 콘솔이 {@link #logLines()} 를 그립니다.
-     */
+    /** 프로토콜 메시지를 사람이 읽는 문장으로 옮겨 쌓습니다. 화면에 보일 값이 없는 타입은 건너뜁니다. */
     private void recordEvent(Message message) {
         switch (message.type()) {
             case CHAT -> events.add(

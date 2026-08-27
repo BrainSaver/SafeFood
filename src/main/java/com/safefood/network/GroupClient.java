@@ -12,10 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * 소켓 클라이언트 — 접속 후 <b>수신 전용 데몬 스레드</b>를 띄웁니다.
- * (입력을 기다리는 동안에도 서버가 보낸 메시지를 받아야 하므로)
- *
- * <p>방장도 자기 서버에 이 클래스로 접속합니다 — 방장과 참여자의 화면 로직이 같아집니다.
+ * 소켓 클라이언트 — 접속 후 수신 전용 데몬 스레드를 띄웁니다.
+ * 방장도 자기 서버에 이 클래스로 접속합니다.
  */
 public final class GroupClient implements Closeable {
 
@@ -24,7 +22,7 @@ public final class GroupClient implements Closeable {
 
         void onMessage(Message message);
 
-        /** CLOSED 안내 없이 연결이 끊겼을 때 (서버 강제 종료, 네트워크 단절 등) */
+        /** CLOSED 안내 없이 연결이 끊겼을 때 */
         void onDisconnected();
     }
 
@@ -46,7 +44,6 @@ public final class GroupClient implements Closeable {
                 new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
     }
 
-    /** 방장 주소로 접속하고 수신 스레드를 시작합니다. {@value #CONNECT_TIMEOUT_MS}ms 안에 못 붙으면 실패. */
     public static GroupClient connect(String host, int port) throws IOException {
         Socket socket = new Socket();
         try {
@@ -85,7 +82,7 @@ public final class GroupClient implements Closeable {
         }
     }
 
-    /** 수신 루프가 살아 있고 소켓도 열려 있는지 — 화면이 죽은 연결을 감지할 때 씁니다. */
+    /** 화면이 죽은 연결을 감지할 때 씁니다. */
     public boolean isAlive() {
         return !disconnected && !socket.isClosed();
     }
@@ -94,17 +91,16 @@ public final class GroupClient implements Closeable {
         this.listener = listener;
     }
 
-    // ---- 보내기 (README 프로토콜의 클라이언트 → 서버) ----
-
     public void join(String inviteCode, String name) {
         send(Message.of(Message.Type.JOIN, inviteCode, name));
     }
 
-    public void sendInfo(List<String> allergies, int spicyLevel, int budgetMax) {
+    public void sendInfo(List<String> allergies, int spicyLevel, int budgetMax, int userId) {
         send(Message.of(Message.Type.INFO,
                 String.join(",", allergies),
                 String.valueOf(spicyLevel),
-                String.valueOf(budgetMax)));
+                String.valueOf(budgetMax),
+                String.valueOf(userId)));
     }
 
     public void sendReady() {
@@ -119,6 +115,10 @@ public final class GroupClient implements Closeable {
         send(Message.of(Message.Type.CHAT, text));
     }
 
+    public void sendRetry() {
+        send(Message.of(Message.Type.RETRY));
+    }
+
     private void send(Message message) {
         synchronized (out) {
             try {
@@ -131,7 +131,6 @@ public final class GroupClient implements Closeable {
         }
     }
 
-    /** EXIT을 보내고 소켓을 닫습니다. 서버가 EXIT을 못 받아도 소켓 종료로 감지됩니다. */
     @Override
     public void close() {
         closedByMe = true;   // 내가 닫은 경우에는 onDisconnected를 부르지 않기 위한 표시

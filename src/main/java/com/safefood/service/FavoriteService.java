@@ -18,13 +18,8 @@ public class FavoriteService {
         return favoriteDao.deleteFavorite(favoriteId);
     }
 
-    // 찜 추가(저장)하기
+    // 찜 추가(저장)하기 — DAO 쪽에서 이미 찜한 메뉴를 걸러 줍니다
     public boolean addFavorite(int userId, Integer restaurantId, Integer menuId) {
-        return favoriteDao.insertFavorite(userId, restaurantId, menuId);
-    }
-
-    // 메인 화면용 찜 취소하기
-    public boolean removeFavoriteByMenu(int userId, Integer restaurantId, Integer menuId) {
-        return favoriteDao.deleteFavoriteByMenu(userId, restaurantId, menuId);
+        return favoriteDao.addFavorite(userId, restaurantId, menuId);
     }
 }
