@@ -46,12 +46,12 @@
 
                 <VBox spacing="4">
                     <Label text="아이디" styleClass="field-label"/>
-                    <TextField fx:id="idField" promptText="아이디"/>
+                    <TextField fx:id="idField" promptText="아이디" onAction="#handleLogin"/>
                 </VBox>
 
                 <VBox spacing="4">
                     <Label text="비밀번호" styleClass="field-label"/>
-                    <PasswordField fx:id="passwordField" promptText="비밀번호"/>
+                    <PasswordField fx:id="passwordField" promptText="비밀번호" onAction="#handleLogin"/>
                 </VBox>
 
                 <Label fx:id="memberError" styleClass="error-text" wrapText="true"
@@ -74,12 +74,12 @@
 
                 <VBox spacing="4">
                     <Label text="이름" styleClass="field-label"/>
-                    <TextField fx:id="nameField" promptText="홍길동"/>
+                    <TextField fx:id="nameField" promptText="홍길동" onAction="#handleGuest"/>
                 </VBox>
 
                 <VBox spacing="4">
                     <Label text="초대 코드 (선택)" styleClass="field-label"/>
-                    <TextField fx:id="guestCodeField" promptText="6WMK4-2A0P8-Q3XN"/>
+                    <TextField fx:id="guestCodeField" promptText="6WMK4-2A0P8-Q3XN" onAction="#handleGuest"/>
                 </VBox>
 
                 <Label fx:id="guestError" styleClass="error-text" wrapText="true"
