@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  우리 아이 급식 — 학교가 나이스에 올린 식단을 아이의 알레르기와 맞춰 봅니다.
+
+  화면이 지켜야 할 것
+   · '안전합니다'라고 말하지 않습니다. 표기가 없다는 사실까지만 말합니다
+   · 학교가 아직 안 올린 날과 알레르기 표기가 없는 날을 구분해 보여 줍니다
+   · 언제 받은 정보인지 항상 표시하고, 직접 다시 받을 수 있게 둡니다
+-->
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.safefood.view.controller.MealController">
+
+    <top>
+        <fx:include fx:id="nav" source="nav.fxml"/>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true">
+            <VBox styleClass="screen" spacing="14">
+                <padding>
+                    <Insets top="8" right="28" bottom="30" left="28"/>
+                </padding>
+
+                <Label text="우리 아이 급식" styleClass="page-title"/>
+                <Label text="학교가 등록한 식단에서 아이의 알레르기 유발물질을 찾아 알려 드려요."
+                       styleClass="page-subtitle"/>
+
+                <!-- 아이 선택 -->
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="아이" styleClass="field-label"/>
+                    <ComboBox fx:id="childBox" prefWidth="220"/>
+                    <Label fx:id="schoolLabel" styleClass="sub"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="아이 관리" styleClass="ghost" onAction="#handleManageChildren"/>
+                </HBox>
+
+                <!-- 요약 배너 — 위험한 날이 있을 때만 -->
+                <VBox fx:id="summaryBox" spacing="6" visible="false" managed="false"/>
+
+                <!-- 주 이동 -->
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Button text="◀ 지난 주" styleClass="ghost-quiet"
+                            onAction="#handlePrevWeek"/>
+                    <Label fx:id="rangeLabel" text="" styleClass="section-title"/>
+                    <Button text="다음 주 ▶" styleClass="ghost-quiet"
+                            onAction="#handleNextWeek"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="fetchedLabel" styleClass="micro"/>
+                    <Button fx:id="refreshButton" text="새로고침" styleClass="ghost"
+                            onAction="#handleRefresh"/>
+                </HBox>
+
+                <VBox fx:id="dayBox" spacing="12"/>
+
+                <Label text="이 정보는 학교가 나이스에 등록한 자료를 그대로 보여 줍니다. 실제 조리 과정과 다를 수 있으니 최종 확인은 담임 또는 영양교사에게 해 주세요."
+                       styleClass="micro" wrapText="true"/>
+            </VBox>
+        </ScrollPane>
+    </center>
+</BorderPane>

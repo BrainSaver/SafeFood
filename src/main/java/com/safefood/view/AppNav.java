@@ -41,7 +41,6 @@ public final class AppNav {
     private static final String BASE = "/com/safefood/view/";
     private static final String CSS = BASE + "app.css";
 
-    /** 창·작업표시줄 아이콘. 예전에는 실행 파일에 박혀 있었지만 이제 앱이 직접 붙입니다. */
     private static final String ICON = BASE + "logo.png";
     private static Image appIcon;
 
@@ -70,10 +69,7 @@ public final class AppNav {
         applyIcon(stage);
     }
 
-    /**
-     * 창에 앱 아이콘을 붙입니다. 시작 화면·설정 마법사·다이얼로그처럼
-     * {@link #init}보다 먼저 뜨거나 따로 만든 창에서도 직접 부르면 됩니다.
-     */
+    /** {@link #init}보다 먼저 뜨거나 따로 만든 창에서도 직접 부르면 됩니다. */
     public static void applyIcon(Stage target) {
         if (appIcon == null) {
             try (InputStream source = AppNav.class.getResourceAsStream(ICON)) {
@@ -139,13 +135,7 @@ public final class AppNav {
         }
     }
 
-    /**
-     * 로그아웃 — 세션을 비우고 로그인 화면으로 돌아갑니다.
-     *
-     * <p>화면마다 따로 처리하다 보니 프로필 화면만 {@code Session.setCurrentUser(null)} 을
-     * 빠뜨려, 로그아웃한 뒤에도 이전 회원으로 남아 있었습니다. 등록해 둔 위치 사본과 게스트
-     * 취향도 그대로 남아 다음 사람에게 보였습니다. 나가는 길을 여기 하나로 모읍니다.
-     */
+    /** 로그아웃 — 화면마다 따로 정리하다 빠뜨리지 않도록 나가는 길을 여기 하나로 모읍니다. */
     public static void logout() {
         Session.logout();
         GroupSession.get().setGuest(false);
@@ -153,13 +143,9 @@ public final class AppNav {
     }
 
     /**
-     * 다이얼로그 열기. 실제로 여는 시점은 {@code Platform.runLater}로 한 박자 미룹니다.
-     *
-     * <p>⚠️ 미루지 않으면: {@code close(root); dialog(...)}처럼 <b>이전 다이얼로그를 닫는 중에</b>
-     * 곧바로 다음 다이얼로그의 {@code showAndWait} 중첩 루프를 쌓으면, JavaFX가
-     * "루프에서 나가는 중" 상태에 갇혀 화면 갱신(렌더 펄스)을 포함한 {@code runLater} 배달을
-     * 전부 멈춥니다 → 새 창이 제목만 뜨고 내용은 하얗게 나옵니다. 미루면 이전 창의 루프가
-     * 완전히 빠져나간 뒤에 새 루프가 시작되어 안전합니다.
+     * ⚠️ 여는 시점을 {@code Platform.runLater}로 미루는 것은 필수입니다.
+     * {@code close(root); dialog(...)}처럼 이전 다이얼로그를 닫는 중에 다음 {@code showAndWait}
+     * 중첩 루프를 쌓으면 JavaFX가 렌더 펄스까지 멈춰, 새 창이 제목만 뜨고 하얗게 나옵니다.
      */
     public static void dialog(String title, String fxml) {
         Platform.runLater(() -> dialogRoot(title, load(fxml)));
@@ -186,16 +172,9 @@ public final class AppNav {
     }
 
     /**
-     * 내용이 길어지거나 짧아지면 창도 따라 커지고 작아지게 합니다.
-     *
-     * <p>⚠️ 이게 없으면: 다이얼로그는 크기를 못 바꾸게 두었기 때문에(setResizable(false))
-     * 처음 열릴 때 잰 크기 그대로 굳습니다. '같이 먹기'에서 방 만들기를 누르면 숨어 있던
-     * 초대 코드 영역이 나타나 내용이 100px 넘게 길어지는데, 창은 그대로라 넘친 부분이
-     * 잘립니다 — 그것도 토스트 층 StackPane 이 가운데 정렬이라 <b>위아래가 같이</b>.
-     * 화면 제목이 잘려 나가고 아래쪽 참여 칸이 사라지는 이유가 이것입니다.
-     *
-     * <p>오류 문구가 나타나거나(회원가입·정보 수정) 조건 편집이 펼쳐지는 화면도 같은 처지라,
-     * 각 화면에서 따로 부르지 않고 다이얼로그를 여는 이 자리에서 한 번에 걸어 둡니다.
+     * 내용이 길어지거나 짧아지면 창도 따라 커지게 합니다.
+     * 다이얼로그는 {@code setResizable(false)}라 이게 없으면 처음 잰 크기로 굳어,
+     * 나중에 펼쳐지는 영역(초대 코드·오류 문구·조건 편집)이 잘려 나갑니다.
      */
     private static void followContent(Stage dialog, Parent content) {
         if (content instanceof Region region) {
@@ -204,11 +183,11 @@ public final class AppNav {
     }
 
     /**
-     * 다이얼로그 하나를 맡아, 내용이 원하는 크기가 달라질 때마다 창을 다시 맞춥니다.
+     * 내용이 원하는 크기가 달라질 때마다 창을 다시 맞춥니다.
      *
-     * <p>견주는 값이 <b>창의 실제 크기가 아니라 마지막으로 맞춰 준 값</b>인 이유: 화면 배율이
-     * 100%가 아니면 창 크기가 요청한 값과 몇 px 어긋나게 잡힙니다. 실제 크기와 견주면 그 차이가
-     * 영원히 사라지지 않아, 배치가 일어날 때마다 창을 다시 잡는 되돌이에 빠집니다.
+     * <p>⚠️ 견주는 값은 창의 실제 크기가 아니라 <b>마지막으로 맞춰 준 값</b>입니다.
+     * 화면 배율이 100%가 아니면 창 크기가 요청값과 몇 px 어긋나는데, 실제 크기와 견주면
+     * 그 차이가 사라지지 않아 배치마다 창을 다시 잡는 되돌이에 빠집니다.
      */
     private static final class ContentFit {
 
@@ -285,16 +264,7 @@ public final class AppNav {
         });
     }
 
-    // ══ 알림 — 토스트 ═══════════════════════════════════════════
-
-    /*
-     * 예전에는 셋 다 모달 Alert 이었습니다. "복사되었습니다" 한 줄을 읽으려고 확인 버튼을
-     * 누르게 만드는 것이 리디자인의 '클릭 줄이기'와 정면으로 어긋나서, 화면 위에 잠깐
-     * 떠올랐다 사라지는 토스트로 바꿨습니다.
-     *
-     * 토스트는 클릭하면 즉시 사라지고, 글이 길수록 오래 머뭅니다. 답을 받아야 하는
-     * confirm() 만 모달로 남습니다 — 그건 사라지면 안 되는 물음입니다.
-     */
+    // ══ 알림 — 토스트 (답을 받아야 하는 confirm()만 모달로 남습니다) ══
 
     public static void info(String message) {
         toast(message, "info");
@@ -308,7 +278,7 @@ public final class AppNav {
         toast(message, "error");
     }
 
-    /** 좋은 소식용 — 세이지 톤. */
+    /** 좋은 소식용 */
     public static void success(String message) {
         toast(message, "good");
     }
@@ -366,10 +336,7 @@ public final class AppNav {
         return Duration.millis(Math.min(millis, 8000));
     }
 
-    /**
-     * 지금 앞에 나와 있는 창의 토스트 층. 모달 다이얼로그가 떠 있으면 그 위에 얹어야
-     * 보이므로, 본 창이 아니라 <b>포커스를 가진 창</b>을 기준으로 찾습니다.
-     */
+    /** 모달이 떠 있으면 그 위에 얹어야 보이므로 <b>포커스를 가진 창</b>을 기준으로 찾습니다. */
     private static VBox activeToastLayer() {
         Window target = null;
         for (Window window : Window.getWindows()) {
@@ -394,11 +361,8 @@ public final class AppNav {
         layer.setId(TOAST_LAYER_ID);
         layer.getStyleClass().add("toast-layer");
         layer.setAlignment(Pos.BOTTOM_CENTER);
-        // 층 자체는 클릭을 가로채지 않고, 토스트 카드에만 클릭이 닿게 합니다
-        layer.setPickOnBounds(false);
-        // 창 크기는 화면 내용만 정하게 — 층은 어차피 StackPane 을 가득 채우므로,
-        // 원하는 크기를 0으로 두어도 보이는 것은 그대로입니다
-        layer.setPrefSize(0, 0);
+        layer.setPickOnBounds(false);   // 층이 클릭을 가로채지 않게
+        layer.setPrefSize(0, 0);        // 창 크기는 화면 내용만 정하게
 
         return new StackPane(content, layer);
     }
@@ -436,12 +400,7 @@ public final class AppNav {
         return theme;
     }
 
-    /**
-     * 앱 스타일을 바꿉니다 — 지금 떠 있는 창 전부에 곧바로 반영되고, 다음 실행에도 남습니다.
-     *
-     * <p>화면을 다시 그리지 않아도 되는 이유: 테마 css 는 {@code .root} 의 색 토큰만 덮어쓰고,
-     * JavaFX 는 토큰이 바뀌면 그 색을 쓰던 노드를 알아서 다시 칠합니다.
-     */
+    /** 지금 떠 있는 창 전부에 곧바로 반영되고, 다음 실행에도 남습니다. */
     public static void theme(Theme choice) {
         if (choice == null || choice == theme()) {
             return;
@@ -461,11 +420,8 @@ public final class AppNav {
     }
 
     /**
-     * 기본 css 위에 테마 css 를 얹습니다. <b>순서가 뒤바뀌면 색이 바뀌지 않습니다</b> —
-     * 뒤에 오는 스타일시트가 같은 {@code .root} 토큰을 덮어쓰는 구조입니다.
-     *
-     * <p>더하지 않고 통째로 갈아 끼우는(setAll) 이유: 테마를 여러 번 바꾸면 스타일시트가
-     * 계속 쌓여서, 결국 맨 처음 고른 색이 맨 아래에 깔린 채로 남습니다.
+     * 기본 css 위에 테마 css 를 얹습니다.
+     * ⚠️ 순서가 뒤바뀌면 색이 안 바뀌고, 더하기(add)로 쌓으면 옛 테마가 남습니다 — setAll 유지.
      */
     private static void applyCss(Scene target) {
         if (target == null) {

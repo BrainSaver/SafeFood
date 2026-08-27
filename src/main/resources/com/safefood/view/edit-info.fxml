@@ -48,9 +48,19 @@
                visible="false" managed="false"/>
     </VBox>
 
+    <VBox fx:id="withdrawBox" styleClass="card, soft" spacing="8">
+        <Label text="계정 탈퇴" styleClass="field-label"/>
+        <Label text="계정과 함께 알레르기·취향·위치, 식사 기록과 찜, 평가가 모두 지워집니다. 되돌릴 수 없어요."
+               styleClass="sub" wrapText="true"/>
+        <HBox>
+            <Button fx:id="withdrawButton" text="계정 탈퇴" styleClass="danger"
+                    onAction="#handleWithdraw"/>
+        </HBox>
+    </VBox>
+
     <HBox spacing="8" alignment="CENTER_RIGHT">
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="취소" styleClass="ghost-quiet" onAction="#handleCancel"/>
-        <Button text="저장" styleClass="primary" onAction="#handleSave"/>
+        <Button fx:id="cancelButton" text="취소" styleClass="ghost-quiet" onAction="#handleCancel"/>
+        <Button fx:id="saveButton" text="저장" styleClass="primary" onAction="#handleSave"/>
     </HBox>
 </VBox>

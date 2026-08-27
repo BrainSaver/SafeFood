@@ -14,8 +14,6 @@
 <?import javafx.scene.control.Hyperlink?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
-<?import javafx.scene.image.Image?>
-<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
@@ -27,23 +25,7 @@
 
     <!-- 상단 내비게이션 — 현재 위치만 테라코타 -->
     <top>
-        <HBox spacing="18" alignment="CENTER_LEFT" styleClass="toolbar">
-            <HBox spacing="9" alignment="CENTER_LEFT">
-                <ImageView fitWidth="34" fitHeight="34" preserveRatio="true" smooth="true">
-                    <image>
-                        <Image url="@logo.png"/>
-                    </image>
-                </ImageView>
-                <Label text="SafeFood" styleClass="section-title"/>
-            </HBox>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button text="추천" styleClass="nav-button, active"/>
-            <Button text="내 정보" styleClass="nav-button" onAction="#handleProfile"/>
-            <Button text="기록" styleClass="nav-button" onAction="#handleHistory"/>
-            <Button text="같이 먹기" styleClass="primary" onAction="#handleGroup"/>
-            <Label fx:id="userLabel" text="사용자님" styleClass="sub"/>
-            <Button text="로그아웃" styleClass="ghost-quiet" onAction="#handleLogout"/>
-        </HBox>
+        <fx:include fx:id="nav" source="nav.fxml"/>
     </top>
 
     <center>

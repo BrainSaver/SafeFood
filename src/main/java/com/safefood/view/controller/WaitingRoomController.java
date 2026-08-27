@@ -25,12 +25,7 @@ import java.util.List;
 
 /**
  * 그룹 대기실 — {@link GroupSession}의 스냅샷을 그리고, 수신 알림이 올 때마다 다시 그립니다.
- *
- * <p>리디자인(1b)에서 화면이 둘로 갈렸습니다. 왼쪽은 대화 흐름 — 참여·준비·조건 병합·최종 확정이
- * 전부 채팅과 같은 줄에 시간 순으로 흐릅니다({@link GroupSession#events()}). 오른쪽은 사람과
- * 투표입니다. 프로토콜 원문은 접힌 '소켓 로그'에 그대로 남겨 뒀습니다.
- *
- * <p>수신은 소켓 수신 스레드에서 오므로 화면 갱신은 전부 {@code Platform.runLater}로 감쌉니다.
+ * 수신은 소켓 스레드에서 오므로 화면 갱신은 전부 {@code Platform.runLater}로 감쌉니다.
  */
 public class WaitingRoomController implements GroupClient.Listener {
 
@@ -59,7 +54,6 @@ public class WaitingRoomController implements GroupClient.Listener {
 
     @FXML
     private void initialize() {
-        // 새 줄이 붙을 때마다 맨 아래로 — 대화도, 로그도
         chatBox.heightProperty().addListener((observable, before, after) -> chatScroll.setVvalue(1.0));
         logBox.heightProperty().addListener((observable, before, after) -> console.setVvalue(1.0));
 
@@ -72,10 +66,10 @@ public class WaitingRoomController implements GroupClient.Listener {
         copyButton.setDisable(code.isEmpty());
 
         renderAll();
-        session.setUiListener(this);   // 이 화면이 열려 있는 동안 수신 알림을 받습니다
+        session.setUiListener(this);
 
         // 화면 전환 사이에 CLOSED·끊김이 도착해 알림을 놓쳤을 수 있어 입장 시점에 한 번 확인합니다.
-        // (initialize는 화면 로드 중이라, 로드가 끝난 다음 틱으로 미룹니다)
+        // (initialize는 화면 로드 중이라 다음 틱으로 미룹니다)
         Platform.runLater(() -> {
             if (session.isDead()) {
                 leaveTo(session.isRemoteClosed()
@@ -124,13 +118,7 @@ public class WaitingRoomController implements GroupClient.Listener {
         goHome();
     }
 
-    /**
-     * 방을 나간 뒤 돌아갈 화면 — 게스트는 회원용 메인이 아니라 로그인 화면으로.
-     *
-     * <p>게스트가 로그인 화면으로 돌아가는 것은 <b>세션이 끝나는 것</b>입니다.
-     * 예전에는 화면만 바꿔서, 게스트가 등록해 둔 주소가 세션에 남았고 이어서 다른 아이디로
-     * 로그인하면 그 주소가 그대로 보였습니다.
-     */
+    /** 게스트에게는 방을 나가는 것이 곧 세션 종료입니다 — 남은 정보가 다음 사람에게 보이지 않게. */
     private void goHome() {
         if (session.isGuest()) {
             AppNav.logout();
@@ -148,7 +136,6 @@ public class WaitingRoomController implements GroupClient.Listener {
         renderCandidates();
     }
 
-    /** 머리의 인원 표시 + 오른쪽 아바타 줄. */
     private void renderMembers() {
         List<GroupSession.MemberView> members = session.members();
         int ready = 0;
@@ -174,7 +161,7 @@ public class WaitingRoomController implements GroupClient.Listener {
         }
     }
 
-    /** 대화 흐름 — 새로 생긴 사건만 이어 붙입니다 (통째로 다시 그리면 스크롤이 튑니다). */
+    /** 새로 생긴 사건만 이어 붙입니다 — 통째로 다시 그리면 스크롤이 튑니다. */
     private void renderEvents() {
         List<GroupSession.Event> events = session.events();
         for (int i = renderedEventCount; i < events.size(); i++) {
@@ -198,7 +185,7 @@ public class WaitingRoomController implements GroupClient.Listener {
         }
     }
 
-    /** 내가 보낸 말은 오른쪽 테라코타, 남의 말은 왼쪽에 이름과 함께. */
+    /** 내가 보낸 말은 오른쪽, 남의 말은 왼쪽에 이름과 함께. */
     private HBox bubble(String sender, String text) {
         boolean mine = sender.equals(session.displayName());
 
@@ -220,7 +207,6 @@ public class WaitingRoomController implements GroupClient.Listener {
         return row;
     }
 
-    /** 병합된 조건 — 대화 흐름 한가운데 카드로 펼칩니다. */
     private HBox mergedCard() {
         VBox card = new VBox(5);
         card.getStyleClass().addAll("card", "accent2", "elev");
@@ -263,8 +249,7 @@ public class WaitingRoomController implements GroupClient.Listener {
 
     private void renderCandidates() {
         boolean finished = session.result() != null;
-        // 확정 후에는 재확정(RESULT 재발송)을 막습니다
-        resultButton.setDisable(!session.isOwner() || finished);
+        resultButton.setDisable(!session.isOwner() || finished);   // 확정 후 재확정 방지
 
         candidateBox.getChildren().clear();
         List<GroupSession.CandidateView> list = session.candidates();
@@ -272,7 +257,13 @@ public class WaitingRoomController implements GroupClient.Listener {
 
         if (list.isEmpty()) {
             voteTitle.setText("투표");
-            candidateBox.getChildren().add(Widgets.sub("전원 준비가 끝나면 추천 후보가 도착합니다."));
+            if (session.candidatesReceived()) {
+                candidateBox.getChildren().add(
+                        Widgets.sub("조건에 맞는 후보를 찾지 못했어요. 위 안내를 확인한 뒤 다시 시도해 보세요."));
+                candidateBox.getChildren().add(retryButton());
+            } else {
+                candidateBox.getChildren().add(Widgets.sub("전원 준비가 끝나면 추천 후보가 도착합니다."));
+            }
             resultButton.setText("최종 확정");
             return;
         }
@@ -284,13 +275,27 @@ public class WaitingRoomController implements GroupClient.Listener {
             candidateBox.getChildren().add(candidateCard(candidate, total, leadingNo, finished));
         }
 
-        // 버튼이 무엇을 확정하는지 이름으로 말해 줍니다 (목업의 "최종 확정 — 김치찌개")
         String leadingMenu = menuOf(list, leadingNo);
         if (finished) {
             resultButton.setText("확정됨 — " + session.result());
         } else {
             resultButton.setText(total == 0 ? "최종 확정" : "최종 확정 — " + leadingMenu);
         }
+    }
+
+    private Button retryButton() {
+        Button retry = new Button("다시 추천받기");
+        retry.getStyleClass().add("primary");
+        retry.setOnAction(event -> {
+            GroupClient client = session.client();
+            if (client == null) {
+                AppNav.warn("서버와 연결되어 있지 않아요.");
+                return;
+            }
+            retry.setDisable(true);
+            client.sendRetry();
+        });
+        return retry;
     }
 
     private int leadingNo(List<GroupSession.CandidateView> list) {
@@ -349,7 +354,7 @@ public class WaitingRoomController implements GroupClient.Listener {
         VBox card = new VBox(8, head, bar, vote);
         card.getStyleClass().addAll("card", "plain");
         if (leading) {
-            card.getStyleClass().add("outlined");   // 1위만 테두리로 도드라지게
+            card.getStyleClass().add("outlined");
         }
         return card;
     }
