@@ -45,10 +45,10 @@
         </VBox>
 
         <HBox spacing="8" alignment="CENTER_LEFT">
-            <Button text="길찾기 (카카오맵)" styleClass="primary" maxWidth="Infinity"
+            <Button text="길찾기 (카카오맵)" styleClass="primary-2" maxWidth="Infinity"
                     HBox.hgrow="ALWAYS" onAction="#handleRoute"/>
-            <ToggleButton fx:id="favoriteButton" text="♡ 찜"/>
-            <Button text="먹었어요 기록" onAction="#handleRecord"/>
+            <ToggleButton fx:id="favoriteButton" text="♡ 찜하기"/>
+            <Button fx:id="eatButton" text="이걸로 먹을래요" styleClass="primary" onAction="#handleEat"/>
             <Button text="닫기" styleClass="ghost-quiet" onAction="#handleClose"/>
         </HBox>
     </VBox>
