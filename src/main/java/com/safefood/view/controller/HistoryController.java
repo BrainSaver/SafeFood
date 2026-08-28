@@ -25,18 +25,17 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 나의 기록 — 날짜로 묶은 타임라인 (리디자인 1i).
+ * 나의 기록 — 날짜로 묶은 타임라인 (전체, 먹음, 차단됨 분류).
  */
 public class HistoryController {
 
     private record Filter(String label, String type) {
     }
 
+    // 나의 기록 분류: 전체, 먹음, 차단됨
     private static final List<Filter> FILTERS = List.of(
             new Filter("전체", null),
             new Filter("먹음", "EATEN"),
-            new Filter("추천받음", "RECOMMENDED"),
-            new Filter("조회", "VIEWED"),
             new Filter("차단됨", "BLOCKED")
     );
 
@@ -122,27 +121,36 @@ public class HistoryController {
         int shown = 0;
 
         for (HistoryDto row : allHistories) {
-            if (wanted != null && !wanted.equals(row.getType())) {
+            // "전체" 선택 시: EATEN(먹음)과 BLOCKED(차단됨)만 표시
+            if (wanted == null) {
+                if (!"EATEN".equals(row.getType()) && !"BLOCKED".equals(row.getType())) {
+                    continue;
+                }
+            } else if (!wanted.equals(row.getType())) {
                 continue;
             }
+
             if (row.getDate() != null && !row.getDate().equals(lastDate)) {
                 lastDate = row.getDate();
                 Label header = Widgets.label(formatDate(row.getDate()), "timeline-date");
                 VBox.setMargin(header, new javafx.geometry.Insets(shown == 0 ? 4 : 12, 0, 2, 6));
                 timelineBox.getChildren().add(header);
             }
-            timelineBox.getChildren().add(historyRow(row, me));
+            timelineBox.getChildren().add(historyRow(row, me, wanted));
             shown++;
         }
 
         if (shown == 0) {
-            timelineBox.getChildren().add(Widgets.sub("해당하는 기록이 없습니다."));
+            String emptyMsg = "BLOCKED".equals(wanted) ? "차단된 메뉴가 없습니다."
+                    : ("EATEN".equals(wanted) ? "먹은 기록이 없습니다." : "해당하는 기록이 없습니다.");
+            timelineBox.getChildren().add(Widgets.sub(emptyMsg));
         }
     }
 
-    private HBox historyRow(HistoryDto row, UserDto me) {
+    private HBox historyRow(HistoryDto row, UserDto me, String currentFilterType) {
+        boolean isBlocked = "BLOCKED".equals(row.getType());
         Label menu = new Label(row.getMenu());
-        menu.getStyleClass().add("BLOCKED".equals(row.getType()) ? "strike" : "section-title");
+        menu.getStyleClass().add(isBlocked ? "strike" : "section-title");
 
         HBox line = new HBox(12,
                 Widgets.statusLabel(row.getType()),
@@ -155,6 +163,24 @@ public class HistoryController {
         line.setPadding(new javafx.geometry.Insets(13, 18, 13, 18));
 
         if ("EATEN".equals(row.getType())) {
+            // 1. 차단하기 버튼 (평가 버튼 왼쪽)
+            Button blockBtn = new Button("차단하기");
+            blockBtn.getStyleClass().add("ghost-quiet");
+            blockBtn.setOnAction(event -> {
+                if (!com.safefood.dto.Session.isMember()) {
+                    AppNav.warn("게스트는 차단 기능을 사용할 수 없습니다.");
+                    return;
+                }
+                boolean ok = new HistoryService().blockHistory(row.getHistoryId(), me.getId(), row.getMenuId());
+                if (ok) {
+                    AppNav.success("'" + row.getMenu() + "' 메뉴를 차단했습니다.\n('차단됨' 탭에서 확인 및 해제하실 수 있습니다)");
+                    render();
+                } else {
+                    AppNav.error("메뉴 차단에 실패했습니다.");
+                }
+            });
+
+            // 2. 평가하기 버튼
             boolean rated = row.getFeedbackId() > 0;
             Button rate = new Button(rated ? "평가완료" : "평가하기");
             rate.getStyleClass().add("ghost-quiet");
@@ -182,8 +208,32 @@ public class HistoryController {
                     }
                 });
             });
-            line.getChildren().add(rate);
+
+            line.getChildren().addAll(blockBtn, rate);
+
+        } else if (isBlocked) {
+            // [차단해제 버튼]: "차단됨" 탭에서만 노출
+            if ("BLOCKED".equals(currentFilterType)) {
+                Button unblockBtn = new Button("차단해제");
+                unblockBtn.getStyleClass().add("ghost-quiet");
+                unblockBtn.setOnAction(event -> {
+                    if (!com.safefood.dto.Session.isMember()) {
+                        AppNav.warn("게스트는 차단 해제 기능을 사용할 수 없습니다.");
+                        return;
+                    }
+                    boolean ok = new HistoryService().unblockHistory(row.getHistoryId(), me.getId(), row.getMenuId());
+                    if (ok) {
+                        AppNav.success("'" + row.getMenu() + "' 차단을 해제하여 '먹음' 기록으로 변경했습니다.");
+                        render();
+                    } else {
+                        AppNav.error("차단 해제에 실패했습니다.");
+                    }
+                });
+
+                line.getChildren().add(unblockBtn);
+            }
         }
+
         return line;
     }
 
@@ -242,10 +292,4 @@ public class HistoryController {
             return iso;
         }
     }
-
-    // ── 내비게이션 ──────────────────────────────────────────────
-
-
-
-
 }
