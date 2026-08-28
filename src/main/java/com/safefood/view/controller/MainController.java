@@ -42,6 +42,12 @@ public class MainController {
     @FXML private ComboBox<String> categoryBox;
     @FXML private ComboBox<String> distanceBox;
     @FXML private ComboBox<String> budgetBox;
+    /**
+     * 정렬만 {@code ComboBox<String>} 이 아닙니다 — 다른 콤보는 "15,000원 이하" 같은 글자에서
+     * 숫자를 도로 뽑아 쓰지만, 정렬은 고른 값을 그대로 서비스에 넘길 수 있어 글자로 되돌릴
+     * 이유가 없습니다. 콤보에 보이는 글자는 {@code SortOrder.toString()} 입니다.
+     */
+    @FXML private ComboBox<RecommendService.SortOrder> sortBox;
     @FXML private FlowPane moodPane;
     @FXML private VBox cardBox;
     @FXML private VBox blockedBox;
@@ -49,6 +55,8 @@ public class MainController {
     @FXML private Label greetingLabel;
     @FXML private Label excludeLabel;
     @FXML private Hyperlink excludeToggle;
+    @FXML private Label distanceHint;
+    @FXML private Hyperlink distanceHintLink;
 
     private final List<ToggleButton> moodChips = new ArrayList<>();
     private final RecommendService recommendService = new RecommendService();
@@ -82,8 +90,10 @@ public class MainController {
      * <p>콤보·칩은 FX 스레드에서만 읽을 수 있으므로, 조회를 띄우기 <b>전에</b> 값을 여기 떠 둡니다.
      */
     private record Query(boolean member, int userId, String sessionToken, String category,
-                         int budget, int spicy, List<String> preferredCategories,
-                         List<String> moods, boolean excludeEaten, Set<Integer> excluded) {
+                         int budget, int spicy, int maxDistanceMeters,
+                         List<String> preferredCategories,
+                         List<String> moods, boolean excludeEaten, Set<Integer> excluded,
+                         RecommendService.SortOrder sortOrder) {
     }
 
     /** 내정보에서 읽어 온 취향 한 벌. */
@@ -97,7 +107,9 @@ public class MainController {
                           String lastEatenMenu,
                           boolean recycled,
                           boolean failed,
-                          boolean evicted) {
+                          boolean evicted,
+                          /** 거리 상한을 골랐는데 잴 기준(내 위치)이 없어 그 조건만 빠졌는지. */
+                          boolean distanceIgnored) {
     }
 
     @FXML
@@ -115,6 +127,9 @@ public class MainController {
 
         budgetBox.getItems().setAll(UiConstants.BUDGETS);
         budgetBox.setValue("15,000원 이하");
+
+        sortBox.getItems().setAll(RecommendService.SortOrder.values());
+        sortBox.setValue(RecommendService.SortOrder.RECOMMENDED);
 
         fillMoodChips();
 
@@ -134,12 +149,27 @@ public class MainController {
             currentRankOffset = 0;
             fillCards();
         });
-        // 거리는 일부러 다시 조회하지 않습니다 — 추천 질의가 이 값을 읽지 않아
-        // (카드의 '450m' 도 고정값입니다) 바꿔도 결과가 똑같습니다. 예전에는 그 똑같은
-        // 결과를 받으려고 전체 조회를 한 번 더 돌았습니다. 거리 필터를 실제로 넣을 때
-        // 이 자리에 리스너를 다시 답니다.
+        sortBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (loading) {
+                return;
+            }
+            // 다시 뽑기로 치워 둔 메뉴도 함께 되돌립니다 — 그대로 두면 '가격 낮은 순'을 골라도
+            // 정작 제일 싼 메뉴가 빠진 채 줄이 서서, 맨 위 카드가 최저가가 아니게 됩니다.
+            excludedForReroll.clear();
+            currentRankOffset = 0;
+            fillCards();
+        });
+        distanceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (loading) {
+                return;
+            }
+            excludedForReroll.clear();
+            currentRankOffset = 0;
+            fillCards();
+        });
 
         renderExcludeNotice(null);
+        renderDistanceHint(false);   // 조회가 끝나기 전에는 알 수 없으니 숨겨 둡니다
         cardBox.getChildren().add(notice("추천을 고르는 중이에요",
                 "알레르기와 조건을 맞춰 보고 있습니다. 잠시만 기다려 주세요."));
         loadPreferencesThenFill();
@@ -199,6 +229,17 @@ public class MainController {
         return widest == null ? UiConstants.BUDGETS.get(0) : widest;
     }
 
+    /** 거리 옵션 라벨을 미터로. {@link #distanceLabelFor} 의 반대이고, 눈금이 같아야 합니다. */
+    private static int parseDistance(String label) {
+        return switch (label == null ? "" : label) {
+            case "500m" -> 500;
+            case "1km" -> 1000;
+            case "2km" -> 2000;
+            case "3km" -> 3000;
+            default -> 0;   // "제한없음" 과 알 수 없는 값
+        };
+    }
+
     /** 취향의 최대 거리를 거리 옵션 라벨로 — 프로필 화면과 같은 눈금입니다. */
     private static String distanceLabelFor(int meters) {
         return switch (meters) {
@@ -237,6 +278,27 @@ public class MainController {
         excludeToggle.setText(excludeEaten ? "포함하기" : "다시 제외하기");
     }
 
+    /**
+     * 거리 제한을 골랐는데 <b>잴 기준이 없을 때</b>만 알립니다.
+     *
+     * <p>이 안내가 없으면 사용자는 "500m 이내"를 골라 놓고 3km 짜리 가게를 보게 되는데,
+     * 화면에는 아무 설명이 없어 고장으로 읽힙니다. 조건이 무시된 이유를 그 자리에서 말해 줍니다.
+     */
+    private void renderDistanceHint(boolean cannotApply) {
+        distanceHint.setText(cannotApply ? "· 내 위치가 없어 거리 조건은 빼고 골랐어요 ·" : "");
+        distanceHint.setVisible(cannotApply);
+        distanceHint.setManaged(cannotApply);
+        distanceHintLink.setVisible(cannotApply);
+        distanceHintLink.setManaged(cannotApply);
+    }
+
+    /** 안내에서 바로 위치를 등록하고, 닫히면 그 조건으로 다시 뽑습니다. */
+    @FXML
+    private void handleRegisterLocation() {
+        AppNav.dialog("위치 등록", "location.fxml",
+                (LocationController controller) -> controller.setOnSaved(this::fillCards));
+    }
+
     @FXML
     private void handleToggleEaten() {
         excludeEaten = !excludeEaten;
@@ -260,8 +322,11 @@ public class MainController {
     private Query snapshot(Set<Integer> excluded) {
         String selectedCategory = categoryBox.getValue();
         int budget = parseBudget(budgetBox.getValue());
+        int maxDistance = parseDistance(distanceBox.getValue());
         List<String> selectedMoods = List.copyOf(Widgets.selected(moodChips));
         Set<Integer> frozen = Set.copyOf(excluded);
+        RecommendService.SortOrder sortOrder = sortBox.getValue() != null
+                ? sortBox.getValue() : RecommendService.SortOrder.RECOMMENDED;
 
         if (Session.isMember()) {
             UserDto me = Session.getCurrentUser();
@@ -270,16 +335,16 @@ public class MainController {
                     ? myPreference.getSpicyLevel() : 5;
             return new Query(true, Session.currentUserId(),
                     me == null ? null : me.getSessionToken(),
-                    selectedCategory, budget, spicy, myCategories, selectedMoods,
-                    excludeEaten, frozen);
+                    selectedCategory, budget, spicy, maxDistance, myCategories, selectedMoods,
+                    excludeEaten, frozen, sortOrder);
         }
 
         // 게스트 — 저장된 계정이 없으니 온보딩에서 받아 둔 취향만 씁니다
         PreferenceDto guestPref = Session.getGuestPreferences();
         int spicy = guestPref != null && guestPref.getSpicyLevel() > 0 ? guestPref.getSpicyLevel() : 5;
         int maxBudget = budget > 0 ? budget : (guestPref != null ? guestPref.getPriceMax() : 0);
-        return new Query(false, 0, null, selectedCategory, maxBudget, spicy, List.of(),
-                selectedMoods, false, frozen);
+        return new Query(false, 0, null, selectedCategory, maxBudget, spicy, maxDistance, List.of(),
+                selectedMoods, false, frozen, sortOrder);
     }
 
     /**
@@ -298,9 +363,11 @@ public class MainController {
                 query.moods(),
                 query.spicy(),
                 query.budget(),
+                query.maxDistanceMeters(),
                 query.excludeEaten(),
                 excludedIds,
-                true);
+                true,
+                query.sortOrder());
     }
 
     /**
@@ -312,9 +379,14 @@ public class MainController {
     private Loaded load(Query query) {
         // 밀려난 세션이면 나머지 조회는 할 필요가 없습니다 — 커넥션 하나로 끝냅니다
         if (query.member() && !authService.isSessionCurrent(query.userId(), query.sessionToken())) {
-            return new Loaded(List.of(), List.of(), Set.of(), null, false, false, true);
+            return new Loaded(List.of(), List.of(), Set.of(), null, false, false, true, false);
         }
         try {
+            // 여기(백그라운드)에서 봐야 합니다 — 회원이 프로필을 아직 안 들렀으면 세션에 위치
+            // 사본이 없어, 화면에서 판단하면 있는 위치를 없다고 잘못 알립니다
+            boolean distanceIgnored =
+                    query.maxDistanceMeters() > 0 && !RecommendService.canFilterByDistance();
+
             List<RecommendService.RecommendResult> raw = fetch(query, query.excluded());
             boolean recycled = false;
 
@@ -335,11 +407,12 @@ public class MainController {
                     lastEatenMenu(query),
                     recycled,
                     false,
-                    false);
+                    false,
+                    distanceIgnored);
         } catch (RuntimeException e) {
             // 알레르기를 확인하지 못한 채 그럴듯한 카드를 그리느니 실패를 그대로 알립니다
             System.err.println("[MainController] 추천 조회 실패: " + e.getMessage());
-            return new Loaded(List.of(), List.of(), Set.of(), null, false, true, false);
+            return new Loaded(List.of(), List.of(), Set.of(), null, false, true, false, false);
         }
     }
 
@@ -396,6 +469,7 @@ public class MainController {
         }
 
         renderExcludeNotice(loaded.lastEatenMenu());
+        renderDistanceHint(loaded.distanceIgnored());
 
         if (loaded.failed()) {
             cardBox.getChildren().add(notice("추천을 불러오지 못했어요",
@@ -416,8 +490,9 @@ public class MainController {
         currentDisplayedSafeResults = new ArrayList<>(loaded.safe().subList(0, displayCount));
 
         if (currentDisplayedSafeResults.isEmpty()) {
+            // 거리를 먼저 짚습니다 — 상한이 좁으면 다른 조건이 아무리 넉넉해도 후보가 통째로 빕니다
             cardBox.getChildren().add(notice("조건에 맞는 메뉴가 없어요",
-                    "카테고리·예산·기분 태그를 넓혀 보시거나, 등록된 메뉴 데이터가 있는지 확인해 주세요."));
+                    "거리·카테고리·예산·기분 태그를 넓혀 보시거나, 등록된 메뉴 데이터가 있는지 확인해 주세요."));
         } else {
             int rank = currentRankOffset + 1;
             for (RecommendService.RecommendResult r : currentDisplayedSafeResults) {
@@ -456,12 +531,13 @@ public class MainController {
         rankBox.setMinWidth(56);
         rankBox.setPrefWidth(56);
 
-        // 제목 줄 — 메뉴 · 가게·거리·평점 · 안전 · 맵기
+        // 제목 줄 — 메뉴 · 가게·가격·거리·평점 · 안전 · 맵기
         Label menu = new Label(item.menu());
         menu.getStyleClass().add("menu-name");
 
-        Label meta = new Label(item.restaurant() + " · " + item.distance()
-                + " · ★ " + item.rating());
+        // 가격을 가게 바로 뒤에 둡니다 — 카드끼리 견주는 값이라 눈이 같은 자리에서 훑게
+        Label meta = new Label(item.restaurant() + " · " + item.priceText()
+                + " · " + item.distance() + " · ★ " + item.rating());
         meta.getStyleClass().add("restaurant-name");
 
         HBox titleRow = new HBox(10, menu, meta, Widgets.hSpacer(),
@@ -639,7 +715,7 @@ public class MainController {
             return;
         }
 
-        String priceStr = pick.getPrice() > 0 ? String.format("%,d원", pick.getPrice()) : "가격 정보 없음";
+        String priceStr = RecommendationCard.priceText(pick.getPrice());
         AppNav.info("🎰 [오늘의 룰렛 당첨 메뉴!]\n\n"
                 + "🍽 메뉴명: " + pick.getMenuName() + " (" + pick.getCategory() + ")\n"
                 + "🏪 식당명: " + pick.getRestaurantName() + " (★ " + pick.getRating() + ")\n"

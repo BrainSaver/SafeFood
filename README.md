@@ -242,7 +242,9 @@ SafeFood/
 - JDK 21 이상
 - Maven 3.6 이상 — **IntelliJ에 내장돼 있어 따로 설치하지 않아도 됩니다**
 - **(선택)** MySQL 8.0 이상 — DB를 쓸 때만
-- 지도 API 키 (Kakao Developers에서 발급하는 **REST API 키**) — 없어도 앱은 돌아갑니다. 주소 검색은 키 없이 되고, 주소 → 좌표 변환만 막힙니다
+- 카카오 앱 키 **2개** (Kakao Developers › 내 애플리케이션 › 앱 키) — 없어도 앱은 돌아갑니다
+  - **JavaScript 키** → 맛집 상세의 지도 표시. 없으면 지도 자리에 안내 문구만 뜹니다
+  - **REST API 키** → 주소 → 좌표 변환. 없으면 주소만 등록되고 거리 계산에서 빠집니다 (주소 검색 자체는 키 없이 됩니다)
 - 비어 있는 TCP 포트 1개 (소켓 서버용, 기본 `5000`) + UDP 포트 `5001` (방 자동 탐색용, 선택)
 
 > MySQL 없이 시작해도 됩니다. 이때 앱 데이터는 `data/public/`, `data/private/`에 저장합니다.
@@ -319,15 +321,28 @@ db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterE
 db.user=본인_계정
 db.password=본인_비밀번호
 
-# 카카오 REST API 키 (Kakao Developers › 내 애플리케이션 › 앱 키 › REST API 키)
-# 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다. 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
+# 카카오 키는 두 개이고, 서로를 대신하지 못합니다.
+# (Kakao Developers › 내 애플리케이션 › 앱 키 — 아래 두 키가 나란히 있습니다)
+
+# JavaScript 키 — 맛집 상세의 지도를 그립니다.
+# 비워 두면 지도 자리에 "키를 입력하세요" 안내만 뜹니다.
+kakao.js.key=발급받은_카카오_JavaScript_키
+
+# REST API 키 — 위치 등록에서 '주소 → 좌표'를 찾을 때 씁니다.
+# 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
 # (주소 검색 자체는 카카오 우편번호 서비스라 키가 필요 없습니다)
 map.api.key=발급받은_카카오_REST_API_키
+
+# 나이스(NEIS) 인증키 — '우리 아이 급식'에서만 씁니다 (open.neis.go.kr).
+neis.api.key=
 
 # 소켓 서버 주소 (클라이언트가 접속할 곳)
 socket.host=localhost
 socket.port=5000
 ```
+
+> 💡 **지도가 안 뜨면 `kakao.js.key`부터 확인하세요.** `map.api.key`(REST 키)는 지도를
+> 그리는 데 쓰이지 않습니다 — 둘은 쓰임이 다른 별개의 키입니다.
 
 > ⚠️ `config.properties`와 `data/private/`는 `.gitignore`에 넣어 커밋되지 않게 하세요.
 > 팀원 공유용으로는 값을 비운 `config.properties.example`과 `data/public/`을 올립니다.

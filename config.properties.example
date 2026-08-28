@@ -8,15 +8,23 @@ db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterE
 db.user=
 db.password=
 
-# 카카오 REST API 키 — 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다.
-# (주소 검색은 카카오 우편번호 서비스라 키가 없어도 됩니다. 키가 없으면 좌표 없이 주소만 등록됩니다)
+# 카카오 지도 — 키가 두 개이고, 서로를 대신하지 못합니다.
+# (카카오 개발자 콘솔 › 내 애플리케이션 › 앱 키 에 나란히 있습니다)
+#
+#   kakao.js.key  = JavaScript 키 — 맛집 상세의 지도를 그립니다.
+#                   비우면 지도 자리에 안내 문구가 뜹니다.
+#   map.api.key   = REST API 키   — 위치 등록에서 '주소 → 좌표'를 찾습니다.
+#                   비우면 좌표 없이 주소만 등록됩니다 (거리 계산에서만 빠집니다).
+#
+# 주소 검색 자체는 카카오 우편번호 서비스라 키가 없어도 됩니다.
+kakao.js.key=
 map.api.key=
-
-menugen.api.key=
 
 # 나이스(NEIS) 교육정보 개방 포털 인증키 — '우리 아이 급식'에서만 씁니다.
 # open.neis.go.kr 에서 발급받아 채우면 학교 검색과 급식 조회가 열립니다.
 neis.api.key=
+
+menugen.api.key=
 
 socket.host=localhost
 socket.port=5000

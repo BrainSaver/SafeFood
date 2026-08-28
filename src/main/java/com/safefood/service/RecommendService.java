@@ -52,6 +52,118 @@ public class RecommendService {
     }
 
     /**
+     * 거리 계산에 쓰는 '내 위치' — <b>표시와 필터가 반드시 같은 값을 봐야 합니다.</b>
+     *
+     * <p>둘이 갈라지면 "1km 이내"로 걸러 놓고 카드에는 2.9km 라고 적히는, 사용자가 오작동으로
+     * 읽을 수밖에 없는 화면이 나옵니다. 그래서 읽는 자리를 여기 하나로 모읍니다.
+     *
+     * <p>회원인데 세션에 사본이 없으면 DB 에서 한 번 가져옵니다. 게스트는 세션에 있는 것이 전부라
+     * 없으면 {@code null} 이고, 그때는 거리를 <b>알 수 없습니다</b> — 0 이 아닙니다.
+     */
+    static LocationDto myLocation() {
+        LocationDto myLoc = Session.getMyLocation();
+        if (myLoc == null && Session.isMember()) {
+            myLoc = new com.safefood.dao.LocationDao().getLocation(Session.currentUserId());
+        }
+        return myLoc;
+    }
+
+    /**
+     * 거리 상한을 실제로 걸 수 있는 상태인지 — 잴 기준점(내 위치의 좌표)이 있어야 합니다.
+     *
+     * <p>화면이 "거리 조건이 왜 안 먹었는지" 안내할 때 씁니다. <b>DB 를 볼 수 있으므로
+     * 백그라운드에서 부르세요</b> — 회원인데 세션에 사본이 없으면 {@link #myLocation()} 이
+     * DB 까지 다녀옵니다.
+     */
+    public static boolean canFilterByDistance() {
+        LocationDto myLoc = myLocation();
+        return myLoc != null && myLoc.hasCoordinates();
+    }
+
+    /**
+     * 이 메뉴의 가게가 거리 상한을 넘는지.
+     *
+     * <p><b>모르면 거르지 않습니다</b> — 아래 세 경우는 모두 통과입니다.
+     * <ul>
+     *   <li>상한이 없음({@code maxDistanceMeters <= 0}, '제한없음')</li>
+     *   <li>내 위치를 등록하지 않음 — 기준점이 없어 거리를 잴 수가 없습니다</li>
+     *   <li>가게 좌표가 비어 있음 — 카드에 '위치 미등록'으로 나가 사용자가 눈으로 압니다</li>
+     * </ul>
+     *
+     * <p>예산 필터가 가격 없는 메뉴(0원)를 통과시키는 것과 같은 규칙입니다. 모른다는 이유로
+     * 걸러 내면, 데이터가 덜 채워진 만큼 후보가 조용히 사라집니다. 다만 알레르기는 이 규칙을
+     * 따르지 않습니다 — 그쪽은 모르면 <b>막는</b> 것이 맞습니다.
+     */
+    private static boolean isTooFar(LocationDto myLoc, MenuDto menu, int maxDistanceMeters) {
+        if (maxDistanceMeters <= 0 || myLoc == null || !myLoc.hasCoordinates()) {
+            return false;
+        }
+        if (menu.getLatitude() == null || menu.getLongitude() == null) {
+            return false;
+        }
+        double meters = LocationService.calculateDistanceMeter(
+                myLoc.getLatitude(), myLoc.getLongitude(),
+                menu.getLatitude(), menu.getLongitude());
+        return meters > maxDistanceMeters;
+    }
+
+    /**
+     * 추천 목록을 어떤 차례로 보여줄지.
+     *
+     * <p><b>거르는 일이 아니라 줄 세우는 일입니다</b> — 어느 것을 골라도 후보 자체는 같습니다.
+     * 예산·맵기·알레르기로 이미 걸러 낸 목록의 <b>순서만</b> 바뀝니다.
+     *
+     * <p>{@code toString()} 이 그대로 화면의 콤보 글자가 됩니다.
+     */
+    public enum SortOrder {
+
+        /** 점수 내림차순 (동점이면 별점 높은 순) — 기본값. */
+        RECOMMENDED("추천순"),
+        PRICE_LOW("가격 낮은 순"),
+        PRICE_HIGH("가격 높은 순");
+
+        private final String label;
+
+        SortOrder(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    /**
+     * {@link SortOrder} 를 실제 비교 규칙으로.
+     *
+     * <p><b>가격을 모르는 메뉴(0 이하)는 방향과 상관없이 뒤로 보냅니다.</b> 그대로 두면
+     * '가격 낮은 순'이 사실상 '가격 정보 없는 순'이 되어, 값을 견주려고 정렬한 사람에게
+     * 견줄 수 없는 것부터 보여 주게 됩니다.
+     *
+     * <p>가격이 같으면 추천 점수가 높은 쪽을 위로 둡니다 — 같은 값이면 더 잘 맞는 것이 먼저입니다.
+     *
+     * <p>(DB 없이 규칙만 확인할 수 있도록 시험에 열어 둡니다 — {@code RecommendServiceTest})
+     */
+    static Comparator<RecommendResult> comparatorFor(SortOrder order) {
+        Comparator<RecommendResult> byScore =
+                Comparator.comparingInt(RecommendResult::getFinalScore).reversed()
+                        .thenComparing(Comparator.comparingDouble(RecommendResult::getRating).reversed());
+
+        if (order == null || order == SortOrder.RECOMMENDED) {
+            return byScore;
+        }
+
+        Comparator<RecommendResult> knownPriceFirst =
+                Comparator.comparing(result -> result.getPrice() <= 0);   // false(가격 있음) < true
+        Comparator<RecommendResult> byPrice = order == SortOrder.PRICE_LOW
+                ? Comparator.comparingInt(RecommendResult::getPrice)
+                : Comparator.comparingInt(RecommendResult::getPrice).reversed();
+
+        return knownPriceFirst.thenComparing(byPrice).thenComparing(byScore);
+    }
+
+    /**
      * [추천 결과 DTO] UI 카드(SC-04) 및 비즈니스 연동용 데이터 객체
      */
     public static class RecommendResult {
@@ -134,10 +246,7 @@ public class RecommendService {
                     : (hasPenalty ? Safety.POSSIBLE : Safety.SAFE);
 
             String distanceStr = "위치 미등록";
-            LocationDto myLoc = Session.getMyLocation();
-            if (myLoc == null && Session.isMember()) {
-                myLoc = new com.safefood.dao.LocationDao().getLocation(Session.currentUserId());
-            }
+            LocationDto myLoc = myLocation();
             if (myLoc != null && myLoc.hasCoordinates() && latitude != null && longitude != null) {
                 double meters = LocationService.calculateDistanceMeter(
                         myLoc.getLatitude(), myLoc.getLongitude(), latitude, longitude
@@ -152,6 +261,7 @@ public class RecommendService {
                     (restaurantName != null && !restaurantName.isEmpty()) ? restaurantName : "안심 식당",
                     safety,
                     spicyLevel,
+                    price,
                     reason,
                     (address != null && !address.isEmpty()) ? address : "주소 정보 없음",
                     (hours != null && !hours.isEmpty()) ? hours : "영업시간 정보 없음",
@@ -489,9 +599,12 @@ public class RecommendService {
      * @param selectedMoods 선택한 기분 태그 목록 (+15점 가산, R-05)
      * @param maxSpicyLevel 맵기 상한선 필터 (R-02)
      * @param maxBudget 예산 상한선 필터 (R-02)
+     * @param maxDistanceMeters 거리 상한선 필터, 미터 (R-02). 0 이면 제한 없음.
+     *                          내 위치를 등록하지 않았으면 잴 기준이 없어 걸러지지 않습니다
      * @param excludeEaten 히스토리 먹은 메뉴(EATEN) 제외 여부 (R-06)
      * @param excludeMenuIds 재추천(Reroll) 시 직전 노출 메뉴 ID 제외 (R-04)
      * @param includeBlockedCard 알레르기 차단 및 대체 메뉴 카드 포함 여부 (R-07)
+     * @param sortOrder 결과를 늘어놓을 차례 ({@code null} 이면 {@link SortOrder#RECOMMENDED})
      */
     public List<RecommendResult> getPersonalizedRecommendations(int userId,
                                                                List<String> preferredCategories,
@@ -499,11 +612,16 @@ public class RecommendService {
                                                                List<String> selectedMoods,
                                                                int maxSpicyLevel,
                                                                int maxBudget,
+                                                               int maxDistanceMeters,
                                                                boolean excludeEaten,
                                                                Set<Integer> excludeMenuIds,
-                                                               boolean includeBlockedCard) {
+                                                               boolean includeBlockedCard,
+                                                               SortOrder sortOrder) {
         List<RecommendResult> results = new ArrayList<>();
         List<MenuDto> blockedMenus = new ArrayList<>();
+
+        // 후보를 훑기 전에 한 번만 읽습니다 — 메뉴마다 부르면 회원일 때 카드 수만큼 DB 를 왕복합니다
+        LocationDto myLoc = maxDistanceMeters > 0 ? myLocation() : null;
 
         List<Integer> userAllergies = (userId > 0) ? allergyDao.getUserAllergyIds(userId) : List.of();
         // [R-06] 전날/최근 먹은 메뉴(EATEN) 목록 조회 (전날/최근 식사 1일치만 자동 제외)
@@ -554,6 +672,11 @@ public class RecommendService {
 
             // [R-02] 예산 상한선 필터링
             if (maxBudget > 0 && menu.getPrice() > maxBudget) {
+                continue;
+            }
+
+            // [R-02] 거리 상한선 필터링
+            if (isTooFar(myLoc, menu, maxDistanceMeters)) {
                 continue;
             }
 
@@ -628,11 +751,12 @@ public class RecommendService {
             ));
         }
 
-        // [R-01] 점수 내림차순 정렬 (동점 시 별점 높은 순)
-        results.sort(Comparator.comparingInt(RecommendResult::getFinalScore).reversed()
-                .thenComparing(Comparator.comparingDouble(RecommendResult::getRating).reversed()));
+        // [R-01] 화면이 고른 차례로 정렬 (기본: 점수 내림차순, 동점 시 별점 높은 순)
+        results.sort(comparatorFor(sortOrder));
 
         // [R-07] 대체 메뉴 제안 카드 추가 (최대 1건)
+        // ⚠️ 정렬 뒤에 붙입니다 — 이건 "못 드시는 메뉴, 대신 이것" 안내라 목록의 일부가 아니라
+        //    맨 끝에 오는 꼬리표입니다. 정렬 앞에 넣으면 가격순으로 목록 한가운데 섞여 들어갑니다.
         if (includeBlockedCard && !blockedMenus.isEmpty()) {
             MenuDto representativeBlocked = blockedMenus.get(0);
             for (MenuDto b : blockedMenus) {
@@ -658,14 +782,14 @@ public class RecommendService {
                                                                int maxSpicyLevel,
                                                                int maxBudget,
                                                                boolean excludeEaten) {
-        return getPersonalizedRecommendations(userId, preferredCategories, selectedCategory, null, maxSpicyLevel, maxBudget, excludeEaten, null, true);
+        return getPersonalizedRecommendations(userId, preferredCategories, selectedCategory, null, maxSpicyLevel, maxBudget, 0, excludeEaten, null, true, SortOrder.RECOMMENDED);
     }
 
     /**
      * [R-01] 최소 파라미터 맞춤 추천 편의 오버로딩
      */
     public List<RecommendResult> getPersonalizedRecommendations(int userId, List<String> preferredCategories) {
-        return getPersonalizedRecommendations(userId, preferredCategories, null, null, 5, 0, false, null, true);
+        return getPersonalizedRecommendations(userId, preferredCategories, null, null, 5, 0, 0, false, null, true, SortOrder.RECOMMENDED);
     }
 
     /**
@@ -679,7 +803,8 @@ public class RecommendService {
         int maxSpicy = (pref != null && pref.getSpicyLevel() > 0) ? pref.getSpicyLevel() : 5;
         int maxBudget = (pref != null && pref.getPriceMax() > 0) ? pref.getPriceMax() : 0;
 
-        return getPersonalizedRecommendations(userId, categories, selectedCategory, selectedMoods, maxSpicy, maxBudget, excludeEaten, excludeMenuIds, true);
+        return getPersonalizedRecommendations(userId, categories, selectedCategory, selectedMoods,
+                maxSpicy, maxBudget, 0, excludeEaten, excludeMenuIds, true, SortOrder.RECOMMENDED);
     }
 
     /**
@@ -718,23 +843,4 @@ public class RecommendService {
         return pickRouletteMenu(recommendations, 0);
     }
 
-    // =========================================================================
-    // [실행 및 테스트] main 메서드
-    // =========================================================================
-    public static void main(String[] args) {
-        RecommendService service = new RecommendService();
-        List<String> myFavoriteCategories = List.of("한식", "일식");
-        List<String> myMoods = List.of("스트레스 해소");
-
-        System.out.println("=== 1. 개인 맞춤 추천 결과 (R-01, R-03, R-05, R-07) ===");
-        List<RecommendResult> recommendations = service.getPersonalizedRecommendations(
-                100, myFavoriteCategories, null, myMoods, 5, 0, false, null, true);
-        for (RecommendResult result : recommendations) {
-            System.out.println(result + (result.isBlocked() ? " [BLOCKED] 대체: " + result.getAlternative() : ""));
-        }
-
-        System.out.println("\n=== 2. 룰렛 추천 추첨 결과 (R-08) ===");
-        RecommendResult roulettePick = service.pickRouletteMenu(recommendations, 5);
-        System.out.println("당첨 메뉴: " + roulettePick);
-    }
 }

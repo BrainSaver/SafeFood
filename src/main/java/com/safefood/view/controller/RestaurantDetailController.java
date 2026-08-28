@@ -16,10 +16,10 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.VBox;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
+import netscape.javascript.JSObject;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 import java.util.function.Consumer;
@@ -136,8 +136,9 @@ public class RestaurantDetailController {
         String hours = (item.hours() != null && !item.hours().isBlank()) ? item.hours() : "영업시간 정보 없음";
         String dist = (item.distance() != null && !item.distance().isBlank()) ? " (" + item.distance() + ")" : "";
 
-        // DB 식당 주소 · 영업시간 · 평점 · 거리를 메타 정보로 표시
-        metaLabel.setText("📍 " + addr + " · 영업 " + hours + " · ★ " + item.rating() + dist);
+        // DB 식당 주소 · 영업시간 · 가격 · 평점 · 거리를 메타 정보로 표시
+        metaLabel.setText("📍 " + addr + " · 영업 " + hours
+                + " · 💰 " + item.priceText() + " · ★ " + item.rating() + dist);
 
         loadMap(item);
     }
@@ -159,7 +160,7 @@ public class RestaurantDetailController {
 
         RecommendationCard card = new RecommendationCard(
                 item.getRank(), item.getScore(), item.getMenu(), item.getRestaurant(),
-                com.safefood.dto.Safety.SAFE, item.getSpicyLevel(), item.getReason(),
+                com.safefood.dto.Safety.SAFE, item.getSpicyLevel(), 0, item.getReason(),
                 address, hours, item.getRating(), "", item.isBlocked(), item.getAlternative(), null, null
         );
         loadMap(card);
@@ -217,27 +218,35 @@ public class RestaurantDetailController {
             Double myLng = (myLoc != null && myLoc.hasCoordinates()) ? myLoc.getLongitude() : null;
             String myLabel = "현재 위치";
 
-            final String restLatStr = restLat != null ? String.format(Locale.US, "%.7f", restLat) : "null";
-            final String restLngStr = restLng != null ? String.format(Locale.US, "%.7f", restLng) : "null";
-            final String safeRestName = card.restaurant() != null ? card.restaurant().replace("'", "\\'") : "식당";
+            // 지도에 넘길 이름 — 좌표(restLat/restLng/myLat/myLng)는 숫자 그대로 넘기고,
+            // 없으면 null 을 넘겨 displayMap 이 "표시 안 함"으로 처리하게 둡니다.
+            final String restName = card.restaurant() != null ? card.restaurant() : "식당";
 
-            final String myLatStr = myLat != null ? String.format(Locale.US, "%.7f", myLat) : "null";
-            final String myLngStr = myLng != null ? String.format(Locale.US, "%.7f", myLng) : "null";
-            final String safeMyLabel = myLabel.replace("'", "\\'");
-
-            Platform.runLater(() -> {
-                try {
-                    String script = String.format(
-                            Locale.US,
-                            "displayMap(%s, %s, '%s', %s, %s, '%s');",
-                            restLatStr, restLngStr, safeRestName, myLatStr, myLngStr, safeMyLabel
-                    );
-                    engine.executeScript(script);
-                } catch (Exception ex) {
-                    System.err.println("[Map] 지도 스크립트 실행 오류: " + ex.getMessage());
-                }
-            });
+            Platform.runLater(() -> callDisplayMap(engine, restLat, restLng, restName, myLat, myLng, myLabel));
         });
+    }
+
+    /**
+     * 지도 함수 {@code displayMap(restLat, restLng, restName, myLat, myLng, myLabel)} 를 호출합니다.
+     *
+     * <p><b>값을 스크립트 문자열에 끼워 넣지 않습니다.</b> 예전에는
+     * {@code executeScript("displayMap(..., '" + 식당이름 + "', ...)")} 처럼 문자열로 조립했는데,
+     * 식당 이름에 담긴 따옴표·역슬래시가 문자열을 깨고 그 뒤를 <b>코드로 실행</b>시킬 수 있었습니다
+     * (스크립트 인젝션). 좌표는 숫자, 이름은 문자열 <b>인자</b>로 그대로 건네면
+     * WebView 가 값으로만 취급하므로 그 통로 자체가 사라집니다. ({@code PostcodeController} 와 같은 방식)
+     *
+     * <p>좌표는 {@code Double} 이라 없으면 {@code null} 이 그대로 JS {@code null} 로 넘어가,
+     * {@code displayMap} 이 "표시 안 함"으로 처리합니다.
+     */
+    @SuppressWarnings("removal")   // JSObject 는 JavaFX 21 에서 WebView 로 값을 넘기는 표준 통로입니다
+    private static void callDisplayMap(WebEngine engine, Double restLat, Double restLng, String restName,
+                                       Double myLat, Double myLng, String myLabel) {
+        try {
+            JSObject window = (JSObject) engine.executeScript("window");
+            window.call("displayMap", restLat, restLng, restName, myLat, myLng, myLabel);
+        } catch (RuntimeException ex) {
+            System.err.println("[Map] 지도 스크립트 실행 오류: " + ex.getMessage());
+        }
     }
 
     @FXML

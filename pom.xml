@@ -211,6 +211,22 @@
                 </plugins>
             </build>
         </profile>
+
+        <!-- 앱 없이 그룹 추천만 눈으로 확인: mvn compile exec:java -Pprobe-group -->
+        <profile>
+            <id>probe-group</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>com.safefood.tool.GroupRecommendProbe</mainClass>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
 </project>

@@ -37,11 +37,13 @@
 
                 <Label fx:id="greetingLabel" text="오늘 뭐 먹지?" styleClass="page-title"/>
 
-                <!-- 필터 한 줄 — 조건 3개 + 기분 칩 + 다시 뽑기 -->
+                <!-- 필터 한 줄 — 조건 3개 + 정렬 + 기분 칩 + 다시 뽑기 -->
                 <HBox spacing="8" alignment="CENTER_LEFT">
                     <ComboBox fx:id="categoryBox"/>
                     <ComboBox fx:id="distanceBox"/>
                     <ComboBox fx:id="budgetBox"/>
+                    <!-- 정렬은 거르는 조건이 아니라 줄 세우는 값이라 예산 뒤에 따로 둡니다 -->
+                    <ComboBox fx:id="sortBox"/>
                     <Region styleClass="rule-v" prefHeight="18"/>
                     <FlowPane fx:id="moodPane" styleClass="chip-area" hgap="6" vgap="6"
                               HBox.hgrow="ALWAYS"/>
@@ -52,6 +54,9 @@
                 <HBox spacing="6" alignment="CENTER_LEFT">
                     <Label fx:id="excludeLabel" styleClass="sub"/>
                     <Hyperlink fx:id="excludeToggle" text="포함하기" onAction="#handleToggleEaten"/>
+                    <!-- 위치를 등록하지 않아 거리 제한이 걸리지 않을 때만 나타납니다 -->
+                    <Label fx:id="distanceHint" styleClass="sub"/>
+                    <Hyperlink fx:id="distanceHintLink" text="위치 등록" onAction="#handleRegisterLocation"/>
                 </HBox>
 
                 <!-- 추천 카드가 여기에 채워집니다 -->

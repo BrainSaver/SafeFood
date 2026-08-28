@@ -197,27 +197,4 @@ public class GroupRecommendService {
         }
     }
 
-    public static void main(String[] args) {
-        GroupRecommendService service = new GroupRecommendService();
-
-        print("조건 없음", service.recommend(new GroupCondition(Set.of(), 5, 0), 3));
-        print("새우·땅콩 제외 / 맵기 1 / 8,000원",
-                service.recommend(new GroupCondition(Set.of("새우", "땅콩"), 1, 8000), 3));
-        print("대두·밀·돼지고기·계란·새우·토마토 제외",
-                service.recommend(new GroupCondition(
-                        Set.of("대두", "밀", "돼지고기", "계란", "새우", "토마토"), 5, 0), 3));
-    }
-
-    private static void print(String title, GroupResult result) {
-        System.out.println("=== " + title + " ===");
-        if (result.failed()) {
-            System.out.println("  메뉴를 불러오지 못했습니다.");
-            System.out.println();
-            return;
-        }
-        System.out.printf("  훑은 메뉴 %d개 · 알레르기로 제외 %d개 · 후보 %d개%n",
-                result.scannedMenus(), result.blockedByAllergy(), result.candidates().size());
-        result.candidates().forEach(candidate -> System.out.println("  " + candidate));
-        System.out.println();
-    }
 }

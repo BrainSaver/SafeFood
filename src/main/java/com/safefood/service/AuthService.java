@@ -18,7 +18,15 @@ public class AuthService {
     private final UserDao userDao;
 
     public AuthService() {
-        this.userDao = new UserDao();
+        this(new UserDao());
+    }
+
+    /**
+     * DAO 를 갈아 끼우는 생성자 — 시험에서 DB 없이 계정 흐름만 확인할 때 씁니다.
+     * 실행 중에는 {@link #AuthService()} 만 쓰입니다.
+     */
+    AuthService(UserDao userDao) {
+        this.userDao = userDao;
     }
 
     /**
@@ -291,19 +299,46 @@ public class AuthService {
         return isLegacy(savedHashedPassword);
     }
 
-    // 업데이트
-    public boolean updateProfile(int userId, String plainNewPassword, String newNickname, String existingHashedPassword) {
-        String passwordToSave;
+    /**
+     * 닉네임과(비웠으면 그대로 두고) 비밀번호를 바꾼 뒤, 세션이 들고 다니는 사본까지 맞춥니다.
+     *
+     * <p><b>사본을 여기서 맞추는 이유</b> — {@code UserDto.password} 에는 언제나 <b>저장된 해시</b>가
+     * 들어 있어야 합니다({@link #verifyPassword} 가 그 전제로 읽습니다). 예전에는 저장만 이 자리가
+     * 하고 사본은 화면이 {@code me.setPassword(사용자가 입력한 값)} 으로 맞췄습니다. 그래서 비밀번호를
+     * 한 번 바꾸면 그 세션의 사본이 <b>평문</b>이 되어, 이후 검증이 맞는 비밀번호에도 전부 실패했습니다
+     * — 정보 수정도 탈퇴도 다시 로그인하기 전까지 막혔습니다.
+     *
+     * <p>무엇을 담아야 하는지는 해시를 만드는 이 자리만 알면 되므로, 화면에서 가져와 여기로 옮겼습니다.
+     * {@link #upgradeLegacyHash} 가 이관한 해시를 사본에 적어 두는 것과 같은 규칙입니다.
+     *
+     * @param user             지금 로그인한 사람 — 성공하면 이 객체의 비밀번호·닉네임이 갱신됩니다
+     * @param plainNewPassword 비워 두면 비밀번호를 바꾸지 않습니다
+     * @return 저장에 실패하면 false — 이때 {@code user} 는 건드리지 않습니다
+     */
+    public boolean updateProfile(UserDto user, String plainNewPassword, String newNickname) {
+        if (user == null || user.getId() == null || user.getId() <= 0) {
+            return false;
+        }
 
         // 사용자가 새 비밀번호 칸을 비웠다면 기존 비밀번호 유지
-        if(existingHashedPassword == null || plainNewPassword == null || plainNewPassword.isBlank()) {
-            passwordToSave = existingHashedPassword;
-        }
-        else{
-            passwordToSave = hashPassword(plainNewPassword);
+        boolean changingPassword = plainNewPassword != null && !plainNewPassword.isBlank();
+        String passwordToSave = changingPassword
+                ? hashPassword(plainNewPassword)
+                : user.getPassword();
+
+        // 그대로 두려는 값이 비어 있으면 저장하지 않습니다 — 한 문장으로 두 칼럼을 쓰는 UPDATE 라
+        // 그냥 넘기면 비밀번호 칼럼이 비워져 그 계정으로 다시 못 들어갑니다.
+        if (passwordToSave == null || passwordToSave.isBlank()) {
+            System.err.println("[auth] 세션에 저장된 비밀번호가 없어 정보 변경을 중단했습니다.");
+            return false;
         }
 
-        return userDao.updateUserInfo(userId, passwordToSave, newNickname);
+        if (!userDao.updateUserInfo(user.getId(), passwordToSave, newNickname)) {
+            return false;
+        }
+        user.setPassword(passwordToSave);   // 언제나 해시입니다
+        user.setNickname(newNickname);
+        return true;
     }
 
     public boolean deleteAccount(int userId, String plainPassword, String savedHashedPassword) {

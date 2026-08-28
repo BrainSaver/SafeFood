@@ -116,34 +116,4 @@ public class AllergyService {
         List<Integer> menuPossible = allergyDao.getMenuAllergiesByRiskLevel(menuId, "POSSIBLE");
         return isSafe(userAllergies, menuContains) && isSafe(userAllergies, menuPossible);
     }
-
-    // =========================================================================
-    // [실행 및 테스트] main 메서드
-    // =========================================================================
-    public static void main(String[] args) {
-        AllergyService service = new AllergyService();
-
-        System.out.println("=== 1.자바 연산 isSafe 테스트 ===");
-        List<Integer> myAllergies = List.of(4); // 땅콩(4)
-        List<Integer> menuA = List.of(4, 2);    // 땅콩, 계란 포함
-        List<Integer> menuB = List.of(1, 2);    // 우유, 계란 포함
-
-        System.out.println("A메뉴(땅콩 있음) 먹어도 되나요?: " + service.isSafe(myAllergies, menuA)); // false
-        System.out.println("B메뉴(땅콩 없음) 먹어도 되나요?: " + service.isSafe(myAllergies, menuB)); // true
-
-        System.out.println("\n=== 2. calculatePenalty 테스트 ===");
-        Map<Integer, Integer> mySeverityMap = Map.of(4, 3); // 땅콩(4) 심각도 3
-        List<Integer> menuC_Possible = List.of(4);
-
-        int penalty = service.calculatePenalty(mySeverityMap, menuC_Possible);
-        System.out.println("감점 점수 (30점이 나와야 함): " + penalty + "점");
-
-        System.out.println("\n=== 3. createBlockedReason 테스트 ===");
-        String reason = service.createBlockedReason(List.of("땅콩", "대두"));
-        System.out.println("차단 사유 문구: " + reason);
-
-        System.out.println("\n=== 4. DB 연동 isSafeForUser 테스트 ===");
-        boolean isMenu1Safe = service.isSafeForUser(106, 1);
-        System.out.println("test 회원(새우 알레르기) - 메뉴 1번 안전 여부: " + isMenu1Safe);
-    }
 }
