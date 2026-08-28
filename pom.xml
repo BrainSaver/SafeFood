@@ -23,6 +23,7 @@
         <javafx.version>21.0.4</javafx.version>
         <junit.version>5.10.2</junit.version>
         <exec.plugin.version>3.2.0</exec.plugin.version>
+        <clean.plugin.version>3.4.0</clean.plugin.version>
         <javafx.plugin.version>0.0.8</javafx.plugin.version>
         <compiler.plugin.version>3.13.0</compiler.plugin.version>
         <surefire.plugin.version>3.2.5</surefire.plugin.version>
@@ -76,6 +77,36 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${compiler.plugin.version}</version>
+            </plugin>
+
+            <!-- 이전 -Pdist 빌드가 target/classes에 남긴 내장 config.properties를 매 빌드
+                 시작 때 지웁니다. 이게 없으면 dist 빌드 후 clean 없이 일반 빌드했을 때
+                 비밀값이 든 파일이 jar에 그대로 다시 들어갑니다 (증분 빌드 잔여물).
+                 dist 빌드에서는 지운 직후 process-resources 단계가 새로 복사하므로 무해합니다. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>${clean.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>drop-stale-embedded-config</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.outputDirectory}/com/safefood</directory>
+                                    <includes>
+                                        <include>config.properties</include>
+                                    </includes>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>
@@ -209,6 +240,29 @@
                         </configuration>
                     </plugin>
                 </plugins>
+            </build>
+        </profile>
+
+        <!-- 배포용 빌드: mvn -Pdist -DskipTests package
+             프로젝트 루트의 config.properties(실제 키·비밀번호)를 jar 안 com/safefood/ 에
+             내장합니다. 일반 빌드에는 절대 들어가지 않으므로 평소처럼 빌드하면 안전합니다.
+             AppConfig가 내장본을 기본값으로 읽고, 외부 config.properties가 있으면 덮어씁니다.
+             exe 패키징: 이 빌드 후 jpackage로 감쌉니다 (docs/Development.md 참고). -->
+        <profile>
+            <id>dist</id>
+            <build>
+                <resources>
+                    <resource>
+                        <directory>src/main/resources</directory>
+                    </resource>
+                    <resource>
+                        <directory>${project.basedir}</directory>
+                        <includes>
+                            <include>config.properties</include>
+                        </includes>
+                        <targetPath>com/safefood</targetPath>
+                    </resource>
+                </resources>
             </build>
         </profile>
 
