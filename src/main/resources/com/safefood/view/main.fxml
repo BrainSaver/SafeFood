@@ -54,6 +54,9 @@
                 <HBox spacing="6" alignment="CENTER_LEFT">
                     <Label fx:id="excludeLabel" styleClass="sub"/>
                     <Hyperlink fx:id="excludeToggle" text="포함하기" onAction="#handleToggleEaten"/>
+                    <!-- 위치를 등록하지 않아 거리 제한이 걸리지 않을 때만 나타납니다 -->
+                    <Label fx:id="distanceHint" styleClass="sub"/>
+                    <Hyperlink fx:id="distanceHintLink" text="위치 등록" onAction="#handleRegisterLocation"/>
                 </HBox>
 
                 <!-- 추천 카드가 여기에 채워집니다 -->
