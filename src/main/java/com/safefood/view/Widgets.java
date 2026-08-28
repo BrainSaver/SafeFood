@@ -218,10 +218,11 @@ public final class Widgets {
     }
 
     public static Label statusLabel(String type) {
+        if (type == null) type = "";
         String text = switch (type) {
             case "EATEN" -> "먹음";
+            case "BLOCKED" -> "차단됨";
             case "VIEWED" -> "조회";
-            case "BLOCKED" -> "차단";
             default -> "추천";
         };
         Label label = new Label(text);

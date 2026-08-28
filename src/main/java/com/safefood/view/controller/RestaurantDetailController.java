@@ -37,6 +37,7 @@ public class RestaurantDetailController {
     @FXML private Label metaLabel;
     @FXML private Label reasonLabel;
     @FXML private ToggleButton favoriteButton;
+    @FXML private javafx.scene.control.Button eatButton;
 
     private RecommendationCard item;
 
@@ -50,12 +51,25 @@ public class RestaurantDetailController {
     /** 여기서 바꾼 찜을 띄운 쪽(메인 카드 하트)에도 알려 줍니다. */
     private Consumer<Boolean> onFavoriteChanged = state -> { };
 
+    /** '이걸로 먹을래요' 클릭 후 메인 카드 새로고침 콜백 */
+    private Runnable onEatAction = () -> { };
+
     @FXML
     private void initialize() {
         favoriteButton.selectedProperty().addListener((observable, before, on) ->
-                favoriteButton.setText(on ? "♥ 찜함" : "♡ 찜"));
+                favoriteButton.setText(on ? "♥ 찜함" : "♡ 찜하기"));
         // 사용자가 직접 누를 때만 저장합니다 — setSelected 로 되돌릴 때는 돌지 않습니다
         favoriteButton.setOnAction(event -> toggleFavorite());
+    }
+
+    public void setOnEatAction(Runnable onEatAction) {
+        this.onEatAction = (onEatAction == null) ? () -> { } : onEatAction;
+    }
+
+    public void setItem(RecommendationCard item, int menuId, int restaurantId) {
+        this.menuId = menuId;
+        this.restaurantId = restaurantId;
+        setItem(item);
     }
 
     /**
@@ -233,9 +247,39 @@ public class RestaurantDetailController {
     }
 
     @FXML
-    private void handleRecord() {
-        String menu = item == null ? "이 메뉴" : item.menu();
-        AppNav.success(menu + "을(를) 먹은 기록으로 남겼어요");
+    private void handleEat() {
+        if (!Session.isMember()) {
+            AppNav.info("게스트는 식사 기록을 남길 수 없어요 — 회원으로 로그인하면 저장됩니다.");
+            return;
+        }
+        if (menuId <= 0) {
+            AppNav.warn("이 메뉴는 기록할 수 없어요.");
+            return;
+        }
+        if (eatButton != null) {
+            eatButton.setDisable(true);
+        }
+        int userId = Session.currentUserId();
+        String menu = (item != null && item.menu() != null) ? item.menu() : menuName.getText();
+        loader.submit(() -> new com.safefood.service.HistoryService().saveEatenHistory(userId, menuId),
+                saved -> {
+                    if (eatButton != null) {
+                        eatButton.setDisable(false);
+                    }
+                    if (!saved) {
+                        AppNav.error("식사 기록을 저장하지 못했습니다. 데이터베이스 연결을 확인해 주세요.");
+                        return;
+                    }
+                    AppNav.success(menu + "(으)로 정했어요 — 기록에 남기고 다음 추천에서 제외합니다");
+                    onEatAction.run();
+                    AppNav.close(root);
+                },
+                error -> {
+                    if (eatButton != null) {
+                        eatButton.setDisable(false);
+                    }
+                    AppNav.error("식사 기록을 저장하지 못했습니다: " + error.getMessage());
+                });
     }
 
     @FXML

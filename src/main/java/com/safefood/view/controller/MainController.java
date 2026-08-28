@@ -626,12 +626,14 @@ public class MainController {
         map.setOnAction(event -> AppNav.dialog(
                 item.menu() + " — 맛집 상세", "restaurant-detail.fxml",
                 (RestaurantDetailController controller) -> {
-                    controller.setItem(item);
+                    controller.setItem(item, menuId, restId);
                     // 상세 창의 찜 버튼도 같은 행을 만집니다 — 거기서 바꾸면 카드 하트도 따라갑니다
                     controller.bindFavorite(menuId, restId, favorite.isSelected(), state -> {
                         favorite.setSelected(state);
                         favorite.setText(state ? "♥" : "♡");
                     });
+                    // 상세 창에서 '이걸로 먹을래요'를 누르면 메인 화면 새로고침
+                    controller.setOnEatAction(this::fillCards);
                 }));
 
         HBox actions = new HBox(8, eat, map, Widgets.hSpacer(), favorite);

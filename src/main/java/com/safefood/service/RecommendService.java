@@ -628,6 +628,10 @@ public class RecommendService {
         List<Integer> eatenMenuIds = (excludeEaten && userId > 0)
                 ? historyDao.getRecentEatenMenuIds(userId, 1)
                 : List.of();
+        // 사용자가 직접 차단한 메뉴(BLOCKED) 목록 조회
+        List<Integer> userBlockedMenuIds = (userId > 0)
+                ? historyDao.getBlockedMenuIds(userId)
+                : List.of();
         List<String> effectivePreferredCategories = (preferredCategories != null)
                 ? preferredCategories
                 : ((userId > 0) ? profileDao.getCategories(userId) : List.of());
@@ -641,6 +645,11 @@ public class RecommendService {
         for (MenuDto menu : candidateMenus) {
             // [R-04] 재추천 직전 노출 제외
             if (excludeMenuIds != null && excludeMenuIds.contains(menu.getId())) {
+                continue;
+            }
+
+            // 사용자가 차단한 메뉴(BLOCKED) 제외
+            if (userBlockedMenuIds.contains(menu.getId())) {
                 continue;
             }
 
