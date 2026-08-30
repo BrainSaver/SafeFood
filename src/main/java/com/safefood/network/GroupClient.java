@@ -11,18 +11,10 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * 소켓 클라이언트 — 접속 후 수신 전용 데몬 스레드를 띄웁니다.
- * 방장도 자기 서버에 이 클래스로 접속합니다.
- */
 public final class GroupClient implements Closeable {
-
-    /** 수신 스레드에서 호출됩니다 — JavaFX 화면을 고칠 때는 {@code Platform.runLater}로 감싸세요. */
     public interface Listener {
-
         void onMessage(Message message);
 
-        /** CLOSED 안내 없이 연결이 끊겼을 때 */
         void onDisconnected();
     }
 
@@ -37,7 +29,6 @@ public final class GroupClient implements Closeable {
 
     private GroupClient(Socket socket) throws IOException {
         this.socket = socket;
-        // 인코딩을 명시하지 않으면 OS 기본값에 따라 한글이 깨집니다
         this.in = new BufferedReader(
                 new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
         this.out = new BufferedWriter(
@@ -73,7 +64,6 @@ public final class GroupClient implements Closeable {
                 }
             }
         } catch (IOException e) {
-            // 아래 공통 끊김 처리로
         }
         disconnected = true;
         Listener current = listener;
@@ -82,7 +72,6 @@ public final class GroupClient implements Closeable {
         }
     }
 
-    /** 화면이 죽은 연결을 감지할 때 씁니다. */
     public boolean isAlive() {
         return !disconnected && !socket.isClosed();
     }
@@ -133,7 +122,7 @@ public final class GroupClient implements Closeable {
 
     @Override
     public void close() {
-        closedByMe = true;   // 내가 닫은 경우에는 onDisconnected를 부르지 않기 위한 표시
+        closedByMe = true;
         send(Message.of(Message.Type.EXIT));
         try {
             socket.close();

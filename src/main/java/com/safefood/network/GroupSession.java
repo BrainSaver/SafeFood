@@ -10,29 +10,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 지금 참여 중인 그룹 세션 — 앱 전역 1개.
- *
- * <p>화면이 바뀌어도 접속·명단·로그·후보 상태가 유지되도록 여기에 모아 둡니다.
- * 수신 스레드가 상태를 갱신하고, 화면은 {@link #setUiListener}로 알림만 받아 다시 그립니다.
- */
 public final class GroupSession implements GroupClient.Listener {
-
-    /** 입장 순서 첫 번째가 방장입니다. */
     public record MemberView(String name, boolean owner, boolean ready) {
     }
 
     public record CandidateView(int no, String menu, String restaurant) {
     }
 
-    /** 대기실에 흐르는 사건 한 줄 — 프로토콜 원문({@link #logLines()})과 달리 사람이 읽는 문장입니다. */
     public record Event(EventKind kind, String sender, String text) {
     }
 
     public enum EventKind {
         SYSTEM,
         SYSTEM_GOOD,
-        /** 화면은 여기서 {@link #mergedLines()} 를 카드로 펼칩니다 */
         MERGED,
         SYSTEM_BAD,
         CHAT
@@ -46,9 +36,9 @@ public final class GroupSession implements GroupClient.Listener {
     }
 
     private String displayName = "게스트";
-    private boolean guest = true;   // 방을 나간 뒤 돌아갈 화면을 정할 때 씁니다
+    private boolean guest = true;
 
-    private GroupServer server;   // 방장일 때만 존재
+    private GroupServer server;
     private GroupClient client;
     private volatile GroupClient.Listener uiListener;
 
@@ -68,7 +58,6 @@ public final class GroupSession implements GroupClient.Listener {
     private GroupSession() {
     }
 
-    /** 방장: 서버를 열고, 자기 서버에 클라이언트로 접속합니다. */
     public synchronized void hostRoom(int port, String inviteCode) throws IOException {
         shutdown();
         server = GroupServer.open(port, inviteCode);
@@ -85,18 +74,16 @@ public final class GroupSession implements GroupClient.Listener {
         events.add(good("방이 열렸어요 — 초대 코드를 일행에게 보내세요"));
     }
 
-    /** 참여자: 접속만 합니다. JOIN 전송은 {@code client().join(...)}으로 이어서. */
     public synchronized void joinRoom(String host, int port) throws IOException {
         shutdown();
         client = GroupClient.connect(host, port);
         client.setListener(this);
     }
 
-    /** 여러 번 불러도 안전합니다. */
     public synchronized void shutdown() {
         uiListener = null;
         if (server != null) {
-            server.stop();   // 참여자에게 CLOSED를 알린 뒤 소켓 정리
+            server.stop();
             server = null;
         }
         if (client != null) {
@@ -117,7 +104,6 @@ public final class GroupSession implements GroupClient.Listener {
         candidatesReceived = false;
     }
 
-    /** 참여자 쪽에서 방에 붙을 때 쓴 코드 (방장은 {@link #hostRoom}이 채웁니다). */
     public synchronized void setInviteCode(String code) {
         inviteCode = code == null ? "" : code;
     }
@@ -125,8 +111,6 @@ public final class GroupSession implements GroupClient.Listener {
     public synchronized String inviteCode() {
         return inviteCode;
     }
-
-    // ---- 수신 처리 (GroupClient 수신 스레드에서 호출됩니다) ----
 
     @Override
     public void onMessage(Message message) {
@@ -155,7 +139,7 @@ public final class GroupSession implements GroupClient.Listener {
                 case CLOSED -> remoteClosed = true;
                 default -> { }
             }
-            recordEvent(message);   // 명단·후보가 갱신된 뒤라 "(3명)" 같은 문구를 바로 쓸 수 있습니다
+            recordEvent(message);
         }
         GroupClient.Listener current = uiListener;
         if (current != null) {
@@ -168,7 +152,6 @@ public final class GroupSession implements GroupClient.Listener {
         boolean notify;
         synchronized (this) {
             disconnected = true;
-            // CLOSED를 이미 받았으면 곧이어 오는 소켓 종료는 중복 알림이라 생략
             notify = !remoteClosed;
             if (notify) {
                 appendLog("서버와의 연결이 끊겼습니다.");
@@ -183,8 +166,6 @@ public final class GroupSession implements GroupClient.Listener {
             current.onDisconnected();
         }
     }
-
-    // ---- 화면이 읽어 가는 스냅샷 ----
 
     public synchronized List<MemberView> members() {
         List<MemberView> list = new ArrayList<>();
@@ -227,12 +208,9 @@ public final class GroupSession implements GroupClient.Listener {
         return total;
     }
 
-    /** 확정 전이면 null. */
     public synchronized String result() {
         return resultText;
     }
-
-    // ---- 접속 상태 ----
 
     public synchronized GroupClient client() {
         return client;
@@ -254,10 +232,6 @@ public final class GroupSession implements GroupClient.Listener {
         return remoteClosed;
     }
 
-    /**
-     * 방이 이미 끝난 세션인지 — 화면 전환 사이에 CLOSED·끊김이 도착해 알림을 놓친 경우를
-     * 대기실이 입장 시점에 감지할 때 씁니다. 접속한 적 없는 상태는 false.
-     */
     public synchronized boolean isDead() {
         return remoteClosed || disconnected || (client != null && !client.isAlive());
     }
@@ -288,7 +262,6 @@ public final class GroupSession implements GroupClient.Listener {
         logs.add("[" + LocalTime.now().format(LOG_TIME) + "] " + text);
     }
 
-    /** 프로토콜 메시지를 사람이 읽는 문장으로 옮겨 쌓습니다. 화면에 보일 값이 없는 타입은 건너뜁니다. */
     private void recordEvent(Message message) {
         switch (message.type()) {
             case CHAT -> events.add(
@@ -305,7 +278,6 @@ public final class GroupSession implements GroupClient.Listener {
                     ? bad("조건에 맞는 추천 후보를 찾지 못했어요")
                     : good("추천 후보 " + candidates.size() + "개가 도착했어요"));
             case VOTE_STATUS -> {
-                // 프로토콜이 '누가' 투표했는지는 싣지 않아 총계로만 알립니다
                 int total = 0;
                 for (int count : voteCounts.values()) {
                     total += count;
@@ -334,7 +306,6 @@ public final class GroupSession implements GroupClient.Listener {
         return new Event(EventKind.SYSTEM_BAD, "", text);
     }
 
-    /** {@code "1.김치찌개(할머니손맛),2.제육볶음(백반집)"} → 후보 목록 */
     private static List<CandidateView> parseCandidates(String csv) {
         List<CandidateView> list = new ArrayList<>();
         for (String token : csv.split(",")) {
@@ -362,7 +333,6 @@ public final class GroupSession implements GroupClient.Listener {
         return List.copyOf(list);
     }
 
-    /** {@code "1:2,2:1,3:0"} → 후보 번호별 득표 수 */
     private static Map<Integer, Integer> parseVoteStatus(String csv) {
         Map<Integer, Integer> counts = new LinkedHashMap<>();
         for (String token : csv.split(",")) {
@@ -373,7 +343,6 @@ public final class GroupSession implements GroupClient.Listener {
             try {
                 counts.put(Integer.parseInt(pair[0].trim()), Integer.parseInt(pair[1].trim()));
             } catch (NumberFormatException e) {
-                // 형식이 틀린 항목은 건너뜀
             }
         }
         return counts;
