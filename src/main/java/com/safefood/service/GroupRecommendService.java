@@ -65,9 +65,23 @@ public class GroupRecommendService {
     }
 
     public GroupResult recommend(GroupCondition condition, int limit) {
+        return recommend(condition, limit, Set.of());
+    }
+
+    /**
+     * [리롤] 이미 내보낸 메뉴를 빼고 <b>그다음</b> 후보를 뽑습니다 — 다른 메뉴 추천용.
+     *
+     * <p>제외된 메뉴는 아예 훑지 않으므로 {@code scannedMenus}·{@code blockedByAllergy} 도
+     * <b>남은 메뉴</b> 기준입니다. 훑은 뒤에 걸러 내면 "남은 메뉴가 전부 알레르기로 막혔다"와
+     * "이미 다 보여 줬다"가 똑같이 0건으로 보여 구분할 수 없습니다.
+     *
+     * @param excludedMenuIds 건너뛸 메뉴 ID — 비어 있으면 처음부터 뽑는 것과 같습니다
+     */
+    public GroupResult recommend(GroupCondition condition, int limit, Set<Integer> excludedMenuIds) {
         if (condition == null || limit <= 0) {
             return GroupResult.empty();
         }
+        Set<Integer> excluded = excludedMenuIds == null ? Set.of() : excludedMenuIds;
 
         List<CandidateMenu> menus;
         try {
@@ -77,8 +91,13 @@ public class GroupRecommendService {
             return GroupResult.failure();
         }
         List<Scored> scored = new ArrayList<>();
+        int scanned = 0;
         int blocked = 0;
         for (CandidateMenu menu : menus) {
+            if (excluded.contains(menu.menuId())) {
+                continue;
+            }
+            scanned++;
             Scored candidate = score(menu, condition);
             if (candidate == null) {
                 blocked++;
@@ -93,7 +112,7 @@ public class GroupRecommendService {
                 .thenComparingInt(s -> s.menu().price())
                 .thenComparingInt(s -> s.menu().menuId()));
 
-        return new GroupResult(pickDiverse(scored, limit), menus.size(), blocked, false);
+        return new GroupResult(pickDiverse(scored, limit), scanned, blocked, false);
     }
 
     private Scored score(CandidateMenu menu, GroupCondition condition) {

@@ -20,6 +20,7 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -472,7 +473,112 @@ class RoomProtocolTest {
                 .contains("준비를 마치지 않은"), "이유 없는 침묵이면 안 됩니다");
     }
 
+    // ── 리롤 분기 ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("리롤 — 이미 본 메뉴를 빼고 다시 부르고, 표는 초기화한다")
+    void rerollExcludesShownMenusAndResetsVotes() throws IOException {
+        recommendService.candidates = sixMenus();
+        Peer minsu = readyWithCandidates("민수");   // 앞 3개(1·2·3)가 나갑니다
+
+        minsu.send("VOTE|1");
+        assertNotNull(minsu.await(Message.Type.VOTE_STATUS,
+                message -> message.part(0).startsWith("1:1"), ARRIVE_MS));
+
+        minsu.send("REROLL");
+
+        Message next = minsu.await(Message.Type.CANDIDATES, ARRIVE_MS);
+        assertNotNull(next, "새 후보가 나가야 합니다");
+        Message tally = minsu.await(Message.Type.VOTE_STATUS, ARRIVE_MS);
+        assertNotNull(tally, "새 후보에는 빈 집계가 따라와야 합니다");
+        assertAll(
+                () -> assertEquals("1.제육볶음(고기집),2.돈까스(까스집),3.우동(면집)", next.part(0),
+                        "이미 본 3개가 아니라 그다음 3개여야 합니다"),
+                () -> assertEquals(Set.of(1, 2, 3), recommendService.lastExcluded(),
+                        "이미 본 메뉴를 빼고 불러야 합니다"),
+                () -> assertEquals("1:0,2:0,3:0", tally.part(0),
+                        "후보가 바뀌었으니 지난 표는 남으면 안 됩니다"));
+    }
+
+    @Test
+    @DisplayName("더 보여 줄 메뉴가 없으면 리롤은 지금 후보와 표를 지키고 이유만 알린다")
+    void rerollWithNothingLeftKeepsCandidates() throws IOException {
+        Peer minsu = readyWithCandidates("민수");   // 기본 풀은 3개 — 첫 발표로 다 나갑니다
+
+        minsu.send("VOTE|2");
+        assertNotNull(minsu.await(Message.Type.VOTE_STATUS,
+                message -> message.part(0).contains("2:1"), ARRIVE_MS));
+
+        minsu.send("REROLL");
+
+        assertNotNull(minsu.await(Message.Type.ERROR,
+                        message -> message.part(0).contains("모두 보여"), ARRIVE_MS),
+                "왜 그대로인지 알려 줘야 합니다");
+        assertNull(minsu.await(Message.Type.CANDIDATES, SETTLE_MS),
+                "멀쩡한 후보를 빈 목록으로 갈아 끼우면 안 됩니다");
+    }
+
+    @Test
+    @DisplayName("조회가 실패해도 리롤은 있던 후보를 지우지 않는다")
+    void rerollFailureKeepsCandidates() throws IOException {
+        recommendService.candidates = sixMenus();
+        Peer minsu = readyWithCandidates("민수");
+
+        recommendService.mode = StubMode.FAIL;
+        minsu.send("REROLL");
+
+        assertNotNull(minsu.await(Message.Type.ERROR,
+                        message -> message.part(0).contains("불러오지 못해"), ARRIVE_MS),
+                "실패를 알려 줘야 합니다");
+        assertNull(minsu.await(Message.Type.CANDIDATES, SETTLE_MS),
+                "조회가 실패했다고 있던 후보를 날리면 안 됩니다");
+    }
+
+    @Test
+    @DisplayName("확정된 뒤의 리롤은 무시된다")
+    void rerollAfterResultIsIgnored() throws IOException {
+        recommendService.candidates = sixMenus();
+        Peer minsu = readyWithCandidates("민수");
+        minsu.send("VOTE|1");
+        assertNotNull(minsu.await(Message.Type.VOTE_STATUS,
+                message -> message.part(0).startsWith("1:1"), ARRIVE_MS));
+        assertTrue(room.finishResult());
+        assertNotNull(minsu.await(Message.Type.RESULT, ARRIVE_MS));
+
+        minsu.send("REROLL");
+
+        assertNull(minsu.await(Message.Type.CANDIDATES, SETTLE_MS));
+        assertEquals(1, recommendService.callCount(), "확정 뒤에는 조회가 돌면 안 됩니다");
+    }
+
+    @Test
+    @DisplayName("후보를 받기 전의 리롤은 이유를 알려 준다")
+    void rerollBeforeAnyCandidateExplains() throws IOException {
+        recommendService.mode = StubMode.NO_DATA;
+        Peer minsu = join("민수");
+        minsu.send("INFO||5|0");
+        minsu.send("READY");
+        assertNotNull(minsu.await(Message.Type.CANDIDATES, ARRIVE_MS), "빈 후보 발표는 나갑니다");
+
+        minsu.send("REROLL");
+
+        assertNotNull(minsu.await(Message.Type.ERROR,
+                        message -> message.part(0).contains("아직 받은 후보가 없어요"), ARRIVE_MS),
+                "조용히 무시하면 안 됩니다");
+    }
+
     // ── 거들이 ─────────────────────────────────────────────────
+
+    /** 리롤이 갈아 끼울 여지가 있는 풀 — 앞 3개가 나가고 뒤 3개가 남습니다. */
+    private static List<GroupCandidate> sixMenus() {
+        return List.of(
+                new GroupCandidate(1, "김치찌개", "할머니손맛", 100, "시험용"),
+                new GroupCandidate(2, "비빔밥", "전주집", 90, "시험용"),
+                new GroupCandidate(3, "라면", "분식집", 80, "시험용"),
+                new GroupCandidate(4, "제육볶음", "고기집", 70, "시험용"),
+                new GroupCandidate(5, "돈까스", "까스집", 60, "시험용"),
+                new GroupCandidate(6, "우동", "면집", 50, "시험용"));
+    }
 
     /** 접속만 한 참여자 — JOIN 은 각 시험이 직접 보냅니다. */
     private Peer connect() throws IOException {
@@ -615,29 +721,54 @@ class RoomProtocolTest {
 
     private enum StubMode { NORMAL, FAIL, NO_DATA, ALL_BLOCKED }
 
-    /** DB 대신 쓰는 추천 조회 — 네 가지 결과 모양을 마음대로 골라 돌려줍니다. */
+    /**
+     * DB 대신 쓰는 추천 조회 — 네 가지 결과 모양을 마음대로 골라 돌려줍니다.
+     *
+     * <p>제외 목록을 실제로 지킵니다. 리롤이 이미 본 메뉴를 정말 빼고 부르는지는
+     * 그 약속을 지키는 상대가 있어야만 확인할 수 있습니다.
+     */
     private static final class StubRecommend extends GroupRecommendService {
 
         private final AtomicInteger calls = new AtomicInteger();
         volatile StubMode mode = StubMode.NORMAL;
+        volatile Set<Integer> excluded = Set.of();
         volatile List<GroupCandidate> candidates = List.of(
                 new GroupCandidate(1, "김치찌개", "할머니손맛", 100, "시험용"),
                 new GroupCandidate(2, "비빔밥", "전주집", 90, "시험용"),
                 new GroupCandidate(3, "라면", "분식집", 80, "시험용"));
 
         @Override
-        public GroupResult recommend(GroupCondition condition, int limit) {
+        public GroupResult recommend(GroupCondition condition, int limit,
+                                     Set<Integer> excludedMenuIds) {
             calls.incrementAndGet();
+            excluded = Set.copyOf(excludedMenuIds);
             return switch (mode) {
                 case FAIL -> throw new RuntimeException("시험용 조회 실패");
                 case NO_DATA -> new GroupResult(List.of(), 0, 0, false);
                 case ALL_BLOCKED -> new GroupResult(List.of(), 7, 7, false);
-                case NORMAL -> new GroupResult(candidates, candidates.size(), 0, false);
+                case NORMAL -> {
+                    List<GroupCandidate> left = new ArrayList<>();
+                    int remaining = 0;
+                    for (GroupCandidate candidate : candidates) {
+                        if (excludedMenuIds.contains(candidate.menuId())) {
+                            continue;
+                        }
+                        remaining++;
+                        if (left.size() < limit) {
+                            left.add(candidate);
+                        }
+                    }
+                    yield new GroupResult(List.copyOf(left), remaining, 0, false);
+                }
             };
         }
 
         int callCount() {
             return calls.get();
+        }
+
+        Set<Integer> lastExcluded() {
+            return excluded;
         }
     }
 }

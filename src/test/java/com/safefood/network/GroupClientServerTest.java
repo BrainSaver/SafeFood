@@ -55,7 +55,7 @@ class GroupClientServerTest {
     // ── 전선 형식 (클라이언트 → 서버) ───────────────────────────
 
     @Test
-    @DisplayName("보내는 전문의 전선 형식 — JOIN·INFO·READY·VOTE·CHAT·RETRY·EXIT")
+    @DisplayName("보내는 전문의 전선 형식 — JOIN·INFO·READY·VOTE·CHAT·RETRY·REROLL·EXIT")
     void clientWritesExactWireFormat() throws IOException {
         try (ServerSocket server = new ServerSocket(0)) {
             GroupClient client = GroupClient.connect("localhost", server.getLocalPort());
@@ -84,6 +84,9 @@ class GroupClientServerTest {
 
                 client.sendRetry();
                 assertEquals("RETRY", fromClient.readLine());
+
+                client.sendReroll();
+                assertEquals("REROLL", fromClient.readLine());
 
                 client.close();
                 assertEquals("EXIT", fromClient.readLine(), "닫기 전에 작별 전문을 보낸다");

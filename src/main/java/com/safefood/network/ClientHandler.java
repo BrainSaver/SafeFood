@@ -83,6 +83,7 @@ final class ClientHandler implements Runnable {
                     case VOTE -> room.vote(this, parseInt(message.part(0), 0));
                     case CHAT -> room.chat(this, message.rest(0));
                     case RETRY -> room.retry(this);
+                    case REROLL -> room.reroll(this);
                     case EXIT -> {
                         return;
                     }

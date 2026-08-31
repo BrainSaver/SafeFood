@@ -41,6 +41,9 @@ public final class Room {
 
     private List<String> mergedLines = List.of();
     private List<Candidate> candidates = List.of();
+
+    /** 지금까지 후보로 내보낸 메뉴 — 리롤은 여기 없는 메뉴 중에서 뽑습니다. */
+    private final Set<Integer> shownMenuIds = new LinkedHashSet<>();
     private Message resultMessage;
     private boolean closed;
 
@@ -170,6 +173,7 @@ public final class Room {
     private void startRecommendation(Merged merged) {
         boolean discardsVotes = !votes.isEmpty();
 
+        shownMenuIds.clear();   // 조건이 달라졌으니 '이미 본 메뉴'도 처음부터
         mergedLines = merged.lines();
         broadcast(Message.of(Message.Type.MERGED, mergedLines));
         if (discardsVotes) {
@@ -240,6 +244,7 @@ public final class Room {
 
         appliedCondition = used;
         candidates = found;
+        remember(found);
         votes.clear();
 
         broadcast(candidatesMessage());
@@ -279,6 +284,106 @@ public final class Room {
         }
         appliedCondition = null;
         reevaluate();
+    }
+
+    /**
+     * [리롤] 후보가 마음에 들지 않을 때 — 이미 본 메뉴를 빼고 그다음 후보로 갈아 끼웁니다.
+     *
+     * <p>{@link #retry} 가 <b>후보를 하나도 못 받았을 때</b>의 재시도라면, 이쪽은 후보가 있는
+     * 상태에서 다른 메뉴를 부르는 길입니다. 새 후보를 실제로 구했을 때만 갈아 끼우므로 조회가
+     * 실패하거나 더 보여 줄 메뉴가 없으면 지금 후보와 표는 그대로 남습니다 — 리롤 한 번에
+     * 멀쩡하던 투표판이 빈 화면이 되는 일은 없습니다.
+     */
+    synchronized void reroll(ClientHandler handler) {
+        Member member = members.get(handler);
+        if (member == null || closed || resultMessage != null) {
+            return;
+        }
+        if (candidates.isEmpty() || appliedCondition == null) {
+            handler.send(Message.of(Message.Type.ERROR,
+                    "아직 받은 후보가 없어요 — '다시 추천받기'를 눌러 주세요."));
+            return;
+        }
+        if (runningCondition != null) {
+            return;   // 이미 뽑는 중 — 연타해도 한 번만 돕니다
+        }
+
+        GroupCondition condition = appliedCondition;
+        Set<Integer> seen = Set.copyOf(shownMenuIds);
+        runningCondition = condition;
+        broadcast(Message.of(Message.Type.ERROR, member.name + "님이 다른 메뉴를 요청했어요 —"
+                + " 후보를 다시 뽑습니다." + (votes.isEmpty() ? "" : " 지금까지의 투표는 초기화됩니다.")));
+
+        Thread worker = new Thread(() -> runReroll(condition, seen), "group-reroll");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void runReroll(GroupCondition condition, Set<Integer> seen) {
+        GroupResult result;
+        try {
+            result = recommendService.recommend(condition, CANDIDATE_COUNT, seen);
+        } catch (RuntimeException e) {
+            System.err.println("[room] 다른 후보 추천 실패: " + e);
+            result = GroupResult.failure();
+        }
+        applyReroll(condition, result.failed() ? null : toCandidates(result.candidates()));
+    }
+
+    /**
+     * @param found 새로 뽑은 후보 — 조회 자체가 실패했으면 null (빈 목록과 구분합니다)
+     */
+    private synchronized void applyReroll(GroupCondition used, List<Candidate> found) {
+        runningCondition = null;
+        if (closed || resultMessage != null) {
+            return;
+        }
+        if (!covers(used, merge().condition())) {
+            reevaluate();   // 뽑는 사이 조건이 바뀌었으면 리롤이 아니라 처음부터 다시
+            return;
+        }
+
+        if (found == null) {
+            broadcast(Message.of(Message.Type.ERROR,
+                    "메뉴 정보를 불러오지 못해 다른 후보를 뽑지 못했어요 — 지금 후보는 그대로 둡니다."));
+            return;
+        }
+        if (found.isEmpty() || sameMenusAsNow(found)) {
+            shownMenuIds.clear();   // 한 바퀴 돌았으니 다음 리롤은 처음 후보부터
+            broadcast(Message.of(Message.Type.ERROR,
+                    "조건에 맞는 메뉴를 모두 보여 드렸어요 — 더 내놓을 새 메뉴가 없습니다."));
+            return;
+        }
+
+        candidates = found;
+        remember(found);
+        votes.clear();
+
+        broadcast(candidatesMessage());
+        broadcast(voteStatusMessage());
+    }
+
+    private void remember(List<Candidate> found) {
+        for (Candidate candidate : found) {
+            shownMenuIds.add(candidate.menuId());
+        }
+    }
+
+    /** 이력을 비우고 다시 뽑으면 지금 화면과 똑같은 후보가 나올 수 있습니다 — 그때는 갈지 않습니다. */
+    private boolean sameMenusAsNow(List<Candidate> found) {
+        if (found.size() != candidates.size()) {
+            return false;
+        }
+        Set<Integer> now = new LinkedHashSet<>();
+        for (Candidate candidate : candidates) {
+            now.add(candidate.menuId());
+        }
+        for (Candidate candidate : found) {
+            if (!now.contains(candidate.menuId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     synchronized void chat(ClientHandler handler, String text) {

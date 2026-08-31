@@ -46,6 +46,17 @@ class GroupRecommendServiceTest {
     }
 
     @Test
+    @DisplayName("제외 목록을 줘도 조건·limit 가드는 그대로 (제외 목록이 null 이어도)")
+    void exclusionKeepsGuards() {
+        GroupRecommendService service = new GroupRecommendService();
+
+        assertTrue(service.recommend(null, 3, java.util.Set.of(1, 2)).candidates().isEmpty());
+        assertTrue(service.recommend(
+                new GroupRecommendService.GroupCondition(java.util.Set.of(), 5, 0), 0, null)
+                .candidates().isEmpty());
+    }
+
+    @Test
     @DisplayName("limit 이 0 이하거나 조건이 없으면 DB를 건드리지 않고 빈 결과")
     void guardsBeforeQuery() {
         GroupRecommendService service = new GroupRecommendService();

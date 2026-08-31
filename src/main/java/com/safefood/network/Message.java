@@ -6,7 +6,7 @@ import java.util.List;
 
 public final class Message {
     public enum Type {
-        JOIN, INFO, READY, VOTE, CHAT, RETRY, EXIT,
+        JOIN, INFO, READY, VOTE, CHAT, RETRY, REROLL, EXIT,
         JOINED, CANDIDATES, VOTE_STATUS, RESULT, LEFT, ERROR, MERGED, CLOSED
     }
 

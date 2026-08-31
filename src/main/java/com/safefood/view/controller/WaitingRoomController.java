@@ -41,6 +41,7 @@ public class WaitingRoomController implements GroupClient.Listener {
     @FXML private FlowPane avatarRow;
     @FXML private Label voteTitle;
     @FXML private VBox candidateBox;
+    @FXML private Button rerollButton;
     @FXML private Button resultButton;
 
     @FXML private ScrollPane console;
@@ -96,6 +97,12 @@ public class WaitingRoomController implements GroupClient.Listener {
                 case CLOSED -> {
                     if (!session.isOwner()) {
                         leaveTo(message.part(0).isEmpty() ? "방장이 방을 종료했습니다." : message.part(0));
+                    }
+                }
+                // 리롤이 빈손으로 끝나면 후보가 그대로라 다시 그리지 않습니다 — 버튼만 되살립니다
+                case ERROR -> {
+                    if (rerollButton.isVisible()) {
+                        rerollButton.setDisable(false);
                     }
                 }
                 default -> { }
@@ -255,6 +262,12 @@ public class WaitingRoomController implements GroupClient.Listener {
         List<GroupSession.CandidateView> list = session.candidates();
         int total = session.totalVotes();
 
+        // 후보가 있을 때만 — 후보가 없을 때의 재시도는 목록 안 '다시 추천받기'가 맡습니다
+        boolean canReroll = !list.isEmpty() && !finished;
+        rerollButton.setVisible(canReroll);
+        rerollButton.setManaged(canReroll);
+        rerollButton.setDisable(!canReroll);
+
         if (list.isEmpty()) {
             voteTitle.setText("투표");
             if (session.candidatesReceived()) {
@@ -384,6 +397,22 @@ public class WaitingRoomController implements GroupClient.Listener {
         content.putString(InviteCode.format(code));
         Clipboard.getSystemClipboard().setContent(content);
         AppNav.success("초대 코드를 복사했어요");
+    }
+
+    /** 지금 후보 대신 다른 메뉴를 받아 옵니다 — 갈아 끼우는 판단은 서버(방)가 합니다. */
+    @FXML
+    private void handleReroll() {
+        GroupClient client = session.client();
+        if (client == null) {
+            AppNav.warn("서버와 연결되어 있지 않아요.");
+            return;
+        }
+        if (session.totalVotes() > 0
+                && !AppNav.confirm("다른 메뉴를 추천받을까요? 지금까지의 투표는 초기화됩니다.")) {
+            return;
+        }
+        rerollButton.setDisable(true);   // 새 후보 또는 안내가 올 때까지
+        client.sendReroll();
     }
 
     @FXML

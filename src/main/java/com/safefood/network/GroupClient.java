@@ -108,6 +108,11 @@ public final class GroupClient implements Closeable {
         send(Message.of(Message.Type.RETRY));
     }
 
+    /** 후보가 이미 있는데 마음에 들지 않을 때 — 이미 본 메뉴를 빼고 다시 뽑아 달라는 요청. */
+    public void sendReroll() {
+        send(Message.of(Message.Type.REROLL));
+    }
+
     private void send(Message message) {
         synchronized (out) {
             try {

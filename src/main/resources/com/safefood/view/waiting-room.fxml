@@ -78,6 +78,9 @@
                     <VBox fx:id="candidateBox" spacing="10"/>
                 </ScrollPane>
 
+                <Button fx:id="rerollButton" text="다른 메뉴 추천" styleClass="outline"
+                        maxWidth="Infinity" onAction="#handleReroll"/>
+
                 <Button fx:id="resultButton" text="최종 확정" styleClass="primary"
                         maxWidth="Infinity" onAction="#handleResult"/>
 
