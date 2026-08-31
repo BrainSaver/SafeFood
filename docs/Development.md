@@ -892,7 +892,7 @@ mkdir -p target/jpackage-input && cp target/safefood.jar target/jpackage-input/
 jpackage --type app-image --name SafeFood --app-version 1.0 --vendor SafeFood \
   --input target/jpackage-input --main-jar safefood.jar --main-class com.safefood.MainLauncher \
   --dest dist \
-  --add-modules java.se,jdk.localedata,jdk.charsets,jdk.jsobject,jdk.unsupported,jdk.zipfs,jdk.accessibility \
+  --add-modules java.se,jdk.localedata,jdk.charsets,jdk.jsobject,jdk.xml.dom,jdk.unsupported,jdk.zipfs,jdk.accessibility \
   --java-options "-Dfile.encoding=UTF-8" \
   --java-options "--enable-native-access=ALL-UNNAMED" \
   --java-options "--sun-misc-unsafe-memory-access=allow"
@@ -908,6 +908,12 @@ jpackage --type app-image --name SafeFood --app-version 1.0 --vendor SafeFood \
 - dist 빌드 후 `clean` 없이 일반 빌드해도 안전합니다 — 매 빌드 시작 때 이전 빌드가
   `target/classes`에 남긴 내장 config를 지우는 안전장치가 pom에 있습니다.
 - `jdk.localedata`는 요일 한국어 표시(`Locale.KOREAN`)에 필요합니다. 빼면 요일이 영어로 나옵니다.
+- `jdk.jsobject`·`jdk.xml.dom`은 **WebView(주소 검색·지도)** 가 요구하는 모듈입니다
+  (`javafx.web` 의 `requires` 목록). `jdk.xml.dom` 을 빼면 `com.sun.webkit.dom.*` 이
+  `NoClassDefFoundError: org/w3c/dom/html/HTMLDocument` 로 죽습니다 — 지금 화면들은 자바에서
+  DOM을 직접 만지지 않아 당장 티가 안 날 수 있지만, 넣어 두는 값이 몇 MB뿐이라 뺄 이유가 없습니다.
+- `jdk.crypto.ec`는 **자바 24부터 넣지 않아도 됩니다** — SunEC가 `java.base`로 옮겨져서
+  빼도 EC 키·ECDSA·ECDHE 암호군이 그대로 나옵니다. 자바 21로 뽑던 시절의 목록에는 들어 있었습니다.
 - `--java-options`의 뒤 두 개는 자바 24+에서 JavaFX 경고/차단을 피하는 플래그로, `run.bat`과 같습니다.
 - 급식 캐시(`data/private/meal-cache`)는 실행 폴더 기준으로 만들어지므로
   exe를 쓰기 가능한 위치(바탕화면, 문서 등)에 두세요. `Program Files`에 넣으면 캐시만 조용히 꺼집니다.
