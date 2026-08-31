@@ -86,11 +86,40 @@ public final class Widgets {
         return label;
     }
 
-    /** 읽기 전용 태그. {@code variants} 는 accent / accent2 / neutral / solid / warn / danger / outline. */
-    public static Label tag(String text, String... variants) {
+    /**
+     * 태그가 쓸 수 있는 색.
+     *
+     * <p>예전에는 문자열이라 {@code tag(name, "dangar")} 처럼 오타를 내도 <b>아무 일도
+     * 일어나지 않았습니다</b> — 예외도 경고도 없이 스타일만 안 먹었습니다. app.css 에
+     * 실제로 정의된 것만 여기 둡니다.
+     */
+    public enum Variant {
+        ACCENT("accent"),
+        ACCENT2("accent2"),
+        NEUTRAL("neutral"),
+        SOLID("solid"),
+        WARN("warn"),
+        DANGER("danger"),
+        OUTLINE("outline");
+
+        private final String styleClass;
+
+        Variant(String styleClass) {
+            this.styleClass = styleClass;
+        }
+
+        public String styleClass() {
+            return styleClass;
+        }
+    }
+
+    /** 읽기 전용 태그. */
+    public static Label tag(String text, Variant... variants) {
         Label tag = new Label(text);
         tag.getStyleClass().add("tag");
-        tag.getStyleClass().addAll(variants);
+        for (Variant variant : variants) {
+            tag.getStyleClass().add(variant.styleClass());
+        }
         return tag;
     }
 
@@ -176,7 +205,7 @@ public final class Widgets {
         return circle(rank == 0 ? "✕" : String.valueOf(rank), "rank-circle", variant);
     }
 
-    public static Label safetyBadge(DemoData.Safety safety) {
+    public static Label safetyBadge(com.safefood.dto.Safety safety) {
         Label badge = new Label(safety.shortLabel);
         badge.getStyleClass().addAll("safety", safety.styleClass);
         return badge;
@@ -189,10 +218,11 @@ public final class Widgets {
     }
 
     public static Label statusLabel(String type) {
+        if (type == null) type = "";
         String text = switch (type) {
             case "EATEN" -> "먹음";
+            case "BLOCKED" -> "차단됨";
             case "VIEWED" -> "조회";
-            case "BLOCKED" -> "차단";
             default -> "추천";
         };
         Label label = new Label(text);

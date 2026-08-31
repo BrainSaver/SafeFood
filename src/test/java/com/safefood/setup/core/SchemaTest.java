@@ -27,6 +27,28 @@ class SchemaTest {
     }
 
     @Test
+    @DisplayName("user 를 참조하는 테이블 목록 — 바뀌면 UserDao.deleteUser 도 함께 고쳐야 한다")
+    void tablesReferencingUserAreKnown() {
+        java.util.Set<String> found = new java.util.TreeSet<>();
+        java.util.regex.Pattern fk =
+                java.util.regex.Pattern.compile("FOREIGN KEY \\(([^)]+)\\)\\s*REFERENCES\\s*`?(\\w+)`?\\(");
+        for (Schema.Table table : Schema.TABLES) {
+            java.util.regex.Matcher matcher = fk.matcher(table.ddl());
+            while (matcher.find()) {
+                if ("user".equals(matcher.group(2))) {
+                    found.add(table.name());
+                }
+            }
+        }
+
+        assertEquals(
+                java.util.Set.of("user_preference", "user_location", "user_category", "user_allergy",
+                        "dining_group", "group_member", "favorite", "feedback", "history", "child"),
+                found,
+                "user 를 참조하는 테이블이 바뀌었습니다. UserDao.deleteUser 의 삭제 순서를 함께 고쳐 주세요");
+    }
+
+    @Test
     @DisplayName("history 는 feedback_id 컬럼과 외래 키를 갖는다")
     void historyHasFeedbackId() {
         String ddl = Schema.ddlOf("history");
@@ -44,6 +66,9 @@ class SchemaTest {
         assertTrue(indexOf("dining_group") < indexOf("history"), "history.group_id → dining_group(id)");
         assertTrue(indexOf("allergy") < indexOf("user_allergy"), "user_allergy.allergy_id → allergy(id)");
         assertTrue(indexOf("restaurant") < indexOf("menu"), "menu.restaurant_id → restaurant(id)");
+        assertTrue(indexOf("category") < indexOf("menu"), "menu.category_id → category(id)");
+        assertTrue(indexOf("child") < indexOf("child_allergy"), "child_allergy.child_id → child(id)");
+        assertTrue(indexOf("allergy") < indexOf("child_allergy"), "child_allergy.allergy_id → allergy(id)");
     }
 
     @Test

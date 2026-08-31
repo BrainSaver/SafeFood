@@ -8,7 +8,7 @@ import com.safefood.network.GroupClient;
 import com.safefood.network.GroupSession;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
@@ -25,12 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 그룹 조건 — 입력이 아니라 '확인'입니다 (리디자인 1g).
- *
- * <p>회원이면 프로필에서 알레르기·맵기·예산을 그대로 끌어와 채우므로, 바꿀 게 없으면
- * 버튼 한 번으로 준비가 끝납니다. 고칠 항목만 '수정'을 눌러 그 자리에서 펼칩니다.
- *
- * <p>게스트는 프로필이 없어 기본값으로 시작합니다 — 그래서 안내 문구가 달라집니다.
+ * 그룹 조건 — 입력이 아니라 '확인'입니다.
+ * 회원은 프로필 값으로, 게스트는 기본값으로 채우고 고칠 항목만 펼쳐 수정합니다.
  */
 public class GroupConditionController {
 
@@ -61,9 +57,8 @@ public class GroupConditionController {
         AppNav.onDialogClosed(root, () -> GroupSession.get().shutdown());
 
         Widgets.fillChips(allergyPane, AllergyCatalog.names(), allergyChips);
-        budgetBox.getItems().setAll(DemoData.BUDGETS);
+        budgetBox.getItems().setAll(UiConstants.BUDGETS);
 
-        // 요약 줄은 편집기의 값이 바뀔 때마다 따라 갱신됩니다
         for (ToggleButton chip : allergyChips) {
             chip.selectedProperty().addListener((observable, before, on) -> renderAllergy());
         }
@@ -77,7 +72,6 @@ public class GroupConditionController {
         renderBudget();
     }
 
-    /** 회원이면 프로필 값으로, 게스트면 기본값으로 채웁니다. */
     private void loadFromProfile() {
         // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
         if (!Session.isMember()) {
@@ -111,9 +105,9 @@ public class GroupConditionController {
         if (priceMax <= 0) {
             return "제한없음";
         }
-        String best = DemoData.BUDGETS.get(0);
+        String best = UiConstants.BUDGETS.get(0);
         int bestGap = Integer.MAX_VALUE;
-        for (String option : DemoData.BUDGETS) {
+        for (String option : UiConstants.BUDGETS) {
             String digits = option.replaceAll("\\D", "");
             if (digits.isEmpty()) {
                 continue;   // "제한없음"
@@ -127,8 +121,6 @@ public class GroupConditionController {
         return best;
     }
 
-    // ── 요약 줄 그리기 ──────────────────────────────────────────
-
     private void renderAllergy() {
         allergySummary.getChildren().clear();
         List<String> picked = Widgets.selected(allergyChips);
@@ -137,7 +129,7 @@ public class GroupConditionController {
             return;
         }
         for (String name : picked) {
-            allergySummary.getChildren().add(Widgets.tag(name, "accent"));
+            allergySummary.getChildren().add(Widgets.tag(name, Widgets.Variant.ACCENT));
         }
     }
 
@@ -148,8 +140,6 @@ public class GroupConditionController {
     private void renderBudget() {
         budgetSummary.setText(budgetBox.getValue() == null ? "제한없음" : budgetBox.getValue());
     }
-
-    // ── 펼치기 ──────────────────────────────────────────────────
 
     @FXML
     private void handleEditAllergy() {
@@ -177,15 +167,14 @@ public class GroupConditionController {
         locationSummary.setText("중간 지점 계산용 좌표 자리 (G-08, 3차 구현)");
     }
 
-    // ── 준비 완료 ───────────────────────────────────────────────
-
     @FXML
     private void handleReady() {
         GroupClient client = GroupSession.get().client();
         if (client != null) {
             // INFO|알레르기,목록|매운맛|예산 → READY (전원 완료 시 서버가 병합·추천 시작)
             client.sendInfo(Widgets.selected(allergyChips),
-                    (int) spicySlider.getValue(), parseBudget(budgetBox.getValue()));
+                    (int) spicySlider.getValue(), parseBudget(budgetBox.getValue()),
+                    Session.isMember() ? Session.currentUserId() : 0);
             client.sendReady();
         }
         AppNav.close(root);

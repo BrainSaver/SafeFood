@@ -9,7 +9,7 @@
 |----|------|
 | [1. 개발 환경 설정](#-개발-환경-설정) | Setup Wizard, `data/` 파일 모드, 스키마 변경 절차 |
 | [2. 그룹 추천](#-그룹-추천) | 조건 병합, 알레르기 판정, 점수·후보 선정 |
-| [3. 실행 파일 만들기](#-실행-파일-만들기) | 단일 jar 빌드, 시작할 때의 DB 확인 · 마법사 분기 |
+| [3. 실행 파일 만들기](#-실행-파일-만들기) | 단일 jar 빌드, exe 패키징, 시작할 때의 DB 확인 · 마법사 분기 |
 
 <br>
 <br>
@@ -111,8 +111,8 @@ mvn compile exec:java -Pwizard
 | 1 | JDBC 드라이버 확인 (Maven이 이미 준비) | `data/` 모드로만 진행할지 선택 |
 | 2 | 접속 정보 입력 → 연결 테스트 | 원인을 한글로 안내하고 재입력 / DB 건너뛰기 |
 | 3 | `CREATE DATABASE safefood` | 이후 DB 단계 건너뛰고 `data/` 모드로 진행 |
-| 4 | 테이블 22개 생성 | 이후 DB 단계 건너뜀 |
-| 5 | 알레르기·기분 태그 기본 데이터 삽입 | 건너뜀 (기본 목록은 6단계에서 `data/public/`에도 생성) |
+| 4 | 테이블 24개 생성 | 이후 DB 단계 건너뜀 |
+| 5 | 알레르기·기분 태그·카테고리 기본 데이터 삽입 | 건너뜀 (기본 목록은 6단계에서 `data/public/`에도 생성) |
 | 6 | `data/public`·`data/private` 폴더와 기본 파일 준비 | 알려 주고 7단계는 계속 진행 |
 | 7 | `config.properties` 작성 + `.gitignore` 확인 | — |
 
@@ -171,6 +171,7 @@ data/
 ├── public/                        # 앱에 필요한 공통 데이터 (커밋 가능)
 │   ├── allergy.txt                # 알레르기 마스터 19종
 │   ├── mood.txt                   # 기분 태그 마스터 10종
+│   ├── category.txt               # 카테고리 마스터 6종
 │   ├── food.txt                   # 음식 사전 (공공데이터, 선택)
 │   ├── ingredient.txt             # 재료 마스터 (선택)
 │   ├── food_ingredient.txt        # 음식별 재료 구성 (선택)
@@ -215,12 +216,13 @@ data/
 |------|------------|------|
 | `public/allergy.txt` | `allergy` | `name` |
 | `public/mood.txt` | `mood` | `name` |
+| `public/category.txt` | `category` | `name` |
 | `public/food.txt` | `food` | `id\|food_cd\|name\|category` |
 | `public/ingredient.txt` | `ingredient` | `id\|name` |
 | `public/food_ingredient.txt` | `food_ingredient` | `food_id\|ingredient_id\|quantity` |
 | `public/ingredient_allergy.txt` | `ingredient_allergy` | `ingredient_id\|allergy_id` |
 | `public/restaurant.txt` | `restaurant` | `id\|name\|category\|address\|phone\|open_time\|close_time\|latitude\|longitude\|rating\|review_count` |
-| `public/menu.txt` | `menu` | `id\|restaurant_id\|name\|price\|category\|spicy_level\|description\|food_id` |
+| `public/menu.txt` | `menu` | `id\|restaurant_id\|name\|price\|category_id\|spicy_level\|description\|food_id` |
 | `public/menu_allergy.txt` | `menu_allergy` | `menu_id\|allergy_id\|risk_level\|ingredient` |
 | `private/users.txt` | `user` | `id\|login_id\|password\|nickname\|created_at` |
 | `private/preferences.txt` | `user_preference` | `user_id\|spicy_level\|price_min\|price_max\|max_distance` |
@@ -267,7 +269,7 @@ ENUM 값도 DB와 같게 씁니다.
 아황산류
 ```
 
-`allergy.txt`·`mood.txt`를 뺀 나머지 `public/` 파일(음식 사전·재료·가게·메뉴 등)과
+`allergy.txt`·`mood.txt`·`category.txt`를 뺀 나머지 `public/` 파일(음식 사전·재료·가게·메뉴 등)과
 `private/`의 파일들은 **빈 파일로** 만들어집니다.
 
 ### DB 모드와의 관계
@@ -358,8 +360,8 @@ com.safefood.setup (화면)  ──→  com.safefood.setup.core (처리)
 | README의 **데이터베이스 스키마** 절 | 사람이 읽는 문서 |
 | 데이터베이스 설계서 (테이블 정의서 · 부록 A) | 설계 기준 |
 
-마스터 목록(알레르기·기분 태그)은 `data/public/`의 기본 파일도 `Schema.java`에서 가져다 쓰므로
-**따로 맞출 필요가 없습니다.** 다만 이미 만들어진 `allergy.txt`·`mood.txt`는 덮어쓰지 않으니,
+마스터 목록(알레르기·기분 태그·카테고리)은 `data/public/`의 기본 파일도 `Schema.java`에서 가져다 쓰므로
+**따로 맞출 필요가 없습니다.** 다만 이미 만들어진 `allergy.txt`·`mood.txt`·`category.txt`는 덮어쓰지 않으니,
 목록을 바꿨다면 해당 파일을 지우고 마법사를 다시 실행하세요.
 
 테이블 컬럼을 바꿨다면 `core/DataStoreInitializer.java`의 필드 순서 주석과
@@ -476,7 +478,10 @@ DB 작업은 백그라운드에서 돌아가 창이 멈추지 않습니다. 진�
 - `data/private/`는 **커밋하지 마세요.** 개인 데이터와 팀 서버 데이터가 들어갑니다.
 - `data/public/`은 앱에 필요한 공통 데이터라 팀과 공유해도 됩니다.
 - 실수로 커밋했다면 커밋만 지우는 것으로는 부족합니다. **비밀번호·API 키를 새로 발급**하세요.
-- 생성되는 JDBC URL의 `useSSL=false`는 로컬 개발 전용입니다. 실제 서버에 올린다면 제거하세요.
+- 생성되는 JDBC URL은 `sslMode=REQUIRED`로 **접속을 암호화**합니다. 이 값을 `useSSL=false`로
+  되돌리지 마세요 — 팀 DB가 인터넷 너머에 있어서, 끄면 계정·비밀번호와 회원 알레르기 정보가
+  평문으로 흐릅니다. `allowPublicKeyRetrieval`도 켜지 마세요(둘을 함께 켜면 중간자가 DB
+  비밀번호를 복구할 수 있습니다).
 
 <br>
 <br>
@@ -740,12 +745,14 @@ CANDIDATES|1.김치찌개(할머니손맛),2.제육볶음(백반집),3.비빔밥
 앱을 띄우지 않고 추천 로직만 확인할 수 있습니다.
 
 ```bash
-mvn -q compile
+mvn compile exec:java -Pprobe-group
 ```
 
-컴파일 후 `GroupRecommendService`의 `main`을 실행하면 조건별 후보와
-`훑은 메뉴 / 알레르기로 제외 / 후보` 개수가 출력됩니다.
+조건별 후보와 `훑은 메뉴 / 알레르기로 제외 / 후보` 개수가 출력됩니다.
 `config.properties`를 읽으므로 **프로젝트 루트에서** 실행하세요.
+
+판정 규칙 자체(실패 / 데이터 없음 / 전부 차단의 구분)는 DB 없이
+`GroupRecommendServiceTest`가 확인하므로, 이 도구는 **실제 데이터로 눈으로 볼 때**만 씁니다.
 
 <br>
 
@@ -785,9 +792,8 @@ Windows에서는 프로젝트 루트의 **`run.bat`을 더블클릭**하면 됩�
 > ⚠️ `run.bat`은 **CP949(ANSI)로 저장**돼 있습니다. UTF-8로 바꾸면 cmd가 한글 줄의 위치를
 > 잘못 잡아 주석 한가운데를 명령으로 실행하는 오류가 납니다.
 
-> JDK 21이 설치된 PC에서 돌아갑니다. 자바가 없는 PC용 실행 파일(`.exe`)과 설치 마법사는
-> 만들었다가 걷어냈습니다 — 배포물이 165MB로 커지고 WiX·jpackage 설정을 계속 들고 가야 해서,
-> 수업 프로젝트 범위에서는 단일 jar 쪽이 관리하기 낫다고 판단했습니다.
+> JDK 21이 설치된 PC에서 돌아갑니다. 자바가 없는 PC에는 아래
+> [exe로 만들기](#exe로-만들기-배포용)로 자바 런타임까지 묶어서 전달할 수 있습니다.
 
 <br>
 
@@ -866,15 +872,64 @@ Setup Wizard 쪽의 `SetupWizardFxLauncher`도 같은 이유로 있습니다.
 
 <br>
 
+## exe로 만들기 (배포용)
+
+> 자바가 없는 PC에서도 더블클릭으로 실행 — 설정 파일 없이 바로 켜집니다
+
+두 단계입니다. 먼저 **설정을 내장한 jar**를 만들고, 그 jar를 **jpackage로 감쌉니다.**
+
+```bash
+mvn -Pdist -DskipTests package
+```
+
+`-Pdist` 프로필이 프로젝트 루트의 `config.properties`(실제 키·비밀번호)를 jar 안
+`com/safefood/config.properties`로 복사해 넣습니다. `AppConfig.reload()`가 내장본을
+기본값으로 읽고, 실행 폴더에 외부 `config.properties`가 있으면 그걸로 덮어씁니다 —
+그래서 개발 환경은 평소와 똑같이 동작합니다. **일반 빌드(`mvn package`)에는 절대 들어가지 않습니다.**
+
+```bash
+mkdir -p target/jpackage-input && cp target/safefood.jar target/jpackage-input/
+jpackage --type app-image --name SafeFood --app-version 1.0 --vendor SafeFood \
+  --input target/jpackage-input --main-jar safefood.jar --main-class com.safefood.MainLauncher \
+  --dest dist \
+  --add-modules java.se,jdk.localedata,jdk.charsets,jdk.jsobject,jdk.unsupported,jdk.zipfs,jdk.accessibility \
+  --java-options "-Dfile.encoding=UTF-8" \
+  --java-options "--enable-native-access=ALL-UNNAMED" \
+  --java-options "--sun-misc-unsafe-memory-access=allow"
+```
+
+결과는 **`dist/SafeFood/` 폴더**(약 155MB)이고 그 안의 `SafeFood.exe`를 더블클릭하면 됩니다.
+폴더째 zip으로 묶어 전달합니다(약 81MB) — exe 파일 하나만 꺼내 보내면 안 됩니다.
+
+- `--type app-image`라 **WiX 설치가 필요 없습니다.** 설치 마법사(msi/exe 인스톨러)까지
+  원할 때만 WiX를 깔고 `--type exe`로 바꾸면 됩니다.
+- `--input`에 준 폴더가 통째로 들어가므로 jar만 담은 `target/jpackage-input`을 씁니다
+  (`target/`을 그대로 주면 클래스 파일까지 다 딸려 들어갑니다).
+- dist 빌드 후 `clean` 없이 일반 빌드해도 안전합니다 — 매 빌드 시작 때 이전 빌드가
+  `target/classes`에 남긴 내장 config를 지우는 안전장치가 pom에 있습니다.
+- `jdk.localedata`는 요일 한국어 표시(`Locale.KOREAN`)에 필요합니다. 빼면 요일이 영어로 나옵니다.
+- `--java-options`의 뒤 두 개는 자바 24+에서 JavaFX 경고/차단을 피하는 플래그로, `run.bat`과 같습니다.
+- 급식 캐시(`data/private/meal-cache`)는 실행 폴더 기준으로 만들어지므로
+  exe를 쓰기 가능한 위치(바탕화면, 문서 등)에 두세요. `Program Files`에 넣으면 캐시만 조용히 꺼집니다.
+
+> ⚠️ **dist 빌드 산출물(jar·exe·zip)에는 DB 비밀번호와 API 키가 들어 있습니다.**
+> 팀·평가자에게만 전달하고, GitHub Release 등 공개 장소에는 올리지 마세요.
+> jar는 zip이라 열어 보면 값이 보입니다 — "일반 사용자가 텍스트 파일을 고치는" 수준을 막는 것이지
+> 암호화가 아닙니다.
+
+<br>
+
 ## 전달할 때
 
-`safefood.jar` 하나만 주면 됩니다. `config.properties`는 **넣지 마세요** —
-DB 계정·비밀번호가 들어 있고, 받는 사람은 마법사로 자기 것을 만들면 됩니다.
+**exe로 줄 때** — `dist/SafeFood/` 폴더(zip)를 주면 끝입니다. 자바도 설정 파일도 필요 없고,
+받은 사람은 `SafeFood.exe`를 더블클릭하면 바로 로그인 화면이 뜹니다.
 
-같은 팀 서버 DB를 함께 쓸 거라면 접속 정보를 따로 알려 주고,
-마법사의 MySQL 접속 단계에서 입력하게 하세요.
+**jar로 줄 때** — `safefood.jar` 하나만 주면 됩니다. 이때는 **일반 빌드**를 쓰고
+`config.properties`는 **넣지 마세요** — DB 계정·비밀번호가 들어 있고,
+받는 사람은 마법사로 자기 것을 만들면 됩니다. 같은 팀 서버 DB를 함께 쓸 거라면
+접속 정보를 따로 알려 주고, 마법사의 MySQL 접속 단계에서 입력하게 하세요.
 
-> 받는 사람에게 **JDK 21 이상**이 필요합니다. `java -version`으로 확인할 수 있습니다.
+> jar로 받는 사람에게는 **JDK 21 이상**이 필요합니다. `java -version`으로 확인할 수 있습니다.
 
 <br>
 
@@ -886,3 +941,11 @@ DB 계정·비밀번호가 들어 있고, 받는 사람은 마법사로 자기 �
 - 설정이 있고 DB가 붙는 폴더에서 `java -jar` → **로그인 창** 바로 표시
 - 설정이 없는 폴더에서 `java -jar` → **설정 마법사** 표시
 - 마법사 [닫기] → 같은 창이 로그인 화면으로 전환됨 (창 제목 `로그인`)
+
+2026-08-28 기준 (exe 패키징):
+
+- `mvn -Pdist -DskipTests package` → jar 안에 `com/safefood/config.properties` 포함 확인
+- 설정 없는 폴더에서 내장 jar 실행 → db·kakao·neis 값 전부 내장본에서 로드 확인
+- jpackage(JDK 25) → `dist/SafeFood/SafeFood.exe` 생성, 폴더 155MB · zip 81MB
+- 설정 없는 폴더에서 실행 → JavaFX 기동, **원격 DB 연결·알레르기 마스터 점검까지 진행** 확인
+- 번들 런타임에 `jdk.localedata`(요일 한국어) 포함 확인

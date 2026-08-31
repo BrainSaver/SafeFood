@@ -83,6 +83,11 @@ public final class SetupService {
             if (columns.done() > 0) {
                 out.ok("추가한 칼럼 " + columns.done() + "개 / 이미 있던 칼럼 " + columns.skipped() + "개");
             }
+
+            DatabaseInitializer.Result indexes = initializer.addMissingIndexes();
+            if (indexes.done() > 0) {
+                out.ok("추가한 인덱스 " + indexes.done() + "개 / 이미 있던 인덱스 " + indexes.skipped() + "개");
+            }
             return true;
         } catch (SQLException e) {
             out.fail(DatabaseInitializer.explain(e));
@@ -93,7 +98,7 @@ public final class SetupService {
     // ── [5/7] 기본 데이터 ────────────────────────────────
 
     private boolean insertMasterData(boolean tablesReady, DatabaseInitializer initializer) {
-        out.step(5, TOTAL_STEPS, "기본 데이터 삽입 (알레르기 · 기분 태그)");
+        out.step(5, TOTAL_STEPS, "기본 데이터 삽입 (알레르기 · 기분 태그 · 카테고리)");
         if (!tablesReady) {
             out.warn("테이블이 준비되지 않아 건너뜁니다. (기본 목록은 data/public/에도 만들어 둡니다)");
             return false;
@@ -141,13 +146,13 @@ public final class SetupService {
         boolean written = false;
 
         if (!Files.exists(configFile)) {
-            ConfigFileWriter.write(configFile, request.db(), request.mapApiKey(),
+            ConfigFileWriter.write(configFile, request.db(), request.mapJsKey(), request.mapApiKey(),
                     request.socketHost(), request.socketPort());
             written = true;
         } else if (request.overwriteConfig()) {
             Path backup = ConfigFileWriter.backup(configFile);
             out.detail("백업 완료: " + backup.getFileName());
-            ConfigFileWriter.write(configFile, request.db(), request.mapApiKey(),
+            ConfigFileWriter.write(configFile, request.db(), request.mapJsKey(), request.mapApiKey(),
                     request.socketHost(), request.socketPort());
             written = true;
         } else {

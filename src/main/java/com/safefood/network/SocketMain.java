@@ -5,21 +5,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- * 소켓 계층 콘솔 시험용 — UI 없이 서버·클라이언트 동작을 확인합니다.
- *
- * <pre>
- * 방장:   mvn compile exec:java -Dexec.mainClass=com.safefood.network.SocketMain -Dexec.args="host 민수"
- * 참여자: mvn compile exec:java -Dexec.mainClass=com.safefood.network.SocketMain -Dexec.args="join 6WMK4-2A0P8-Q3XN 동현"
- * </pre>
- *
- * <p>방장이 찍어 주는 초대 코드에 접속 주소가 들어 있으므로, 참여자는 주소를 따로 넘기지 않습니다.
- *
- * <p>접속 후 입력 — {@code /ready} 준비 완료, {@code /vote 번호} 투표, {@code /exit} 나가기,
- * 그 외 입력은 채팅으로 전송됩니다. 같은 PC에서 터미널을 여러 개 띄워 시험하세요.
- */
 public final class SocketMain {
-
     public static void main(String[] args) throws IOException {
         GroupSession session = GroupSession.get();
 
@@ -77,7 +63,7 @@ public final class SocketMain {
                     break;
                 }
                 if (line.equals("/ready")) {
-                    client.sendInfo(List.of(), 5, 0);
+                    client.sendInfo(List.of(), 5, 0, 0);
                     client.sendReady();
                 } else if (line.startsWith("/vote ")) {
                     try {
@@ -93,12 +79,6 @@ public final class SocketMain {
         session.shutdown();
     }
 
-    /**
-     * 코드의 주소로 붙어 보고, 안 되면 같은 네트워크에서 방을 찾습니다 —
-     * 참여 화면({@code GroupOptionController})과 같은 순서입니다.
-     *
-     * @return 접속했으면 true
-     */
     private static boolean connect(GroupSession session, InviteCode invite) throws IOException {
         try {
             session.joinRoom(invite.host(), invite.port());

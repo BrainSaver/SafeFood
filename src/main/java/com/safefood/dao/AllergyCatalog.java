@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +14,7 @@ import java.util.Map;
 /**
  * 알레르기 마스터({@code allergy} 테이블)의 이름 ↔ id 대응표.
  *
- * <p><b>왜 필요한가</b> — 예전에는 {@code DemoData.ALLERGIES} 목록의 <b>순서</b>를 id 로 썼습니다
+ * <p><b>왜 필요한가</b> — 예전에는 하드코딩된 목록의 <b>순서</b>를 id 로 썼습니다
  * ({@code indexOf(name) + 1}, {@code get(id - 1)}). 화면 목록과 DB 의 AUTO_INCREMENT 가 언제나
  * 같은 순서라는 보장이 없으므로, 목록 중간에 항목을 넣거나 마스터를 다시 심으면
  * <b>회원의 '새우'가 '게'로 저장·판정</b>될 수 있었습니다. 알레르기 앱에서 조용히 어긋나면
@@ -79,6 +80,52 @@ public final class AllergyCatalog {
     /** 다음 호출 때 DB 에서 다시 읽습니다 (설정 마법사로 마스터를 다시 심은 뒤 등). */
     public static void reload() {
         cache = null;
+    }
+
+    public static List<String> verify() {
+        List<String> problems = new ArrayList<>();
+        Snapshot snapshot = snapshot();
+        if (snapshot == null || snapshot.idByName().isEmpty()) {
+            problems.add("allergy 테이블을 읽지 못했거나 비어 있습니다."
+                    + " 설정 마법사로 기본 데이터를 먼저 심어 주세요.");
+            return problems;
+        }
+
+        List<String> missing = Schema.ALLERGIES.stream()
+                .filter(name -> !snapshot.idByName().containsKey(name)).toList();
+        if (!missing.isEmpty()) {
+            problems.add("마스터에 없는 알레르겐: " + String.join(", ", missing)
+                    + " — 이 알레르기는 저장도 급식 판정도 되지 않습니다.");
+        }
+
+        int count = snapshot.idByName().size();
+        int maxId = snapshot.nameById().keySet().stream().mapToInt(Integer::intValue).max().orElse(0);
+        if (maxId != count) {
+            problems.add("allergy.id 가 1~" + count + " 로 이어지지 않습니다 (가장 큰 id " + maxId + ")."
+                    + " 마스터를 지웠다 다시 심은 흔적입니다 — user_allergy · child_allergy ·"
+                    + " menu_allergy · ingredient_allergy 가 가리키는 알레르겐이 그대로인지 확인해 주세요.");
+        }
+
+        int nextId = nextAutoIncrement();
+        if (nextId > count + 1) {
+            problems.add("다음에 심을 allergy.id 가 " + nextId + " 부터입니다 (지금 " + count + "종)."
+                    + " 마스터를 지우고 다시 심으면 번호가 " + nextId + " 부터 매겨져"
+                    + " 기존 알레르기 기록이 전부 다른 알레르겐을 가리키게 됩니다."
+                    + " 다시 심어야 한다면 id 를 명시해 넣어 주세요.");
+        }
+        return problems;
+    }
+
+    private static int nextAutoIncrement() {
+        String sql = "SELECT AUTO_INCREMENT FROM information_schema.tables"
+                + " WHERE table_schema = DATABASE() AND table_name = 'allergy'";
+        try (Connection conn = DatabaseUtil.getConnection();
+             Statement statement = conn.createStatement();
+             ResultSet rs = statement.executeQuery(sql)) {
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) {
+            return 0;
+        }
     }
 
     private static Snapshot snapshot() {

@@ -6,7 +6,10 @@ import com.safefood.service.AuthService;
 import com.safefood.view.AppNav;
 import com.safefood.view.Widgets;
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -26,6 +29,10 @@ public class EditInfoController {
     @FXML private Label nicknameHint;
     @FXML private PasswordField newPassword;
     @FXML private Label errorLabel;
+    @FXML private VBox withdrawBox;
+    @FXML private Button withdrawButton;
+    @FXML private Button saveButton;
+    @FXML private Button cancelButton;
 
     private final AuthService authService = new AuthService();
     private final PauseTransition nicknameSettle = new PauseTransition(SETTLE);
@@ -47,6 +54,10 @@ public class EditInfoController {
             nicknameField.setText(me.getNickname());
             nicknameAvailable = true;   // 처음 값은 자기 것이라 그대로 둬도 됩니다
         }
+
+        boolean member = Session.isMember();
+        withdrawBox.setVisible(member);
+        withdrawBox.setManaged(member);
 
         nicknameSettle.setOnFinished(event -> checkNickname());
         nicknameField.textProperty().addListener((observable, before, after) -> {
@@ -109,21 +120,88 @@ public class EditInfoController {
             return;
         }
 
-        if (!authService.updateProfile(me.getId(), newPw, newNick, me.getPassword())) {
+        // 세션 사본(닉네임·비밀번호 해시)까지 updateProfile 이 맞춥니다 — 여기서 손대면
+        // 저장된 해시 대신 사용자가 입력한 평문이 들어가 이후 비밀번호 확인이 전부 실패합니다.
+        if (!authService.updateProfile(me, newPw, newNick)) {
             Widgets.showError(errorLabel, "저장 중 오류가 발생했습니다.");
             return;
         }
 
         Widgets.hideError(errorLabel);
-        me.setNickname(newNick);
-        if (!newPw.isBlank()) {
-            me.setPassword(newPw);
-        }
         if (onSaved != null) {
             onSaved.run();
         }
         AppNav.close(root);
         AppNav.success("개인정보를 변경했어요");
+    }
+
+    @FXML
+    private void handleWithdraw() {
+        UserDto me = Session.getCurrentUser();
+        if (!Session.isMember() || me == null) {
+            Widgets.showError(errorLabel, "게스트는 탈퇴할 계정이 없습니다.");
+            return;
+        }
+
+        String currentPw = currentPassword.getText();
+        if (currentPw.isBlank()) {
+            Widgets.showError(errorLabel, "탈퇴하려면 현재 비밀번호를 입력해 주세요.");
+            return;
+        }
+        if (!authService.verifyPassword(currentPw, me.getPassword())) {
+            Widgets.showError(errorLabel, "현재 비밀번호가 틀렸습니다.");
+            return;
+        }
+        if (!AppNav.confirm("정말 탈퇴할까요?\n\n"
+                + "등록한 알레르기·취향·위치와 식사 기록, 찜, 평가가 모두 지워집니다.\n"
+                + "되돌릴 수 없습니다.")) {
+            return;
+        }
+
+        Widgets.hideError(errorLabel);
+        setBusy(true);
+
+        int userId = me.getId();
+        String savedHash = me.getPassword();
+        Task<Boolean> withdraw = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return authService.deleteAccount(userId, currentPw, savedHash);
+            }
+        };
+        withdraw.setOnSucceeded(event -> {
+            if (!Boolean.TRUE.equals(withdraw.getValue())) {
+                setBusy(false);
+                Widgets.showError(errorLabel,
+                        "탈퇴 처리에 실패했습니다. 연결을 확인한 뒤 다시 시도해 주세요.");
+                return;
+            }
+            AppNav.close(root);
+            Platform.runLater(() -> {
+                AppNav.logout();
+                AppNav.info("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
+            });
+        });
+        withdraw.setOnFailed(event -> {
+            setBusy(false);
+            Throwable error = withdraw.getException();
+            Widgets.showError(errorLabel, "탈퇴 처리 중 오류가 발생했습니다: "
+                    + (error == null ? "알 수 없는 오류" : error.getMessage()));
+        });
+
+        Thread worker = new Thread(withdraw, "withdraw-account");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void setBusy(boolean busy) {
+        withdrawButton.setDisable(busy);
+        withdrawButton.setText(busy ? "탈퇴 처리 중…" : "계정 탈퇴");
+        saveButton.setDisable(busy);
+        cancelButton.setDisable(busy);
+        currentPassword.setDisable(busy);
+        nicknameField.setDisable(busy);
+        newPassword.setDisable(busy);
     }
 
     @FXML

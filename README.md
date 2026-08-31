@@ -242,7 +242,9 @@ SafeFood/
 - JDK 21 이상
 - Maven 3.6 이상 — **IntelliJ에 내장돼 있어 따로 설치하지 않아도 됩니다**
 - **(선택)** MySQL 8.0 이상 — DB를 쓸 때만
-- 지도 API 키 (Kakao Developers에서 발급하는 **REST API 키**) — 없어도 앱은 돌아갑니다. 주소 검색은 키 없이 되고, 주소 → 좌표 변환만 막힙니다
+- 카카오 앱 키 **2개** (Kakao Developers › 내 애플리케이션 › 앱 키) — 없어도 앱은 돌아갑니다
+  - **JavaScript 키** → 맛집 상세의 지도 표시. 없으면 지도 자리에 안내 문구만 뜹니다
+  - **REST API 키** → 주소 → 좌표 변환. 없으면 주소만 등록되고 거리 계산에서 빠집니다 (주소 검색 자체는 키 없이 됩니다)
 - 비어 있는 TCP 포트 1개 (소켓 서버용, 기본 `5000`) + UDP 포트 `5001` (방 자동 탐색용, 선택)
 
 > MySQL 없이 시작해도 됩니다. 이때 앱 데이터는 `data/public/`, `data/private/`에 저장합니다.
@@ -319,15 +321,28 @@ db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterE
 db.user=본인_계정
 db.password=본인_비밀번호
 
-# 카카오 REST API 키 (Kakao Developers › 내 애플리케이션 › 앱 키 › REST API 키)
-# 위치 등록에서 '주소 → 좌표'를 찾을 때만 씁니다. 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
+# 카카오 키는 두 개이고, 서로를 대신하지 못합니다.
+# (Kakao Developers › 내 애플리케이션 › 앱 키 — 아래 두 키가 나란히 있습니다)
+
+# JavaScript 키 — 맛집 상세의 지도를 그립니다.
+# 비워 두면 지도 자리에 "키를 입력하세요" 안내만 뜹니다.
+kakao.js.key=발급받은_카카오_JavaScript_키
+
+# REST API 키 — 위치 등록에서 '주소 → 좌표'를 찾을 때 씁니다.
+# 비워 두면 주소만 등록되고 거리 계산에서 빠집니다.
 # (주소 검색 자체는 카카오 우편번호 서비스라 키가 필요 없습니다)
 map.api.key=발급받은_카카오_REST_API_키
+
+# 나이스(NEIS) 인증키 — '우리 아이 급식'에서만 씁니다 (open.neis.go.kr).
+neis.api.key=
 
 # 소켓 서버 주소 (클라이언트가 접속할 곳)
 socket.host=localhost
 socket.port=5000
 ```
+
+> 💡 **지도가 안 뜨면 `kakao.js.key`부터 확인하세요.** `map.api.key`(REST 키)는 지도를
+> 그리는 데 쓰이지 않습니다 — 둘은 쓰임이 다른 별개의 키입니다.
 
 > ⚠️ `config.properties`와 `data/private/`는 `.gitignore`에 넣어 커밋되지 않게 하세요.
 > 팀원 공유용으로는 값을 비운 `config.properties.example`과 `data/public/`을 올립니다.
@@ -335,7 +350,7 @@ socket.port=5000
 ### 5. 실행
 
 가장 쉬운 방법은 프로젝트 폴더의 **`run.bat` 더블클릭**입니다 (Windows).
-자바를 찾고, 실행 파일이 없으면 만들고, 앱을 띄우는 것까지 알아서 합니다.
+자바를 찾고, 실행 파일이 없거나 낡았으면 다시 만들고, 앱을 띄우는 것까지 알아서 합니다.
 
 ```bat
 run.bat
@@ -345,6 +360,8 @@ run.bat build   :: 실행 파일을 다시 만들고 싶을 때
 > `run.bat`은 PATH → `JAVA_HOME` → IntelliJ가 함께 깔아 주는 자바 순서로 찾습니다.
 > Maven도 마찬가지라, 둘 다 따로 설치하지 않은 PC에서도 대개 그냥 실행됩니다.
 > 콘솔 창을 닫으면 앱도 함께 종료됩니다.
+> `src/`나 `pom.xml`이 `target/safefood.jar`보다 새로우면 실행 전에 알아서 다시 만듭니다 —
+> 예전에는 파일이 있기만 하면 그냥 띄워서, 소스를 고쳐도 낡은 앱이 뜨는 일이 있었습니다.
 
 IntelliJ나 명령줄에서 직접 돌릴 수도 있습니다.
 
@@ -421,9 +438,10 @@ DB 정상  ────────────────────→ 로�
 
 ## 🗄️ 데이터베이스 스키마
 
-테이블 23개 · 외래 키 32개. **데이터베이스 설계서 v2.0**이 기준입니다.
+테이블 24개 · 외래 키 34개. **데이터베이스 설계서 v2.0**이 기준입니다.
 (음식 사전 · 재료 테이블 4개와 `menu.food_id` · `menu_allergy.ingredient` 컬럼,
-`user_location` 테이블은 v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
+`user_location` · `category` 테이블과 `menu.category_id`(문자열 category 대체)는
+v2.0 이후 추가분입니다 — 설계서에 반영해 주세요.)
 
 > ⚠️ **같은 스키마가 세 곳에 있습니다. 고칠 때는 셋을 함께 고쳐 주세요.**
 > 하나만 고치면 다음 사람이 틀린 쪽을 믿게 됩니다.
@@ -588,19 +606,31 @@ CREATE TABLE restaurant (
     review_count INT DEFAULT 0                  -- 리뷰 수
 );
 
+-- 메뉴 카테고리 마스터 (한식 / 중식 / 일식 / 양식 / 아시안 / 패스트푸드)
+CREATE TABLE category (
+    id   INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL UNIQUE
+);
+
 -- 메뉴
 CREATE TABLE menu (
     id            INT AUTO_INCREMENT PRIMARY KEY,
     restaurant_id INT NOT NULL,
     name          VARCHAR(50) NOT NULL,
     price         INT NOT NULL,                 -- 가격 필터용
-    category      VARCHAR(20),
+    category_id   INT,                          -- 카테고리 정규화 (category.id)
     spicy_level   TINYINT,                      -- 0 ~ 5
     description   VARCHAR(255),
     food_id       INT,                          -- 음식 사전 연결 (수기 등록 메뉴는 NULL)
     FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
+    FOREIGN KEY (category_id)   REFERENCES category(id),
     FOREIGN KEY (food_id)       REFERENCES food(id)
 );
+
+-- 이미 만들어 둔 DB 라면: category_id 추가는 마법사를 다시 돌리면 됩니다 (Schema.ADDED_COLUMNS).
+-- 기존 category 문자열 값의 이관과 옛 컬럼 삭제는 직접 실행하세요.
+-- UPDATE menu m JOIN category c ON c.name = m.category SET m.category_id = c.id;
+-- ALTER TABLE menu DROP COLUMN category;   -- 팀 전원이 이 코드로 갈아탄 뒤에 실행
 
 -- 메뉴 ↔ 알레르기 매칭 (위험도 포함)
 CREATE TABLE menu_allergy (
@@ -1003,7 +1033,7 @@ CREATE TABLE feedback (
 - [x] 애플리케이션 형태 결정 — **JavaFX 데스크톱 앱**
 - [x] 기능 우선순위 확정 (기능 48개를 1·2·3차로 구분)
 - [x] 설계 문서 작성 (기능 · DB · UI 설계서 v2.0)
-- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 23개 · 32개)
+- [x] DB 스키마 확정 (테이블 22개 · 외래 키 31개 → 현재 24개 · 34개)
 - [x] `dto` · `dao` 패키지 다시 만들기
 - [x] 소켓 메시지 프로토콜 확정 (`Message.Type` — JOIN·INFO·READY·VOTE·CHAT ···)
 - [x] 그룹 대기실 구현 — 방 만들기·참여·조건 병합·투표·최종 확정·채팅

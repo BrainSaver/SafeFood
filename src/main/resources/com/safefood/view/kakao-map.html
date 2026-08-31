@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 지도</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Segoe UI", sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .store-badge {
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+            position: relative;
+            bottom: 45px;
+            white-space: nowrap;
+            border: 2px solid #ffffff;
+        }
+        .my-badge {
+            background: #10b981;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+            position: relative;
+            bottom: 45px;
+            white-space: nowrap;
+            border: 2px solid #ffffff;
+        }
+        .no-key-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #64748b;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .no-key-box h3 {
+            margin: 0 0 8px 0;
+            color: #334155;
+            font-size: 16px;
+        }
+        .no-key-box p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+    </style>
+    <!-- __KAKAO_JS_KEY__ 는 Java에서 AppConfig.kakaoJsKey() 로 치환됩니다 -->
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=__KAKAO_JS_KEY__&autoload=false"></script>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+    var map = null;
+    var markers = [];
+    var overlays = [];
+    var polylines = [];
+    var pendingArgs = null;
+
+    if (typeof kakao !== 'undefined' && kakao.maps) {
+        kakao.maps.load(function () {
+            var container = document.getElementById('map');
+            var options = {
+                center: new kakao.maps.LatLng(35.1480, 129.0341),
+                level: 3
+            };
+            map = new kakao.maps.Map(container, options);
+
+            var zoomControl = new kakao.maps.ZoomControl();
+            map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+
+            if (pendingArgs) {
+                displayMap.apply(null, pendingArgs);
+                pendingArgs = null;
+            }
+        });
+    } else {
+        document.getElementById('map').innerHTML =
+            '<div class="no-key-box">' +
+            '<h3>실시간 지도 연동 안내</h3>' +
+            '<p>config.properties (또는 .env) 파일에<br/><b>kakao.js.key</b>를 입력하시면 지도가 활성화됩니다.</p>' +
+            '</div>';
+    }
+
+    function clearAll() {
+        for (var i = 0; i < markers.length; i++) markers[i].setMap(null);
+        for (var i = 0; i < overlays.length; i++) overlays[i].setMap(null);
+        for (var i = 0; i < polylines.length; i++) polylines[i].setMap(null);
+        markers = [];
+        overlays = [];
+        polylines = [];
+    }
+
+    /**
+     * 식당 위치(restaurant 테이블)와 현재 위치(user_location 테이블)를 지도에 꽉 차게 표시
+     */
+    function displayMap(restLat, restLng, restName, myLat, myLng, myLabel) {
+        if (!map) {
+            pendingArgs = [restLat, restLng, restName, myLat, myLng, myLabel];
+            return;
+        }
+
+        clearAll();
+        var bounds = new kakao.maps.LatLngBounds();
+        var hasRest = (restLat && restLng && restLat > 0 && restLng > 0);
+        var hasMy = (myLat && myLng && myLat > 0 && myLng > 0);
+
+        var restPos = null;
+        var myPos = null;
+
+        // 1. 식당 위치 마커 (restaurant 테이블)
+        if (hasRest) {
+            restPos = new kakao.maps.LatLng(restLat, restLng);
+            bounds.extend(restPos);
+
+            var restMarker = new kakao.maps.Marker({
+                position: restPos,
+                map: map
+            });
+            markers.push(restMarker);
+
+            var restBadge = document.createElement('div');
+            restBadge.className = 'store-badge';
+            restBadge.innerText = (restName || '식당');
+
+            var restOverlay = new kakao.maps.CustomOverlay({
+                map: map,
+                position: restPos,
+                content: restBadge,
+                yAnchor: 1
+            });
+            overlays.push(restOverlay);
+        }
+
+        // 2. 현재 위치 마커 (로그인 한 유저의 user_location 테이블)
+        if (hasMy) {
+            myPos = new kakao.maps.LatLng(myLat, myLng);
+            bounds.extend(myPos);
+
+            var myMarker = new kakao.maps.Marker({
+                position: myPos,
+                map: map
+            });
+            markers.push(myMarker);
+
+            var myBadge = document.createElement('div');
+            myBadge.className = 'my-badge';
+            myBadge.innerText = (myLabel || '현재 위치');
+
+            var myOverlay = new kakao.maps.CustomOverlay({
+                map: map,
+                position: myPos,
+                content: myBadge,
+                yAnchor: 1
+            });
+            overlays.push(myOverlay);
+        }
+
+        // 3. 두 위치 모두 존재 시 영역 자동 맞춤 및 연결선 표시
+        if (hasRest && hasMy) {
+            var linePath = [myPos, restPos];
+            var polyline = new kakao.maps.Polyline({
+                path: linePath,
+                strokeWeight: 3,
+                strokeColor: '#2563eb',
+                strokeOpacity: 0.7,
+                strokeStyle: 'dash'
+            });
+            polyline.setMap(map);
+            polylines.push(polyline);
+
+            map.setBounds(bounds, 50, 50, 50, 50);
+        } else if (hasRest) {
+            map.setCenter(restPos);
+            map.setLevel(3);
+        } else if (hasMy) {
+            map.setCenter(myPos);
+            map.setLevel(3);
+        }
+    }
+</script>
+</body>
+</html>

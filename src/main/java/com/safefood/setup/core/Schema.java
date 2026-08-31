@@ -41,7 +41,21 @@ public final class Schema {
     public static final List<AddedColumn> ADDED_COLUMNS = List.of(
             // 중복 로그인 차단 — 로그인할 때마다 새 표를 발급하고, 표가 바뀌면 이전 기기는 물러납니다
             new AddedColumn("user", "session_token",
-                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL")
+                    "ALTER TABLE `user` ADD COLUMN session_token VARCHAR(36) NULL"),
+
+            // 메뉴 카테고리 정규화 — 문자열 category 컬럼 대신 category(id)를 가리킵니다.
+            // 기존 DB 의 category 문자열 값 이관과 옛 컬럼 삭제는 README 스키마 절의 ALTER 참고.
+            new AddedColumn("menu", "category_id",
+                    "ALTER TABLE menu ADD COLUMN category_id INT NULL, "
+                            + "ADD CONSTRAINT fk_menu_category FOREIGN KEY (category_id) REFERENCES category(id)")
+    );
+
+    public record AddedIndex(String table, String index, String ddl) {
+    }
+
+    public static final List<AddedIndex> ADDED_INDEXES = List.of(
+            new AddedIndex("child", "uq_child_user_name",
+                    "ALTER TABLE child ADD CONSTRAINT uq_child_user_name UNIQUE (user_id, name)")
     );
 
     public static final List<Table> TABLES = List.of(
@@ -153,6 +167,13 @@ public final class Schema {
 
             // ── 맛집 · 메뉴 ────────────────────────────────
 
+            new Table("category", """
+                    CREATE TABLE IF NOT EXISTS category (
+                        id   INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(20) NOT NULL UNIQUE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
             new Table("restaurant", """
                     CREATE TABLE IF NOT EXISTS restaurant (
                         id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -175,11 +196,12 @@ public final class Schema {
                         restaurant_id INT NOT NULL,
                         name          VARCHAR(50) NOT NULL,
                         price         INT NOT NULL,
-                        category      VARCHAR(20),
+                        category_id   INT,
                         spicy_level   TINYINT,
                         description   VARCHAR(255),
                         food_id       INT,
                         FOREIGN KEY (restaurant_id) REFERENCES restaurant(id),
+                        FOREIGN KEY (category_id)   REFERENCES category(id),
                         FOREIGN KEY (food_id)       REFERENCES food(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """),
@@ -222,7 +244,7 @@ public final class Schema {
                         id          INT AUTO_INCREMENT PRIMARY KEY,
                         name        VARCHAR(50),
                         owner_id    INT NOT NULL,
-                        invite_code VARCHAR(10) NOT NULL UNIQUE,
+                        invite_code VARCHAR(20) NOT NULL UNIQUE,
                         status      ENUM('OPEN', 'VOTING', 'CLOSED') DEFAULT 'OPEN',
                         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (owner_id) REFERENCES `user`(id)
@@ -319,6 +341,33 @@ public final class Schema {
                         FOREIGN KEY (group_id)    REFERENCES dining_group(id),
                         FOREIGN KEY (feedback_id) REFERENCES feedback(id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            // -- 우리 아이 급식 --------------------------------
+
+            new Table("child", """
+                    CREATE TABLE IF NOT EXISTS child (
+                        id         INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id    INT NOT NULL,
+                        name       VARCHAR(30) NOT NULL,
+                        atpt_code  VARCHAR(10),
+                        schul_code VARCHAR(10),
+                        schul_nm   VARCHAR(60),
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_child_user_name (user_id, name),
+                        FOREIGN KEY (user_id) REFERENCES `user`(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    """),
+
+            new Table("child_allergy", """
+                    CREATE TABLE IF NOT EXISTS child_allergy (
+                        child_id   INT NOT NULL,
+                        allergy_id INT NOT NULL,
+                        severity   TINYINT NOT NULL DEFAULT 3,
+                        PRIMARY KEY (child_id, allergy_id),
+                        FOREIGN KEY (child_id)   REFERENCES child(id),
+                        FOREIGN KEY (allergy_id) REFERENCES allergy(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """)
     );
 
@@ -337,6 +386,15 @@ public final class Schema {
         throw new IllegalArgumentException(name + " 테이블은 스키마에 없습니다.");
     }
 
+    public static String indexDdlOf(String table, String index) {
+        for (AddedIndex added : ADDED_INDEXES) {
+            if (added.table().equals(table) && added.index().equals(index)) {
+                return added.ddl();
+            }
+        }
+        throw new IllegalArgumentException(table + "." + index + " 인덱스는 스키마에 없습니다.");
+    }
+
     /**
      * 알레르기 마스터 데이터.
      * 식품의약품안전처가 고시한 알레르기 유발물질 표시 대상 품목을 기준으로 삼았습니다.
@@ -345,6 +403,27 @@ public final class Schema {
             "우유", "계란", "메밀", "땅콩", "대두", "밀", "호두", "잣",
             "새우", "게", "오징어", "조개류", "고등어", "복숭아", "토마토",
             "돼지고기", "쇠고기", "닭고기", "아황산류"
+    );
+
+    /** 음식 카테고리 마스터 데이터. 메뉴 분류(menu.category_id)와 화면의 카테고리 선택지로 씁니다. */
+    public static final List<String> CATEGORIES = List.of(
+            "한식", "중식", "일식", "양식", "아시안", "패스트푸드", "카페/디저트", "분식"
+    );
+
+    /**
+     * 나이스(NEIS) 급식 식단에 붙는 알레르기 표기 번호 1~19번의 <b>실제 알레르겐</b>을
+     * 그 번호 순서대로 적어 둔 것입니다. 이름은 {@link #ALLERGIES}(우리 마스터)의 표기를 씁니다.
+     *
+     * <p><b>NEIS 번호는 우리 {@code allergy.id} 와 다릅니다.</b> 같은 19종이지만 순서가 달라
+     * 19개 중 5개만 우연히 일치하고 14개가 어긋납니다. 실제 식단으로 확인한 예:
+     * {@code 우유 (2)} · {@code 고등어구이 (7)} · {@code 돈육불고기 (10)} · {@code 오징어무침 (17)}.
+     * 번호를 그대로 {@code allergy_id} 로 쓰면 우유 알레르기가 계란으로, 돼지고기가 게로 읽힙니다.
+     *
+     * <p>그래서 번호는 <b>이름을 거쳐서만</b> 우리 id 로 바뀝니다 ({@code NeisAllergyCodes}).
+     */
+    public static final List<String> NEIS_ALLERGY_NAMES = List.of(
+            "계란", "우유", "메밀", "땅콩", "대두", "밀", "고등어", "게", "새우", "돼지고기",
+            "복숭아", "토마토", "아황산류", "호두", "닭고기", "쇠고기", "오징어", "조개류", "잣"
     );
 
     /** 기분·컨디션 마스터 데이터. 추천 알고리즘의 기분 태그로 씁니다. */

@@ -115,9 +115,49 @@ public final class DatabaseInitializer {
         }
     }
 
+    Result addMissingIndexes() throws SQLException {
+        int added = 0;
+        int skipped = 0;
+        try (Connection connection = DriverManager.getConnection(
+                     config.databaseUrl(), config.user(), config.password());
+             Statement statement = connection.createStatement()) {
+
+            for (Schema.AddedIndex index : Schema.ADDED_INDEXES) {
+                if (!tableExists(connection, index.table())
+                        || indexExists(connection, index.table(), index.index())) {
+                    skipped++;
+                    continue;
+                }
+                try {
+                    statement.executeUpdate(index.ddl());
+                    added++;
+                    out.detail("+ " + index.table() + "." + index.index());
+                } catch (SQLException e) {
+                    skipped++;
+                    out.warn(index.table() + "." + index.index() + " 을(를) 붙이지 못했습니다: "
+                            + explain(e) + " (겹치는 데이터를 먼저 정리해 주세요)");
+                }
+            }
+        }
+        return new Result(added, skipped);
+    }
+
+    private boolean indexExists(Connection connection, String tableName, String indexName)
+            throws SQLException {
+        try (ResultSet indexes = connection.getMetaData()
+                .getIndexInfo(config.database(), null, tableName, false, false)) {
+            while (indexes.next()) {
+                if (indexName.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /**
-     * 알레르기·기분 마스터 데이터를 채웁니다.
-     * 두 테이블 모두 name이 UNIQUE라서 INSERT IGNORE로 중복 삽입을 막을 수 있습니다.
+     * 알레르기·기분·카테고리 마스터 데이터를 채웁니다.
+     * 세 테이블 모두 name이 UNIQUE라서 INSERT IGNORE로 중복 삽입을 막을 수 있습니다.
      */
     Result insertMasterData() throws SQLException {
         try (Connection connection = DriverManager.getConnection(
@@ -125,12 +165,14 @@ public final class DatabaseInitializer {
 
             int allergies = insertNames(connection, "allergy", Schema.ALLERGIES);
             int moods = insertNames(connection, "mood", Schema.MOODS);
+            int categories = insertNames(connection, "category", Schema.CATEGORIES);
 
             out.detail("알레르기 " + allergies + "건 추가 (전체 " + Schema.ALLERGIES.size() + "건)");
             out.detail("기분 태그 " + moods + "건 추가 (전체 " + Schema.MOODS.size() + "건)");
+            out.detail("카테고리 " + categories + "건 추가 (전체 " + Schema.CATEGORIES.size() + "건)");
 
-            int total = Schema.ALLERGIES.size() + Schema.MOODS.size();
-            int inserted = allergies + moods;
+            int total = Schema.ALLERGIES.size() + Schema.MOODS.size() + Schema.CATEGORIES.size();
+            int inserted = allergies + moods + categories;
             return new Result(inserted, total - inserted);
         }
     }

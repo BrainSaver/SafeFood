@@ -2,11 +2,10 @@ package com.safefood.view.controller;
 
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.Session;
-import com.safefood.dto.UserDto;
 import com.safefood.service.LocationService;
 import com.safefood.service.MapService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
@@ -52,6 +51,14 @@ public class LocationController {
     /** 저장·해제가 끝났음을 부른 화면에 알립니다 (프로필이 라벨을 다시 그립니다). */
     private Runnable onSaved;
 
+    private Task<MapService.Coordinates> geocoding;
+
+    private boolean saveWhenFound;
+
+    private boolean labelChosenByUser;
+
+    private boolean fillingLabel;
+
     public void setOnSaved(Runnable onSaved) {
         this.onSaved = onSaved;
     }
@@ -63,6 +70,13 @@ public class LocationController {
 
         renderPlaces();
         fill(myLocation());
+
+        labelField.textProperty().addListener((observable, before, after) -> {
+            if (!fillingLabel) {
+                labelChosenByUser = true;
+            }
+        });
+
         checkCoordinates();
     }
 
@@ -72,11 +86,10 @@ public class LocationController {
         if (cached != null) {
             return cached;
         }
-        UserDto me = Session.getCurrentUser();
-        if (me == null) {
+        if (!Session.isMember()) {
             return null;   // 게스트 — 세션에 없으면 없는 것입니다
         }
-        LocationDto saved = locationService.getMyLocation(me.getId());
+        LocationDto saved = locationService.getMyLocation(Session.currentUserId());
         Session.setMyLocation(saved);
         return saved;
     }
@@ -106,6 +119,12 @@ public class LocationController {
         return value == null ? "" : value;
     }
 
+    private void fillLabel(String buildingName) {
+        fillingLabel = true;
+        labelField.setText(buildingName);
+        fillingLabel = false;
+    }
+
     // ── 주소 검색 ───────────────────────────────────────────────
 
     @FXML
@@ -120,9 +139,9 @@ public class LocationController {
         addressField.setText(text(picked.preferred()));
         detailField.clear();
 
-        // 건물 이름이 있으면 장소 이름을 비워 두지 않게 채워 줍니다 (사용자가 고쳐도 됩니다)
-        if (labelField.getText().isBlank() && !text(picked.buildingName()).isBlank()) {
-            labelField.setText(picked.buildingName());
+        if (!text(picked.buildingName()).isBlank()
+                && (labelField.getText().isBlank() || !labelChosenByUser)) {
+            fillLabel(picked.buildingName());
         }
         Widgets.hideError(errorLabel);
         detailField.requestFocus();
@@ -135,6 +154,8 @@ public class LocationController {
      * (여기서 기다리면 창이 몇 초씩 멎습니다).
      */
     private void findCoordinates(String address) {
+        cancelLookup();
+
         if (!MapService.hasApiKey()) {
             markCoordTag("아직 없음", "neutral");
             hint("config.properties 의 map.api.key(카카오 REST API 키)를 채우면 주소에서 좌표를 자동으로 찾습니다. "
@@ -156,34 +177,65 @@ public class LocationController {
             if (found == null) {
                 markCoordTag("못 찾음", "warn");
                 hint("이 주소로는 좌표를 찾지 못했어요. 아래에서 대표 지점을 고르거나 직접 넣어 주세요.");
+                holdPendingSave();
                 return;
             }
             latField.setText(String.valueOf(found.latitude()));
             lngField.setText(String.valueOf(found.longitude()));
             // 좌표 칸이 바뀌면서 checkCoordinates 가 태그·안내를 정리합니다
+            resumePendingSave();
         });
         lookup.setOnFailed(event -> {
             markCoordTag("못 찾음", "warn");
             Throwable error = lookup.getException();
             hint("좌표를 찾는 중 문제가 생겼어요: "
                     + (error == null ? "알 수 없는 오류" : error.getMessage()));
+            holdPendingSave();
         });
 
+        geocoding = lookup;
         Thread worker = new Thread(lookup, "geocode");
         worker.setDaemon(true);
         worker.start();
     }
 
+    private boolean isLookingUp() {
+        return geocoding != null && geocoding.isRunning();
+    }
+
+    private void cancelLookup() {
+        if (geocoding != null) {
+            geocoding.cancel();
+        }
+    }
+
+    private void resumePendingSave() {
+        if (!saveWhenFound) {
+            return;
+        }
+        saveWhenFound = false;
+        handleSave();
+    }
+
+    private void holdPendingSave() {
+        if (!saveWhenFound) {
+            return;
+        }
+        saveWhenFound = false;
+        Widgets.showError(errorLabel, "좌표를 찾지 못해 아직 저장하지 않았어요. "
+                + "대표 지점을 고르거나, '저장'을 다시 누르면 주소만으로 등록됩니다.");
+    }
+
     // ── 대표 지점 (좌표 대신 채우기) ────────────────────────────
 
     /*
-     * 우편번호 서비스는 주소만 주고 좌표는 주지 않습니다. 지도 API 키가 없는 팀원도 거리
-     * 계산을 시험해 볼 수 있도록, 대표 지점의 좌표를 눌러 채우는 길을 남겨 뒀습니다.
+     * 우편번호 서비스는 주소만 주고 좌표는 주지 않습니다. REST API 키(map.api.key)가 없는
+     * 팀원도 거리 계산을 시험해 볼 수 있도록, 대표 지점의 좌표를 눌러 채우는 길을 남겨 뒀습니다.
      */
 
     private void renderPlaces() {
         placePane.getChildren().clear();
-        for (DemoData.Place place : DemoData.PLACES) {
+        for (UiConstants.Place place : UiConstants.PLACES) {
             Button chip = new Button(place.name());
             chip.getStyleClass().add("chip");
             chip.setOnAction(event -> pick(place));
@@ -192,8 +244,10 @@ public class LocationController {
     }
 
     /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다 — 저장은 아직입니다. */
-    private void pick(DemoData.Place place) {
+    private void pick(UiConstants.Place place) {
         labelField.setText(place.name());
+        cancelLookup();
+
         zonecodeField.clear();   // 검색으로 받은 우편번호가 아니므로 비웁니다
         addressField.setText(place.address());
         detailField.clear();
@@ -248,6 +302,13 @@ public class LocationController {
 
     @FXML
     private void handleSave() {
+        if (isLookingUp()) {
+            saveWhenFound = true;
+            Widgets.hideError(errorLabel);
+            hint("좌표를 찾고 있어요 — 다 찾으면 바로 저장할게요.");
+            return;
+        }
+
         Double latitude = LocationService.parseCoordinate(latField.getText());
         Double longitude = LocationService.parseCoordinate(lngField.getText());
         boolean latBlank = latField.getText() == null || latField.getText().isBlank();
@@ -285,8 +346,8 @@ public class LocationController {
                 address.isEmpty() ? null : address,
                 latitude, longitude);
 
-        UserDto me = Session.getCurrentUser();
-        if (me != null && !locationService.saveMyLocation(me.getId(), location)) {
+        boolean member = Session.isMember();
+        if (member && !locationService.saveMyLocation(Session.currentUserId(), location)) {
             Widgets.showError(errorLabel, "저장 중 오류가 발생했습니다. 데이터베이스 연결을 확인해 주세요.");
             return;
         }
@@ -300,7 +361,7 @@ public class LocationController {
         if (!location.hasCoordinates()) {
             AppNav.warn("좌표가 없어 거리 계산에는 아직 쓰이지 않아요.");
         }
-        if (me == null) {
+        if (!member) {
             AppNav.info("게스트라 이 위치는 앱을 켜 둔 동안만 유지됩니다.");
         }
     }
@@ -317,11 +378,12 @@ public class LocationController {
 
     @FXML
     private void handleClear() {
+        saveWhenFound = false;
+
         if (!AppNav.confirm("등록한 위치를 지울까요?\n거리 조건과 중간 지점 계산에서 빠집니다.")) {
             return;
         }
-        UserDto me = Session.getCurrentUser();
-        if (me != null && !locationService.clearMyLocation(me.getId())) {
+        if (Session.isMember() && !locationService.clearMyLocation(Session.currentUserId())) {
             Widgets.showError(errorLabel, "지우는 중 오류가 발생했습니다. 데이터베이스 연결을 확인해 주세요.");
             return;
         }
@@ -334,6 +396,7 @@ public class LocationController {
 
     @FXML
     private void handleCancel() {
+        saveWhenFound = false;
         AppNav.close(root);
     }
 

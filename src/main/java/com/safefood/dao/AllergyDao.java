@@ -17,6 +17,15 @@ import java.util.Set;
  */
 public class AllergyDao {
 
+    private static final String DERIVED_CONTAINS = """
+            SELECT dm.id AS menu_id, ia.allergy_id
+              FROM menu dm
+              JOIN food_ingredient fi    ON fi.food_id = dm.food_id
+              JOIN ingredient_allergy ia ON ia.ingredient_id = fi.ingredient_id
+             WHERE dm.food_id IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM menu_allergy x WHERE x.menu_id = dm.id)
+            """;
+
     /**
      * 특정 회원의 알레르기 ID 목록 조회
      */
@@ -42,6 +51,10 @@ public class AllergyDao {
 
     /**
      * 특정 회원의 알레르기 ID 및 심각도(severity) Map 조회
+     *
+     * @throws DataAccessException 조회 실패 — 삼키고 빈 Map 을 돌려주면 혼입 가능성(POSSIBLE)
+     *                             감점이 0 점이 되어 위험한 메뉴가 그대로 상위에 오릅니다.
+     *                             {@link #getUserAllergyIds} 와 같은 규칙입니다
      */
     public Map<Integer, Integer> getUserSeverityMap(int userId) {
         Map<Integer, Integer> severityMap = new HashMap<>();
@@ -57,7 +70,7 @@ public class AllergyDao {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new DataAccessException("회원 알레르기 심각도를 불러오지 못했습니다.", e);
         }
         return severityMap;
     }
@@ -67,13 +80,18 @@ public class AllergyDao {
      */
     public List<Integer> getMenuAllergiesByRiskLevel(int menuId, String riskLevel) {
         List<Integer> allergyIds = new ArrayList<>();
-        String sql = "SELECT allergy_id FROM menu_allergy WHERE menu_id = ? AND risk_level = ?";
+        String sql = "SELECT allergy_id FROM menu_allergy WHERE menu_id = ? AND risk_level = ? "
+                   + "UNION "
+                   + "SELECT allergy_id FROM (" + DERIVED_CONTAINS + ") derived "
+                   + "WHERE derived.menu_id = ? AND ? = 'CONTAINS'";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, menuId);
             pstmt.setString(2, riskLevel);
+            pstmt.setInt(3, menuId);
+            pstmt.setString(4, riskLevel);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     allergyIds.add(rs.getInt("allergy_id"));
@@ -116,7 +134,10 @@ public class AllergyDao {
     public Map<Integer, MenuAllergies> getAllMenuAllergies() {
         Map<Integer, List<Integer>> containsByMenu = new HashMap<>();
         Map<Integer, List<Integer>> possibleByMenu = new HashMap<>();
-        String sql = "SELECT menu_id, allergy_id, risk_level FROM menu_allergy";
+        String sql = "SELECT menu_id, allergy_id, risk_level FROM menu_allergy "
+                   + "UNION ALL "
+                   + "SELECT menu_id, allergy_id, 'CONTAINS' AS risk_level "
+                   + "FROM (" + DERIVED_CONTAINS + ") derived";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -150,5 +171,65 @@ public class AllergyDao {
                     possibleByMenu.getOrDefault(menuId, List.of())));
         }
         return byMenu;
+    }
+
+    /**
+     * 특정 메뉴의 알레르기 성분 목록을 menu_allergy 테이블에 저장 (크롤러 및 동기화 파이프라인용)
+     */
+    public boolean saveMenuAllergies(int menuId, Set<Integer> allergyIds) {
+        if (menuId <= 0 || allergyIds == null || allergyIds.isEmpty()) {
+            return false;
+        }
+        String sql = "INSERT INTO menu_allergy (menu_id, allergy_id, risk_level, ingredient) " +
+                     "VALUES (?, ?, 'CONTAINS', '') " +
+                     "ON DUPLICATE KEY UPDATE risk_level = VALUES(risk_level)";
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            for (Integer allergyId : allergyIds) {
+                if (allergyId == null || allergyId <= 0) continue;
+                pstmt.setInt(1, menuId);
+                pstmt.setInt(2, allergyId);
+                pstmt.addBatch();
+            }
+            pstmt.executeBatch();
+            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 여러 메뉴의 알레르기 성분을 대량 일괄 저장 (Batch)
+     */
+    public int saveMenuAllergiesBatch(Map<Integer, Set<Integer>> allergiesByMenuId) {
+        if (allergiesByMenuId == null || allergiesByMenuId.isEmpty()) {
+            return 0;
+        }
+        String sql = "INSERT INTO menu_allergy (menu_id, allergy_id, risk_level, ingredient) " +
+                     "VALUES (?, ?, 'CONTAINS', '') " +
+                     "ON DUPLICATE KEY UPDATE risk_level = VALUES(risk_level)";
+        int totalInserted = 0;
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            conn.setAutoCommit(false);
+            for (Map.Entry<Integer, Set<Integer>> entry : allergiesByMenuId.entrySet()) {
+                int menuId = entry.getKey();
+                Set<Integer> allergies = entry.getValue();
+                if (allergies == null || allergies.isEmpty()) continue;
+                for (Integer allergyId : allergies) {
+                    if (allergyId == null || allergyId <= 0) continue;
+                    pstmt.setInt(1, menuId);
+                    pstmt.setInt(2, allergyId);
+                    pstmt.addBatch();
+                    totalInserted++;
+                }
+            }
+            pstmt.executeBatch();
+            conn.commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return totalInserted;
     }
 }

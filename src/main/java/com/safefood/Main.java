@@ -25,7 +25,11 @@ public class Main extends Application {
         Task<Boolean> probe = new Task<>() {
             @Override
             protected Boolean call() {
-                return DatabaseUtil.isReady();
+                boolean ready = DatabaseUtil.isReady();
+                if (ready) {
+                    checkAllergyMaster();
+                }
+                return ready;
             }
         };
         probe.setOnSucceeded(event -> route(stage, Boolean.TRUE.equals(probe.getValue())));
@@ -34,6 +38,12 @@ public class Main extends Application {
         Thread worker = new Thread(probe, "db-probe");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    private static void checkAllergyMaster() {
+        for (String problem : com.safefood.dao.AllergyCatalog.verify()) {
+            System.err.println("[allergy] " + problem);
+        }
     }
 
     private void route(Stage stage, boolean ready) {
@@ -53,7 +63,7 @@ public class Main extends Application {
 
     private void showApp(Stage stage) {
         stage.setMaximized(false);
-        AppNav.init(stage);
+        AppNav.init(stage, getHostServices());
         AppNav.show("로그인", "login.fxml");
         stage.centerOnScreen();
     }

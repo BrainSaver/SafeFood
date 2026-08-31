@@ -51,17 +51,17 @@ class RecommendServiceTest {
     }
 
     @Test
-    @DisplayName("기분·컨디션 가산점(+15점) 적용 검증 (R-05)")
+    @DisplayName("기분·컨디션 가산점(+25점) 적용 검증 (R-05)")
     void testCalculateMenuScoreWithMood() {
         int baseScore = 100;
 
-        // 선호 O (+20), 기분 O (+15) -> 100 + 20 + 15 = 135점
+        // 선호 O (+20), 기분 O (+25) -> 100 + 20 + 25 = 145점
         int score = recommendService.calculateMenuScore(baseScore, true, true);
-        assertEquals(135, score);
+        assertEquals(145, score);
 
-        // 선호 X (+0), 기분 O (+15) -> 100 + 15 = 115점
+        // 선호 X (+0), 기분 O (+25) -> 100 + 25 = 125점
         int scoreMoodOnly = recommendService.calculateMenuScore(baseScore, false, true);
-        assertEquals(115, scoreMoodOnly);
+        assertEquals(125, scoreMoodOnly);
     }
 
     @Test
@@ -77,5 +77,43 @@ class RecommendServiceTest {
         assertNotNull(pick);
         assertFalse(pick.isBlocked(), "차단된 메뉴는 룰렛 당첨에서 제외");
         assertTrue(pick.getMenuName().equals("메뉴A") || pick.getMenuName().equals("메뉴B"), "상위 2개 안전 메뉴 중 1개 선택");
+    }
+
+    @Test
+    @DisplayName("동적 크롤링 대응: 메뉴명 기반 알레르기 유발물질 자동 추출 검증")
+    void testDeducedAllergiesFromText() {
+        // 1. "불고기 두부 포케" -> 쇠고기(17), 대두(5) 자동 감지
+        com.safefood.dao.MenuDao.MenuDto poke = new com.safefood.dao.MenuDao.MenuDto(
+                101, 1, "불고기 두부 포케", 12000, "아시안", 0
+        );
+        java.util.Set<Integer> pokeAllergies = recommendService.deduceAllergiesFromText(poke);
+        assertTrue(pokeAllergies.contains(17) || pokeAllergies.contains(16), "불고기는 쇠고기/돼지고기 알레르기 감지");
+        assertTrue(pokeAllergies.contains(5), "두부는 대두 알레르기 감지");
+
+        // 2. "치즈 돈까스" -> 돼지고기(16) + 복합룰(밀 6, 계란 2, 우유 1) 자동 감지
+        com.safefood.dao.MenuDao.MenuDto tonkatsu = new com.safefood.dao.MenuDao.MenuDto(
+                102, 1, "치즈 돈까스", 11000, "일식", 0
+        );
+        java.util.Set<Integer> tonkatsuAllergies = recommendService.deduceAllergiesFromText(tonkatsu);
+        assertTrue(tonkatsuAllergies.contains(16), "돈까스는 돼지고기 감지");
+        assertTrue(tonkatsuAllergies.contains(6), "돈까스 튀김옷 밀 감지");
+        assertTrue(tonkatsuAllergies.contains(2), "돈까스 반죽 계란 감지");
+        assertTrue(tonkatsuAllergies.contains(1), "치즈는 우유 감지");
+    }
+
+    @Test
+    @DisplayName("가게만의 특색 메뉴명(성분 추정 불가) 정보 미흡 판정 검증")
+    void testInformationInsufficient() {
+        // DB 알레르기도 없고, 이름에서도 재료를 알 수 없는 특색 메뉴
+        com.safefood.dao.MenuDao.MenuDto signature = new com.safefood.dao.MenuDao.MenuDto(
+                103, 1, "시그니처 비밀 플래터", 25000, "양식", 0
+        );
+        java.util.Set<Integer> deduced = recommendService.deduceAllergiesFromText(signature);
+        boolean isInsufficient = recommendService.isInformationInsufficient(
+                signature,
+                com.safefood.dao.AllergyDao.MenuAllergies.EMPTY,
+                deduced
+        );
+        assertTrue(isInsufficient, "재료 및 알레르기 정보가 없는 특색 메뉴는 정보 미흡으로 판정");
     }
 }

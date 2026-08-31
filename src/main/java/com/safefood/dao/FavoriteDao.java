@@ -1,7 +1,6 @@
 package com.safefood.dao;
 
 import com.safefood.dto.FavoriteDto;
-import com.safefood.view.DemoData;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -49,42 +48,17 @@ public class FavoriteDao {
         return list;
     }
 
-    // 2. 찜 목록 꺼내오기 (UI DemoData.FavoriteRow 리스트)
-    public List<DemoData.FavoriteRow> getUserFavorites(int userId) {
-        List<DemoData.FavoriteRow> list = new ArrayList<>();
-        String sql = "SELECT r.name AS restaurant_name, m.name AS menu_name, r.rating, r.review_count " +
-                     "FROM favorite f " +
-                     "JOIN menu m ON f.menu_id = m.id " +
-                     "LEFT JOIN restaurant r ON m.restaurant_id = r.id " +
-                     "WHERE f.user_id = ? " +
-                     "ORDER BY f.created_at DESC";
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, userId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    String rest = rs.getString("restaurant_name") != null ? rs.getString("restaurant_name") : "";
-                    String menu = rs.getString("menu_name");
-                    double rating = rs.getDouble("rating");
-                    int reviewCount = rs.getInt("review_count");
-                    list.add(new DemoData.FavoriteRow(rest, menu, rating, reviewCount));
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return list;
-    }
-
-    // 3. 찜 추가하기 (중복 방지 포함)
+    /**
+     * 2. 찜 추가하기 — 이미 찜한 메뉴면 넣지 않고 성공으로 돌려 줍니다.
+     *
+     * <p>넣는 자리를 이 하나로 모아 둡니다. 예전에는 가드 없는 {@code insertFavorite} 이 따로
+     * 열려 있어서, 그쪽을 부르면 같은 메뉴가 여러 행 쌓였습니다
+     * ({@code favorite} 에 (user_id, menu_id) 유일 제약이 없습니다).
+     */
     public boolean addFavorite(int userId, Integer restaurantId, Integer menuId) {
         if (isFavorite(userId, menuId)) {
             return true;
         }
-        return insertFavorite(userId, restaurantId, menuId);
-    }
-
-    public boolean insertFavorite(int userId, Integer restaurantId, Integer menuId) {
         String sql = "INSERT INTO favorite (user_id, restaurant_id, menu_id) VALUES (?, ?, ?)";
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -103,7 +77,7 @@ public class FavoriteDao {
         }
     }
 
-    // 4. 찜 여부 확인
+    // 3. 찜 여부 확인
     public boolean isFavorite(int userId, Integer menuId) {
         if (userId <= 0 || menuId == null || menuId <= 0) return false;
         String sql = "SELECT id FROM favorite WHERE user_id = ? AND menu_id = ?";
@@ -148,7 +122,7 @@ public class FavoriteDao {
         return menuIds;
     }
 
-    // 5. 찜 취소하기 (메뉴 ID 기준)
+    // 4. 찜 취소하기 (메뉴 ID 기준)
     public boolean removeFavorite(int userId, Integer menuId) {
         String sql = "DELETE FROM favorite WHERE user_id = ? AND menu_id = ?";
         try (Connection conn = DatabaseUtil.getConnection();
@@ -162,30 +136,12 @@ public class FavoriteDao {
         }
     }
 
-    // 6. 찜 취소하기 (PK 기준)
+    // 5. 찜 취소하기 (PK 기준)
     public boolean deleteFavorite(int favoriteId) {
         String sql = "DELETE FROM favorite WHERE id = ?";
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, favoriteId);
-            return pstmt.executeUpdate() > 0;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    // 7. 찜 취소하기 (유저, 식당, 메뉴 ID 기준)
-    public boolean deleteFavoriteByMenu(int userId, Integer restaurantId, Integer menuId) {
-        String sql = "DELETE FROM favorite WHERE user_id = ? AND restaurant_id = ? AND menu_id = ?";
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, userId);
-            if (restaurantId != null) pstmt.setInt(2, restaurantId);
-            else pstmt.setNull(2, Types.INTEGER);
-            if (menuId != null) pstmt.setInt(3, menuId);
-            else pstmt.setNull(3, Types.INTEGER);
-
             return pstmt.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();

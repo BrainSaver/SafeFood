@@ -1,6 +1,7 @@
 package com.safefood.view.controller;
 
 import com.safefood.dao.AllergyCatalog;
+import com.safefood.dao.CategoryCatalog;
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.Session;
@@ -8,8 +9,8 @@ import com.safefood.dto.UserDto;
 import com.safefood.service.LocationService;
 import com.safefood.service.ProfileService;
 import com.safefood.view.AppNav;
-import com.safefood.view.DemoData;
 import com.safefood.view.Theme;
+import com.safefood.view.UiConstants;
 import com.safefood.view.Widgets;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
@@ -56,7 +57,7 @@ public class ProfileController {
     @FXML private Label priceLabel;
     @FXML private Slider spicySlider;
     @FXML private Label spicyLabel;
-    @FXML private Label userLabel;
+    @FXML private NavController navController;
     @FXML private Label autoSaveTag;
     @FXML private Label allergyHint;
     @FXML private Label locationLabel;
@@ -75,9 +76,10 @@ public class ProfileController {
 
     @FXML
     private void initialize() {
+        navController.setActive(NavController.Tab.PROFILE);
         fillDistanceSeg();
         fillThemes();
-        Widgets.fillChips(categoryPane, DemoData.CATEGORIES, categoryChips);
+        Widgets.fillChips(categoryPane, CategoryCatalog.names(), categoryChips);
         preferenceSettle.setOnFinished(event -> savePreferences());
 
         // 입력칸은 검색도 겸합니다 — 치는 동안 아래 목록이 걸러집니다
@@ -86,7 +88,6 @@ public class ProfileController {
         // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
         if (!Session.isMember()) {
             // 게스트는 저장할 계정이 없습니다 — 화면은 보여 주되 자동 저장은 끕니다
-            userLabel.setText(Session.displayName("게스트") + "님");
             autoSaveTag.setText("게스트 — 저장되지 않아요");
             autoSaveTag.getStyleClass().remove("accent2");
             autoSaveTag.getStyleClass().add("neutral");
@@ -101,7 +102,6 @@ public class ProfileController {
         }
 
         UserDto me = Session.getCurrentUser();
-        userLabel.setText(Session.displayName("사용자") + "님");
         ProfileService profileService = new ProfileService();
 
         Map<String, Integer> myAllergies = profileService.getMyAllergies(me.getId());
@@ -163,7 +163,7 @@ public class ProfileController {
 
     private void fillDistanceSeg() {
         distanceSeg.getChildren().clear();
-        List<String> options = DemoData.DISTANCES;
+        List<String> options = UiConstants.DISTANCES;
         for (int i = 0; i < options.size(); i++) {
             ToggleButton option =
                     Widgets.segOption(options.get(i), i == 0, i == options.size() - 1);
@@ -506,26 +506,10 @@ public class ProfileController {
     private void handleEditInfo() {
         AppNav.dialog("정보 변경", "edit-info.fxml",
                 (EditInfoController controller) -> controller.setOnSaved(
-                        () -> userLabel.setText(Session.displayName("사용자") + "님")));
+                        navController::refreshUserLabel));
     }
 
-    @FXML
-    private void handleMain() {
-        AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
-    }
 
-    @FXML
-    private void handleHistory() {
-        AppNav.show("식사 기록 및 즐겨찾기", "history.fxml");
-    }
 
-    @FXML
-    private void handleGroup() {
-        AppNav.dialog("같이 먹기", "group-option.fxml");
-    }
 
-    @FXML
-    private void handleLogout() {
-        AppNav.logout();
-    }
 }

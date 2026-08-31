@@ -21,19 +21,27 @@ public class AllergyService {
     // 1. 알레르기 안전성 판정 (CONTAINS 위험도 검증)
     // =========================================================================
     /**
-     * 사용자의 보유 알레르기와 메뉴의 CONTAINS(원재료 포함) 알레르기를 대조하여
-     * 메뉴가 안전한지 여부를 판단
+     * 사용자의 보유 알레르기와 메뉴에 <b>알려진</b> 알레르기 목록이 겹치는지 봅니다.
+     *
+     * <p><b>true 는 '안전'이 아니라 '겹치는 것이 없음'입니다.</b> 우리가 아는 목록이
+     * 비어 있어도 true 가 나오는데, 실제 DB 에는 알레르기 정보가 하나도 없는 메뉴가
+     * 전체의 30%(1,576개 중 477개)입니다. 그 메뉴들은 '안전해서' 통과하는 것이 아니라
+     * <b>모르기 때문에</b> 통과합니다.
+     *
+     * <p>그래서 부르는 쪽은 정보가 있는지를 따로 봐야 합니다 —
+     * {@code RecommendService.isInformationInsufficient} 가 그 자리이고, 정보 미흡 메뉴는
+     * 점수를 깎고 '안심 메뉴'로 권하지 않습니다.
      *
      * @param userAllergyIds 사용자가 가지고 있는 알레르기 ID 목록 (예: [4] - 땅콩)
      * @param menuContainsAllergyIds 메뉴에 확실히 포함된 CONTAINS 알레르기 ID 목록
-     * @return 안전하면 true, 하나라도 겹치면 false (추천 후보 제외 대상)
+     * @return 겹치는 것이 없으면 true, 하나라도 겹치면 false (추천 후보 제외 대상)
      */
     public boolean isSafe(List<Integer> userAllergyIds, List<Integer> menuContainsAllergyIds) {
         if (userAllergyIds == null || userAllergyIds.isEmpty()) {
-            return true; // 사용자가 보유한 알레르기가 없으면 무조건 안전
+            return true;
         }
         if (menuContainsAllergyIds == null || menuContainsAllergyIds.isEmpty()) {
-            return true; // 메뉴에 알레르기 유발물질이 없으면 무조건 안전
+            return true;
         }
 
         for (Integer userAllergy : userAllergyIds) {
@@ -107,35 +115,5 @@ public class AllergyService {
         List<Integer> menuContains = allergyDao.getMenuAllergiesByRiskLevel(menuId, "CONTAINS");
         List<Integer> menuPossible = allergyDao.getMenuAllergiesByRiskLevel(menuId, "POSSIBLE");
         return isSafe(userAllergies, menuContains) && isSafe(userAllergies, menuPossible);
-    }
-
-    // =========================================================================
-    // [실행 및 테스트] main 메서드
-    // =========================================================================
-    public static void main(String[] args) {
-        AllergyService service = new AllergyService();
-
-        System.out.println("=== 1.자바 연산 isSafe 테스트 ===");
-        List<Integer> myAllergies = List.of(4); // 땅콩(4)
-        List<Integer> menuA = List.of(4, 2);    // 땅콩, 계란 포함
-        List<Integer> menuB = List.of(1, 2);    // 우유, 계란 포함
-
-        System.out.println("A메뉴(땅콩 있음) 먹어도 되나요?: " + service.isSafe(myAllergies, menuA)); // false
-        System.out.println("B메뉴(땅콩 없음) 먹어도 되나요?: " + service.isSafe(myAllergies, menuB)); // true
-
-        System.out.println("\n=== 2. calculatePenalty 테스트 ===");
-        Map<Integer, Integer> mySeverityMap = Map.of(4, 3); // 땅콩(4) 심각도 3
-        List<Integer> menuC_Possible = List.of(4);
-
-        int penalty = service.calculatePenalty(mySeverityMap, menuC_Possible);
-        System.out.println("감점 점수 (30점이 나와야 함): " + penalty + "점");
-
-        System.out.println("\n=== 3. createBlockedReason 테스트 ===");
-        String reason = service.createBlockedReason(List.of("땅콩", "대두"));
-        System.out.println("차단 사유 문구: " + reason);
-
-        System.out.println("\n=== 4. DB 연동 isSafeForUser 테스트 ===");
-        boolean isMenu1Safe = service.isSafeForUser(106, 1);
-        System.out.println("test 회원(새우 알레르기) - 메뉴 1번 안전 여부: " + isMenu1Safe);
     }
 }

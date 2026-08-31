@@ -32,9 +32,14 @@ if /i "%~1"=="build" (
     if exist "%JAR%" del /q "%JAR%"
 )
 
-if not exist "%JAR%" (
-    call :build
-    if errorlevel 1 goto :fail
+call :needs_build
+if errorlevel 1 call :build
+if errorlevel 1 (
+    if not exist "%JAR%" goto :fail
+    echo.
+    echo   [주의] 다시 만들지 못했습니다. 전에 만든 실행 파일로 그냥 실행합니다.
+    echo          방금 고친 내용은 반영되지 않습니다.
+    echo.
 )
 
 rem 자바 24부터 뜨는 경고 두 줄은 미리 끕니다. 21에는 없는 옵션이라 버전을 보고 붙입니다
@@ -113,11 +118,45 @@ exit /b 0
 
 
 rem ------------------------------------------------------------
-rem  실행 파일 빌드: target\safefood.jar 이 없을 때만 돕니다.
+rem  다시 빌드해야 하는지 판단
+rem    실행 파일이 없거나, src\ 나 pom.xml 이 실행 파일보다 새로우면 빌드합니다.
+rem
+rem    이 확인이 없으면 소스를 고쳐도 예전에 만든 jar 가 그대로 떠서, IDE 에서는
+rem    되는 기능이 이 창에서만 안 되는 일이 생깁니다. 실제로 비밀번호 저장 방식이
+rem    PBKDF2 로 바뀐 뒤, 낡은 jar 는 예전 방식으로만 대조하는 바람에 이미 새 형식으로
+rem    바뀐 계정이 로그인에 계속 실패했습니다.
+rem
+rem    날짜 비교를 cmd 로 하면 지역 설정에 따라 표시 형식이 달라져 못 믿습니다.
+rem    그래서 윈도우에 기본으로 깔려 있는 powershell 에 그 한 줄만 맡깁니다.
+rem    powershell 이 없거나 실패하면 STALE 이 비고, 지금 jar 를 그대로 씁니다.
+rem    (파이프 | 는 for /f 의 홑따옴표 안에서 ^ 로 감싸도 그대로 넘어가 파싱이
+rem     깨집니다. 그래서 파이프 없이 foreach 로만 최신 파일을 고릅니다.)
+rem  반환: errorlevel 1 = 빌드 필요, 0 = 지금 것 그대로 사용
+rem ------------------------------------------------------------
+:needs_build
+if not exist "%JAR%" (
+    echo   [확인] 실행 파일이 없습니다. 새로 만듭니다.
+    exit /b 1
+)
+set "STALE="
+for /f "delims=" %%s in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "$jar=(Get-Item -LiteralPath '%JAR%').LastWriteTime; $newest=[datetime]::MinValue; foreach ($f in (Get-ChildItem -Recurse -File -Path 'src','pom.xml' -ErrorAction SilentlyContinue)) { if ($f.LastWriteTime -gt $newest) { $newest=$f.LastWriteTime } }; if ($newest -gt $jar) { 'stale' } else { 'fresh' }" 2^>nul') do set "STALE=%%s"
+if "!STALE!"=="stale" (
+    echo   [확인] 소스가 실행 파일보다 새롭습니다. 다시 만듭니다.
+    exit /b 1
+)
+if not defined STALE (
+    echo   [확인] 소스가 바뀌었는지 알아내지 못해 지금 실행 파일을 그대로 씁니다.
+    echo          최신으로 맞추려면  run.bat build  로 실행하세요.
+)
+exit /b 0
+
+
+rem ------------------------------------------------------------
+rem  실행 파일 빌드: target\safefood.jar 을 새로 만듭니다.
 rem  처음 한 번은 의존성을 내려받느라 인터넷이 필요합니다.
 rem ------------------------------------------------------------
 :build
-echo   [빌드] 실행 파일이 없어 새로 만듭니다. 처음 한 번은 몇 분 걸립니다.
+echo   [빌드] 실행 파일을 만듭니다. 처음 한 번은 몇 분 걸립니다.
 set "MVN="
 for /f "delims=" %%p in ('where mvn 2^>nul') do if not defined MVN set "MVN=%%p"
 

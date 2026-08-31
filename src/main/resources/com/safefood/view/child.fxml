@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  아이 관리 — 이름 · 학교 · 알레르기.
+
+  학교는 나이스에서 그때그때 검색합니다. 우리가 학교 목록을 들고 있지 않습니다.
+  알레르기 목록은 allergy 테이블(AllergyCatalog) 기준입니다.
+-->
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.safefood.view.controller.ChildController"
+      fx:id="root" prefWidth="560" styleClass="sheet" spacing="14">
+    <padding>
+        <Insets top="28" right="32" bottom="28" left="32"/>
+    </padding>
+
+    <VBox spacing="4">
+        <Label text="아이 관리" styleClass="page-title"/>
+        <Label text="아이마다 학교와 알레르기를 따로 등록합니다." styleClass="page-subtitle"/>
+    </VBox>
+
+    <!-- 등록된 아이 -->
+    <VBox styleClass="card, soft" spacing="8">
+        <Label text="등록된 아이" styleClass="field-label"/>
+        <FlowPane fx:id="childPane" hgap="6" vgap="6"/>
+        <HBox spacing="8">
+            <Button text="+ 새 아이" styleClass="chip" onAction="#handleNewChild"/>
+        </HBox>
+    </VBox>
+
+    <!-- 이름 · 학교 -->
+    <VBox styleClass="card, soft" spacing="10">
+        <VBox spacing="2">
+            <Label text="이름" styleClass="field-label"/>
+            <TextField fx:id="nameField" promptText="아이 이름"/>
+        </VBox>
+
+        <VBox spacing="2">
+            <Label text="학교" styleClass="field-label"/>
+            <HBox spacing="6">
+                <TextField fx:id="schoolField" promptText="학교 이름으로 검색" HBox.hgrow="ALWAYS"/>
+                <Button fx:id="searchButton" text="검색" styleClass="ghost" onAction="#handleSearchSchool"/>
+            </HBox>
+            <Label fx:id="pickedSchoolLabel" text="아직 고르지 않았어요" styleClass="sub"/>
+            <ListView fx:id="schoolList" prefHeight="120" visible="false" managed="false"/>
+        </VBox>
+    </VBox>
+
+    <!-- 알레르기 -->
+    <VBox styleClass="card, soft" spacing="8">
+        <Label text="알레르기" styleClass="field-label"/>
+        <Label text="고른 항목이 급식 식단에 표기되면 알려 드려요." styleClass="micro"/>
+        <FlowPane fx:id="ownedPane" hgap="6" vgap="6"/>
+        <Label text="눌러서 추가" styleClass="micro"/>
+        <FlowPane fx:id="catalogPane" hgap="6" vgap="6"/>
+    </VBox>
+
+    <Label fx:id="errorLabel" styleClass="error-text" wrapText="true" visible="false" managed="false"/>
+
+    <HBox spacing="8" alignment="CENTER_RIGHT">
+        <Button fx:id="deleteButton" text="이 아이 삭제" styleClass="danger" onAction="#handleDelete"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="닫기" styleClass="ghost-quiet" onAction="#handleClose"/>
+        <Button fx:id="saveButton" text="저장" styleClass="primary" onAction="#handleSave"/>
+    </HBox>
+</VBox>
