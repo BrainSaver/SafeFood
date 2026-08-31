@@ -11,7 +11,12 @@ import javafx.scene.web.WebView;
 import javafx.stage.Screen;
 import netscape.javascript.JSObject;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.function.Consumer;
 
 /**
@@ -27,6 +32,9 @@ import java.util.function.Consumer;
 public class PostcodeController {
 
     private static final String PAGE = "/com/safefood/view/postcode.html";
+
+    /** 배포 실행에서 쓰는 문서 사본 — 한 번만 풀어 두고 계속 씁니다 ({@link #pageUrl()}). */
+    private static URL extractedPage;
 
     /*
      * 위젯 높이는 화면 상태에 따라 달라집니다 — 처음(안내 화면)에는 466px 안팎이고, 검색
@@ -85,12 +93,50 @@ public class PostcodeController {
             }
         });
 
-        URL page = getClass().getResource(PAGE);
+        URL page;
+        try {
+            page = pageUrl();
+        } catch (IOException e) {
+            showStatus("주소 검색 화면을 준비하지 못했습니다: " + e.getMessage());
+            return;
+        }
         if (page == null) {
             showStatus("주소 검색 화면(postcode.html)을 찾지 못했습니다.");
             return;
         }
         engine.load(page.toExternalForm());
+    }
+
+    /**
+     * 위젯을 띄울 문서의 주소.
+     *
+     * <p>IDE 에서는 클래스가 폴더에서 읽히므로 {@code file:...} 이 그대로 나오고, 그걸로 띄우면
+     * 잘 돕니다. 배포(jar 하나로 묶인 실행 파일)에서는 {@code jar:file:...!/...} 가 나오는데,
+     * <b>이 주소로 띄우면 화면이 빈 채로 멈춥니다</b> — 문서도 뜨고 카카오 스크립트도 내려와서
+     * {@code isReady()} 와 {@code start()} 는 모두 성공하지만, 위젯이 그 안에 만드는 iframe 과
+     * postMessage 로 주고받는 단계에서 막힙니다. jar: 문서는 출처(origin)가 없는 것으로
+     * 취급되기 때문입니다. {@code loadContent} 로 문자열을 넣는 방법도 출처가 about:blank 라
+     * 똑같이 막힙니다.
+     *
+     * <p>그래서 배포에서는 문서를 임시 파일로 한 번 풀어 두고 {@code file:} 로 띄웁니다. 이 문서가
+     * 부르는 스크립트는 절대 주소(https)뿐이라 옆에 같이 풀어야 할 파일은 없습니다.
+     *
+     * @return 문서 주소. 문서 자체를 찾지 못하면 null
+     */
+    private static synchronized URL pageUrl() throws IOException {
+        URL page = PostcodeController.class.getResource(PAGE);
+        if (page == null || "file".equals(page.getProtocol())) {
+            return page;
+        }
+        if (extractedPage == null) {
+            Path copy = Files.createTempFile("safefood-postcode", ".html");
+            copy.toFile().deleteOnExit();
+            try (InputStream in = PostcodeController.class.getResourceAsStream(PAGE)) {
+                Files.copy(in, copy, StandardCopyOption.REPLACE_EXISTING);
+            }
+            extractedPage = copy.toUri().toURL();
+        }
+        return extractedPage;
     }
 
     /** 문서가 준비된 뒤 — bridge 를 심고 위젯을 띄웁니다. */
