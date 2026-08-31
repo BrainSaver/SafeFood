@@ -5,18 +5,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- * 소켓 계층 콘솔 시험용 — UI 없이 서버·클라이언트 동작을 확인합니다.
- *
- * <pre>
- * 방장:   mvn compile exec:java -Dexec.mainClass=com.safefood.network.SocketMain -Dexec.args="host 민수"
- * 참여자: mvn compile exec:java -Dexec.mainClass=com.safefood.network.SocketMain -Dexec.args="join 6WMK4-2A0P8-Q3XN 동현"
- * </pre>
- *
- * <p>입력 — {@code /ready} 준비 완료, {@code /vote 번호} 투표, {@code /exit} 나가기, 그 외는 채팅.
- */
 public final class SocketMain {
-
     public static void main(String[] args) throws IOException {
         GroupSession session = GroupSession.get();
 
@@ -90,7 +79,6 @@ public final class SocketMain {
         session.shutdown();
     }
 
-    /** 코드의 주소로 붙어 보고, 안 되면 같은 네트워크에서 방을 찾습니다 — 참여 화면과 같은 순서입니다. */
     private static boolean connect(GroupSession session, InviteCode invite) throws IOException {
         try {
             session.joinRoom(invite.host(), invite.port());

@@ -255,6 +255,11 @@ public class HistoryDao {
 
     /**
      * 특정 회원의 '차단됨(BLOCKED)' 메뉴 ID 목록 조회
+     *
+     * @throws DataAccessException 조회 실패 — 삼키고 빈 목록을 돌려주면 '차단한 메뉴가 없음'과
+     *                             구분이 되지 않아, 사용자가 직접 차단해 둔 메뉴가 추천에 다시
+     *                             올라옵니다. 차단 사유는 '알레르기 포함'이라 안전 판정입니다
+     *                             ({@link AllergyDao#getUserAllergyIds} 와 같은 규칙)
      */
     public List<Integer> getBlockedMenuIds(int userId) {
         List<Integer> blockedMenuIds = new ArrayList<>();
@@ -270,7 +275,7 @@ public class HistoryDao {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new DataAccessException("차단한 메뉴 목록을 불러오지 못했습니다.", e);
         }
         return blockedMenuIds;
     }

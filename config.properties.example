@@ -4,7 +4,7 @@
 # Setup Wizard를 실행하면 자동으로 만들어집니다: mvn compile exec:java -Pwizard
 # (창으로 된 화면: mvn javafx:run -Pwizard-fx)
 
-db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+db.url=jdbc:mysql://localhost:3306/safefood?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&sslMode=REQUIRED&allowPublicKeyRetrieval=false
 db.user=
 db.password=
 

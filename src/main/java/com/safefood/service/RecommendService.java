@@ -59,8 +59,11 @@ public class RecommendService {
      *
      * <p>회원인데 세션에 사본이 없으면 DB 에서 한 번 가져옵니다. 게스트는 세션에 있는 것이 전부라
      * 없으면 {@code null} 이고, 그때는 거리를 <b>알 수 없습니다</b> — 0 이 아닙니다.
+     *
+     * <p><b>DB 를 볼 수 있으므로 백그라운드에서 부르세요.</b> 화면 스레드에서 부르면 세션에
+     * 사본이 없는 동안(로그인 직후 프로필·위치 화면을 아직 안 들른 상태) 창이 멎습니다.
      */
-    static LocationDto myLocation() {
+    public static LocationDto myLocation() {
         LocationDto myLoc = Session.getMyLocation();
         if (myLoc == null && Session.isMember()) {
             myLoc = new com.safefood.dao.LocationDao().getLocation(Session.currentUserId());
@@ -71,12 +74,11 @@ public class RecommendService {
     /**
      * 거리 상한을 실제로 걸 수 있는 상태인지 — 잴 기준점(내 위치의 좌표)이 있어야 합니다.
      *
-     * <p>화면이 "거리 조건이 왜 안 먹었는지" 안내할 때 씁니다. <b>DB 를 볼 수 있으므로
-     * 백그라운드에서 부르세요</b> — 회원인데 세션에 사본이 없으면 {@link #myLocation()} 이
-     * DB 까지 다녀옵니다.
+     * <p>화면이 "거리 조건이 왜 안 먹었는지" 안내할 때 씁니다. 위치를 <b>인자로 받습니다</b> —
+     * 여기서 {@link #myLocation()} 을 다시 부르면 같은 조회를 두 번 하게 되고, 그사이 값이
+     * 달라지면 안내와 카드에 적히는 거리가 갈립니다. 한 번 읽은 값을 그대로 넘기세요.
      */
-    public static boolean canFilterByDistance() {
-        LocationDto myLoc = myLocation();
+    public static boolean canFilterByDistance(LocationDto myLoc) {
         return myLoc != null && myLoc.hasCoordinates();
     }
 
@@ -240,13 +242,19 @@ public class RecommendService {
 
         /**
          * UI RecommendationCard 레코드로 변환
+         *
+         * <p>내 위치를 <b>인자로 받습니다.</b> 예전에는 이 안에서 {@link #myLocation()} 을 직접
+         * 불렀는데, 이 메서드는 카드 한 장마다 화면 스레드에서 호출되므로 세션에 위치 사본이 없는
+         * 동안 카드 수만큼 DB 를 다녀왔습니다(커넥션 풀이 없어 매번 새 연결). 조회는 백그라운드에서
+         * 한 번만 하고 그 값을 여기로 넘기세요.
+         *
+         * @param myLoc 내 위치. {@code null} 이거나 좌표가 없으면 거리를 "위치 미등록"으로 둡니다
          */
-        public RecommendationCard toRecommendation(int rank) {
+        public RecommendationCard toRecommendation(int rank, LocationDto myLoc) {
             Safety safety = blocked ? Safety.CONTAINS
                     : (hasPenalty ? Safety.POSSIBLE : Safety.SAFE);
 
             String distanceStr = "위치 미등록";
-            LocationDto myLoc = myLocation();
             if (myLoc != null && myLoc.hasCoordinates() && latitude != null && longitude != null) {
                 double meters = LocationService.calculateDistanceMeter(
                         myLoc.getLatitude(), myLoc.getLongitude(), latitude, longitude

@@ -63,7 +63,7 @@ public class Main extends Application {
 
     private void showApp(Stage stage) {
         stage.setMaximized(false);
-        AppNav.init(stage);
+        AppNav.init(stage, getHostServices());
         AppNav.show("로그인", "login.fxml");
         stage.centerOnScreen();
     }

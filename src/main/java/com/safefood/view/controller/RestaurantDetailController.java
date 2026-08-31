@@ -2,13 +2,12 @@ package com.safefood.view.controller;
 
 import com.safefood.dao.FavoriteDao;
 import com.safefood.AppConfig;
-import com.safefood.dao.LocationDao;
 import com.safefood.dto.LocationDto;
 import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Session;
+import com.safefood.service.RecommendService;
 import com.safefood.view.AppNav;
 import com.safefood.view.AsyncLoader;
-import javafx.application.Platform;
 import javafx.concurrent.Worker;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
@@ -19,9 +18,9 @@ import javafx.scene.web.WebView;
 import netscape.javascript.JSObject;
 
 import java.io.InputStream;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
-
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -38,6 +37,9 @@ public class RestaurantDetailController {
     @FXML private Label reasonLabel;
     @FXML private ToggleButton favoriteButton;
     @FXML private javafx.scene.control.Button eatButton;
+
+    /** 카카오맵 링크 — 별도 키가 필요 없고, PC·모바일에 맞춰 알아서 열립니다. */
+    private static final String KAKAO_MAP_LINK = "https://map.kakao.com/link";
 
     private RecommendationCard item;
 
@@ -203,27 +205,31 @@ public class RestaurantDetailController {
      * 두 지점을 웹뷰 지도에 마커 및 영역으로 렌더링합니다.
      */
     private void renderLocationsOnMap(WebEngine engine, RecommendationCard card) {
-        CompletableFuture.runAsync(() -> {
-            // 1. 식당 위치 (restaurant 테이블)
-            Double restLat = card.latitude();
-            Double restLng = card.longitude();
+        // 조회는 AsyncLoader 로 보냅니다. 예전에는 CompletableFuture.runAsync 로 돌렸는데,
+        // 그 공용 풀은 AsyncLoader 가 세워 둔 줄을 서지 않아 다른 조회와 커넥션이 겹쳤습니다
+        // (커넥션 풀이 없어 조회마다 새로 연결하므로 줄 세우기가 필요합니다).
+        // 게다가 runAsync 는 예외를 삼켜서, 조회가 깨지면 지도가 아무 말 없이 비어 있었습니다.
+        loader.load(
+                // '내 위치'를 읽는 자리는 RecommendService.myLocation() 하나로 모읍니다 —
+                // 세션 사본 → 없으면 DB 라는 같은 규칙을 여기 따로 두면 둘이 갈라집니다
+                RecommendService::myLocation,
+                myLoc -> drawMap(engine, card, myLoc),
+                error -> {
+                    // 내 위치를 못 읽어도 식당 위치는 띄웁니다 — 지도를 통째로 비우지 않습니다
+                    System.err.println("[Map] 내 위치를 읽지 못했습니다: " + error.getMessage());
+                    drawMap(engine, card, null);
+                });
+    }
 
-            // 2. 현재 위치 (로그인 한 유저의 user_location 테이블)
-            LocationDto myLoc = Session.getMyLocation();
-            if (myLoc == null && Session.isMember()) {
-                myLoc = new LocationDao().getLocation(Session.currentUserId());
-            }
-
-            Double myLat = (myLoc != null && myLoc.hasCoordinates()) ? myLoc.getLatitude() : null;
-            Double myLng = (myLoc != null && myLoc.hasCoordinates()) ? myLoc.getLongitude() : null;
-            String myLabel = "현재 위치";
-
-            // 지도에 넘길 이름 — 좌표(restLat/restLng/myLat/myLng)는 숫자 그대로 넘기고,
-            // 없으면 null 을 넘겨 displayMap 이 "표시 안 함"으로 처리하게 둡니다.
-            final String restName = card.restaurant() != null ? card.restaurant() : "식당";
-
-            Platform.runLater(() -> callDisplayMap(engine, restLat, restLng, restName, myLat, myLng, myLabel));
-        });
+    /** FX 스레드 전용 — 좌표가 없으면 null 을 넘겨 {@code displayMap} 이 "표시 안 함"으로 처리합니다. */
+    private static void drawMap(WebEngine engine, RecommendationCard card, LocationDto myLoc) {
+        boolean hasMine = myLoc != null && myLoc.hasCoordinates();
+        callDisplayMap(engine,
+                card.latitude(), card.longitude(),
+                card.restaurant() != null ? card.restaurant() : "식당",
+                hasMine ? myLoc.getLatitude() : null,
+                hasMine ? myLoc.getLongitude() : null,
+                "현재 위치");
     }
 
     /**
@@ -249,9 +255,55 @@ public class RestaurantDetailController {
         }
     }
 
+    /**
+     * 카카오맵 길찾기를 기본 브라우저로 엽니다.
+     *
+     * <p>내 위치를 알면 <b>출발지까지 채워서</b>, 모르면 도착지만 지정해 엽니다 — 출발지를
+     * 0,0 같은 값으로 채우면 엉뚱한 경로가 나오므로 아예 넘기지 않습니다.
+     *
+     * <p>내 위치 조회는 DB 를 볼 수 있어 백그라운드로 보냅니다. 실패해도 도착지만으로 엽니다 —
+     * 길찾기를 통째로 막는 것보다 낫습니다.
+     */
     @FXML
     private void handleRoute() {
-        AppNav.info("외부 지도 앱으로 연결하는 기능입니다. (3차 구현 예정)");
+        if (item == null || item.latitude() == null || item.longitude() == null) {
+            AppNav.info("이 가게는 좌표가 등록돼 있지 않아 길찾기를 열 수 없어요.");
+            return;
+        }
+        RecommendationCard target = item;
+        loader.submit(RecommendService::myLocation,
+                myLoc -> openRoute(target, myLoc),
+                error -> {
+                    System.err.println("[Map] 내 위치를 읽지 못해 도착지만 엽니다: " + error.getMessage());
+                    openRoute(target, null);
+                });
+    }
+
+    private static void openRoute(RecommendationCard card, LocationDto myLoc) {
+        String name = (card.restaurant() != null && !card.restaurant().isBlank())
+                ? card.restaurant() : "목적지";
+        String to = kakaoPoint(name, card.latitude(), card.longitude());
+
+        String url = (myLoc != null && myLoc.hasCoordinates())
+                ? KAKAO_MAP_LINK + "/from/"
+                        + kakaoPoint("내 위치", myLoc.getLatitude(), myLoc.getLongitude())
+                        + "/to/" + to
+                : KAKAO_MAP_LINK + "/to/" + to;
+
+        AppNav.openExternal(url);
+    }
+
+    /**
+     * 카카오맵 링크의 한 지점 — {@code 이름,위도,경도} 입니다.
+     *
+     * <p>이름은 반드시 인코딩합니다. 쉼표가 좌표 구분자이고 슬래시가 경로 구분자라, 가게 이름에
+     * 그런 글자가 있으면 링크가 통째로 어긋납니다. 좌표는 {@code Locale.US} 로 찍어 소수점이
+     * 쉼표로 바뀌는 것을 막습니다 — 그러면 칸 수가 달라져 카카오맵이 읽지 못합니다.
+     */
+    private static String kakaoPoint(String name, double latitude, double longitude) {
+        return URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20")
+                + "," + String.format(Locale.US, "%.7f", latitude)
+                + "," + String.format(Locale.US, "%.7f", longitude);
     }
 
     @FXML

@@ -6,6 +6,7 @@ import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.animation.SequentialTransition;
 import javafx.animation.TranslateTransition;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Pos;
@@ -56,17 +57,48 @@ public final class AppNav {
     private static Stage stage;
     private static Scene scene;
 
+    /** {@link #init} 에서 받아 둡니다 — {@link #openExternal} 이 씁니다. */
+    private static HostServices hostServices;
+
     /** 지금 고른 앱 스타일 — {@link #theme()} 이 처음 불릴 때 저장된 값에서 채워집니다. */
     private static Theme theme;
 
     private AppNav() {
     }
 
-    public static void init(Stage primaryStage) {
+    /**
+     * @param services 바깥 브라우저를 여는 통로 ({@link #openExternal}). {@code Application}
+     *                 에서만 얻을 수 있어 여기로 넘겨받습니다 — null 이면 링크 열기만 막힙니다
+     */
+    public static void init(Stage primaryStage, HostServices services) {
         stage = primaryStage;
+        hostServices = services;
         stage.setMinWidth(1000);
         stage.setMinHeight(640);
         applyIcon(stage);
+    }
+
+    /**
+     * 기본 브라우저로 주소를 엽니다 — 길찾기처럼 앱 밖으로 넘기는 자리에 씁니다.
+     *
+     * <p>열지 못해도 <b>화면은 그대로 둡니다</b>. 브라우저가 없는 환경에서 창이 죽는 것보다
+     * 안내만 띄우는 편이 낫습니다.
+     */
+    public static void openExternal(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        if (hostServices == null) {
+            System.err.println("[ui] HostServices 가 없어 링크를 열지 못했습니다: " + url);
+            error("링크를 열 수 없는 상태입니다.");
+            return;
+        }
+        try {
+            hostServices.showDocument(url);
+        } catch (RuntimeException e) {
+            System.err.println("[ui] 링크를 열지 못했습니다: " + e.getMessage());
+            error("브라우저를 열지 못했습니다.");
+        }
     }
 
     /** {@link #init}보다 먼저 뜨거나 따로 만든 창에서도 직접 부르면 됩니다. */

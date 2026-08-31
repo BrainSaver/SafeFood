@@ -194,7 +194,8 @@ class RoomReevaluationTest {
         Socket serverSide = serverSocket.accept();
         serverSides.add(serverSide);
 
-        Thread handler = new Thread(new ClientHandler(serverSide, room), "test-handler-" + name);
+        Thread handler = new Thread(new ClientHandler(serverSide, room, new JoinThrottle()),
+                "test-handler-" + name);
         handler.setDaemon(true);
         handler.start();
 

@@ -4,33 +4,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.SecureRandom;
 
-/**
- * 접속 주소를 품고 있는 초대 코드 — 중앙 서버가 없어 "코드 → 주소"를 조회할 곳이 없으므로,
- * 조회하는 대신 주소를 코드 안에 접어 넣습니다.
- *
- * <pre>
- *   6WMK4-2A0P8-Q3XN
- *   └──── 10자 ────┘ └4자┘
- *      주소 + 검사비트   시크릿
- *
- *   앞 10자 = 5비트 × 10 = 50비트 = 검사 2 + IPv4 32 + 포트 16
- * </pre>
- *
- * <p>참여자는 코드를 풀어 주소를 얻고, 코드 전체는 그대로 {@code JOIN}으로 보내
- * {@link Room}의 암호 대조까지 받습니다.
- */
 public final class InviteCode {
-
-    /** Crockford Base32 — 헷갈리는 I·L·O·U를 뺀 32자. 한 글자가 정확히 5비트입니다. */
     private static final String ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-    /** (검사 2 + IPv4 32 + 포트 16)비트 = 50비트 = 5비트 × 10자 */
     private static final int ADDRESS_LENGTH = 10;
 
-    /** 32⁴ ≈ 105만 가지. 더 강하게 하려면 이 값만 올리면 됩니다. */
     private static final int SECRET_LENGTH = 4;
 
-    /** 사람이 입력하는 전체 길이 (구분선 제외) */
     public static final int LENGTH = ADDRESS_LENGTH + SECRET_LENGTH;
 
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -45,7 +25,6 @@ public final class InviteCode {
         this.port = port;
     }
 
-    /** @throws IllegalArgumentException IPv4가 아니거나 포트가 범위를 벗어난 경우 */
     public static String issue(InetAddress host, int port) {
         byte[] ip = host.getAddress();
         if (ip.length != 4) {
@@ -60,11 +39,11 @@ public final class InviteCode {
         for (byte octet : ip) {
             payload = (payload << 8) | (octet & 0xFF);
         }
-        payload = (payload << 16) | port;                   // 48비트: IPv4 32 + 포트 16
-        long value = (checksum(payload) << 48) | payload;   // 앞에 검사 2비트를 얹어 50비트
+        payload = (payload << 16) | port;
+        long value = (checksum(payload) << 48) | payload;
 
         char[] chars = new char[ADDRESS_LENGTH];
-        for (int i = ADDRESS_LENGTH - 1; i >= 0; i--) {     // 뒤에서부터 5비트씩
+        for (int i = ADDRESS_LENGTH - 1; i >= 0; i--) {
             chars[i] = ALPHABET.charAt((int) (value & 0x1F));
             value >>>= 5;
         }
@@ -80,8 +59,6 @@ public final class InviteCode {
     }
 
     /**
-     * 사람이 입력한 코드를 풀어 방장 주소를 꺼냅니다.
-     *
      * @throws IllegalArgumentException 형식이 틀린 경우 — 메시지를 화면에 그대로 보여 주면 됩니다
      */
     public static InviteCode parse(String raw) {
@@ -133,10 +110,6 @@ public final class InviteCode {
         }
     }
 
-    /**
-     * 표준형으로 정리 — 대문자, 구분선·공백 제거, {@code O → 0}, {@code I·L → 1}.
-     * 형식 검사는 {@link #parse}가 합니다.
-     */
     public static String normalize(String raw) {
         if (raw == null) {
             return "";
@@ -157,17 +130,12 @@ public final class InviteCode {
         return normalized.toString();
     }
 
-    /**
-     * 코드에서 주소부만 잘라 냅니다. {@code IP:포트}를 인코딩한 값이라 방을 유일하게 가리키므로,
-     * {@link RoomFinder}가 시크릿을 네트워크에 흘리지 않고 방을 식별하는 데 씁니다.
-     */
     public static String addressPart(String code) {
         String normalized = normalize(code);
         return normalized.length() <= ADDRESS_LENGTH
                 ? normalized : normalized.substring(0, ADDRESS_LENGTH);
     }
 
-    /** 화면·복사용 — {@code 6WMK42A0P8Q3XN} → {@code 6WMK4-2A0P8-Q3XN} */
     public static String format(String code) {
         String normalized = normalize(code);
         if (normalized.length() != LENGTH) {
@@ -178,7 +146,6 @@ public final class InviteCode {
                 + normalized.substring(ADDRESS_LENGTH);
     }
 
-    /** 남는 2비트로 주소부 오타를 잡습니다 (약 75%). */
     private static long checksum(long payload) {
         long sum = 0;
         for (int shift = 0; shift < 48; shift += 8) {
@@ -187,7 +154,6 @@ public final class InviteCode {
         return sum & 0b11;
     }
 
-    /** 서버에 그대로 보낼 표준형 코드 */
     public String code() {
         return code;
     }
@@ -204,7 +170,6 @@ public final class InviteCode {
         return port;
     }
 
-    /** 예) {@code 192.168.0.5:5000} */
     public String address() {
         return host() + ":" + port;
     }

@@ -4,6 +4,7 @@ import com.safefood.dao.CategoryCatalog;
 import com.safefood.dao.FavoriteDao;
 import com.safefood.dao.HistoryDao;
 import com.safefood.dto.HistoryRow;
+import com.safefood.dto.LocationDto;
 import com.safefood.dto.PreferenceDto;
 import com.safefood.dto.RecommendationCard;
 import com.safefood.dto.Session;
@@ -109,7 +110,12 @@ public class MainController {
                           boolean failed,
                           boolean evicted,
                           /** 거리 상한을 골랐는데 잴 기준(내 위치)이 없어 그 조건만 빠졌는지. */
-                          boolean distanceIgnored) {
+                          boolean distanceIgnored,
+                          /**
+                           * 카드에 적을 거리를 재는 기준점. 백그라운드에서 <b>한 번만</b> 읽어
+                           * 여기 담아 둡니다 — {@link #apply} 가 카드마다 DB 를 치지 않도록.
+                           */
+                          LocationDto myLocation) {
     }
 
     @FXML
@@ -379,13 +385,15 @@ public class MainController {
     private Loaded load(Query query) {
         // 밀려난 세션이면 나머지 조회는 할 필요가 없습니다 — 커넥션 하나로 끝냅니다
         if (query.member() && !authService.isSessionCurrent(query.userId(), query.sessionToken())) {
-            return new Loaded(List.of(), List.of(), Set.of(), null, false, false, true, false);
+            return new Loaded(List.of(), List.of(), Set.of(), null, false, false, true, false, null);
         }
         try {
             // 여기(백그라운드)에서 봐야 합니다 — 회원이 프로필을 아직 안 들렀으면 세션에 위치
-            // 사본이 없어, 화면에서 판단하면 있는 위치를 없다고 잘못 알립니다
-            boolean distanceIgnored =
-                    query.maxDistanceMeters() > 0 && !RecommendService.canFilterByDistance();
+            // 사본이 없어, 화면에서 판단하면 있는 위치를 없다고 잘못 알립니다.
+            // 한 번만 읽어 안내 문구와 카드 거리 표시가 같은 값을 보게 합니다.
+            LocationDto myLocation = RecommendService.myLocation();
+            boolean distanceIgnored = query.maxDistanceMeters() > 0
+                    && !RecommendService.canFilterByDistance(myLocation);
 
             List<RecommendService.RecommendResult> raw = fetch(query, query.excluded());
             boolean recycled = false;
@@ -408,11 +416,12 @@ public class MainController {
                     recycled,
                     false,
                     false,
-                    distanceIgnored);
+                    distanceIgnored,
+                    myLocation);
         } catch (RuntimeException e) {
             // 알레르기를 확인하지 못한 채 그럴듯한 카드를 그리느니 실패를 그대로 알립니다
             System.err.println("[MainController] 추천 조회 실패: " + e.getMessage());
-            return new Loaded(List.of(), List.of(), Set.of(), null, false, true, false, false);
+            return new Loaded(List.of(), List.of(), Set.of(), null, false, true, false, false, null);
         }
     }
 
@@ -496,13 +505,15 @@ public class MainController {
         } else {
             int rank = currentRankOffset + 1;
             for (RecommendService.RecommendResult r : currentDisplayedSafeResults) {
-                cardBox.getChildren().add(card(r.toRecommendation(rank++), r.getMenuId(),
+                cardBox.getChildren().add(card(r.toRecommendation(rank++, loaded.myLocation()),
+                        r.getMenuId(),
                         r.getRestaurantId(), loaded.favorites().contains(r.getMenuId())));
             }
         }
 
         if (!loaded.blocked().isEmpty() && blockedBox != null) {
-            blockedBox.getChildren().add(blockedRow(loaded.blocked().get(0).toRecommendation(0)));
+            blockedBox.getChildren().add(
+                    blockedRow(loaded.blocked().get(0).toRecommendation(0, loaded.myLocation())));
         }
     }
 
