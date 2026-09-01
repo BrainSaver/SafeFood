@@ -1,5 +1,6 @@
 package com.safefood.view.controller;
 
+import com.safefood.dto.Session;
 import com.safefood.network.GroupClient;
 import com.safefood.network.GroupServer;
 import com.safefood.network.GroupSession;
@@ -67,9 +68,10 @@ public class GroupOptionController {
 
     @FXML
     private void initialize() {
-        // X로 창을 닫아도 서버·소켓이 몰래 남지 않게 — 버튼으로 닫을 때는 실행되지 않습니다
+        // X로 창을 닫아도 서버·소켓·응답 대기가 몰래 남지 않게 — 버튼으로 닫을 때는 실행되지 않습니다
         AppNav.onDialogClosed(root, () -> {
             cancelled = true;
+            responseTimeout.stop();   // 닫힌 창의 타이머가 나중에 새 세션을 끄지 않도록
             session.shutdown();
         });
 
@@ -78,16 +80,55 @@ public class GroupOptionController {
             fail("방장이 응답하지 않습니다. 코드가 방장 화면의 값과 같은지 확인해 주세요.");
         });
 
-        // 소문자·구분선·O/I/L 혼동을 입력 즉시 교정하고, 정해진 길이를 넘기지 못하게 합니다
-        joinField.setTextFormatter(new TextFormatter<>(change -> {
-            if (!change.isContentChange()) {
-                return change;
-            }
-            change.setText(InviteCode.normalize(change.getText()));
-            return change.getControlNewText().length() > InviteCode.LENGTH ? null : change;
-        }));
+        // 소문자·O/I/L 혼동은 입력 즉시 교정하고, 붙임표는 다섯 자마다 알아서 끼워 넣습니다
+        joinField.setTextFormatter(new TextFormatter<>(GroupOptionController::reformat));
         joinField.textProperty().addListener((observable, old, text) -> updatePreview(text));
         updatePreview("");
+    }
+
+    /**
+     * 초대 코드 입력칸의 서식 — 무엇을 치든 {@code XXXXX-XXXXX-XXXX} 모양으로 정리합니다.
+     *
+     * <p>붙임표는 쳐도 되고 안 쳐도 됩니다. 어차피 다섯 자마다 다시 넣어 주므로, 받은 코드를
+     * 보이는 대로 옮겨 적어도 되고 5-5-4 로 적힌 코드를 통째로 붙여 넣어도 됩니다.
+     */
+    private static TextFormatter.Change reformat(TextFormatter.Change change) {
+        if (!change.isContentChange()) {
+            return change;
+        }
+
+        String proposed = change.getControlNewText();
+        int caret = Math.max(0, Math.min(change.getCaretPosition(), proposed.length()));
+        String code = InviteCode.normalize(proposed);
+        int typed = InviteCode.normalize(proposed.substring(0, caret)).length();
+
+        // 붙임표만 지운 경우 — 서식이 곧바로 도로 넣으므로 앞의 코드 글자까지 지웁니다.
+        // 그러지 않으면 백스페이스를 눌러도 아무 일이 없는 것처럼 보입니다.
+        if (typed > 0 && removedOnlySeparators(change)) {
+            code = code.substring(0, typed - 1) + code.substring(typed);
+            typed--;
+        }
+
+        if (code.length() > InviteCode.LENGTH) {
+            return null;   // 정해진 길이를 넘기는 입력은 아예 받지 않습니다
+        }
+
+        String formatted = InviteCode.format(code);
+        change.setRange(0, change.getControlText().length());
+        change.setText(formatted);
+        int at = InviteCode.caretAfter(formatted, typed);
+        change.selectRange(at, at);
+        return change;
+    }
+
+    /** 지운 자리에 코드 글자는 없고 붙임표·공백뿐이었는지. */
+    private static boolean removedOnlySeparators(TextFormatter.Change change) {
+        if (!change.isDeleted() || !change.getText().isEmpty()) {
+            return false;
+        }
+        String removed = change.getControlText()
+                .substring(change.getRangeStart(), change.getRangeEnd());
+        return InviteCode.normalize(removed).isEmpty();
     }
 
     /** 로그인 화면에서 이미 받아 둔 코드를 채워 둡니다 — 게스트가 두 번 적지 않게. */
@@ -99,10 +140,30 @@ public class GroupOptionController {
         joinField.requestFocus();
     }
 
+    /**
+     * 방에 들어가기 직전에 표시 이름을 세션에서 다시 가져옵니다.
+     *
+     * <p>{@link GroupSession} 이 들고 있는 이름은 <b>로그인할 때 떠 둔 사본</b>입니다. 그래서 정보
+     * 변경에서 닉네임을 바꿔도 사본은 예전 이름 그대로였고, 같이 먹기에 들어가면 일행에게
+     * <b>바꾸기 전 닉네임</b>이 보였습니다. 닉네임이 바뀌는 자리마다 사본을 맞추는 방식은
+     * 새 경로가 생길 때마다 다시 새므로, 사본이 실제로 쓰이는 이 <b>한 자리</b>에서 맞춥니다.
+     *
+     * <p>맞추는 것은 <b>JOIN 을 보내기 전까지</b>입니다 — 서버는 이때 실어 보낸 이름으로 사람을
+     * 구분하므로, 들어간 뒤에는 사본이 그대로여야 {@code JOINED} 확인과 채팅의 '내 말' 판정이
+     * 맞습니다. 그래서 방을 여는 · 참여하는 입구에서만 부르고, 방 안에서는 부르지 않습니다.
+     *
+     * <p>세션이 비어 있으면(로그인 전) 지금 사본을 그대로 둡니다 — {@code SocketMain} 처럼 화면
+     * 없이 이름을 직접 넣어 쓰는 쪽의 값을 지우지 않기 위해서입니다.
+     */
+    private void syncDisplayName() {
+        session.setDisplayName(Session.displayName(session.displayName()));
+    }
+
     // ══ 방 만들기 ═══════════════════════════════════════════════
 
     @FXML
     private void handleCreate() {
+        syncDisplayName();
         InetAddress host = GroupServer.lanAddress();
         int port = SocketConfig.port();
 
@@ -190,6 +251,7 @@ public class GroupOptionController {
 
     @FXML
     private void handleJoin() {
+        syncDisplayName();
         InviteCode invite;
         try {
             invite = InviteCode.parse(joinField.getText());

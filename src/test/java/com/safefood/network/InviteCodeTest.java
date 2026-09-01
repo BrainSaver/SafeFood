@@ -198,15 +198,35 @@ class InviteCodeTest {
     }
 
     @Test
-    @DisplayName("format — 14자면 5-5-4 로 끊고, 아니면 표준형 그대로 돌려준다")
-    void formatGroupsOnlyFullLengthCodes() {
+    @DisplayName("format — 다섯 자마다 끊는다. 다 채우면 5-5-4, 치는 중이면 채운 만큼만")
+    void formatGroupsEveryFiveCharacters() {
         String code = InviteCode.issue(ip("10.1.2.3"), 5000);
-        String formatted = InviteCode.format(code);
 
         assertAll(
                 () -> assertEquals(code.substring(0, 5) + "-" + code.substring(5, 10)
-                        + "-" + code.substring(10), formatted),
-                () -> assertEquals("ABC", InviteCode.format("abc"), "짧으면 정규화만 하고 그대로"));
+                        + "-" + code.substring(10), InviteCode.format(code)),
+                () -> assertEquals("ABC", InviteCode.format("abc"), "한 묶음도 못 채우면 그대로"),
+                () -> assertEquals("ABCDE", InviteCode.format("abcde"), "묶음 끝에는 달지 않는다"),
+                () -> assertEquals("ABCDE-F", InviteCode.format("abcdef")),
+                () -> assertEquals("ABCDE-FGHJK-MN", InviteCode.format("abcde-fghjk-mn"),
+                        "이미 끊어 적은 입력을 다시 넣어도 같은 모양"));
+    }
+
+    @Test
+    @DisplayName("caretAfter — 묶음 경계에서는 붙임표 뒤, 문자열 끝은 넘지 않는다")
+    void caretAfterSkipsSeparators() {
+        String full = InviteCode.format("0123456789ABCD");   // 01234-56789-ABCD
+
+        assertAll(
+                () -> assertEquals("01234-56789-ABCD", full, "아래 자릿수의 전제"),
+                () -> assertEquals(0, InviteCode.caretAfter(full, 0)),
+                () -> assertEquals(4, InviteCode.caretAfter(full, 4)),
+                () -> assertEquals(6, InviteCode.caretAfter(full, 5), "다섯 자를 치면 붙임표 다음"),
+                () -> assertEquals(12, InviteCode.caretAfter(full, 10)),
+                () -> assertEquals(full.length(), InviteCode.caretAfter(full, InviteCode.LENGTH)),
+                () -> assertEquals(5, InviteCode.caretAfter("01234", 5),
+                        "아직 붙임표가 없으면 문자열 끝에 선다"),
+                () -> assertEquals(0, InviteCode.caretAfter("", 3), "빈 칸은 언제나 0"));
     }
 
     @Test

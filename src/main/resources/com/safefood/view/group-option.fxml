@@ -71,7 +71,7 @@
     <VBox fx:id="joinBox" spacing="8">
         <HBox spacing="8" alignment="CENTER_LEFT">
             <TextField fx:id="joinField" styleClass="invite-code"
-                       promptText="6WMK4-2A0P8-Q3XN" HBox.hgrow="ALWAYS"/>
+                       promptText="6WMK4-2A0P8-Q3XN" onAction="#handleJoin" HBox.hgrow="ALWAYS"/>
             <Button fx:id="joinButton" text="참여" styleClass="primary" onAction="#handleJoin"/>
         </HBox>
 

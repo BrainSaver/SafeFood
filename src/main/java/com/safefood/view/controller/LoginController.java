@@ -42,8 +42,10 @@ public class LoginController {
         }
         if (nameField != null) {
             nameField.setOnAction(event -> {
+                // 코드는 선택이지만 아직 비어 있으면 적을 자리로 한 번 보내 줍니다 —
+                // 거기서 그냥 Enter 를 다시 치면 코드 없이 넘어갑니다 (회원 쪽 아이디→비밀번호와 같은 흐름)
                 if (guestCodeField != null && guestCodeField.getText().isEmpty()) {
-                    handleGuest();
+                    guestCodeField.requestFocus();
                 } else {
                     handleGuest();
                 }
@@ -76,10 +78,9 @@ public class LoginController {
         com.safefood.dto.Session.setCurrentUser(user);
 
         Widgets.hideError(memberError);
-        // 그룹 참여(소켓 JOIN) 때 쓸 표시 이름
-        String displayName = (user.getNickname() == null || user.getNickname().isBlank())
-                ? loginId : user.getNickname();
-        GroupSession.get().setDisplayName(displayName);
+        // 그룹 참여(소켓 JOIN) 때 쓸 표시 이름 — 규칙은 Session 한 곳에만 둡니다.
+        // 여기 것은 첫 값일 뿐이라, 닉네임을 바꾸면 방에 들어가기 직전에 다시 맞춰집니다.
+        GroupSession.get().setDisplayName(com.safefood.dto.Session.displayName(loginId));
         GroupSession.get().setGuest(false);
         AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
     }

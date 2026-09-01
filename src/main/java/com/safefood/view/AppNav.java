@@ -170,6 +170,7 @@ public final class AppNav {
     /** 로그아웃 — 화면마다 따로 정리하다 빠뜨리지 않도록 나가는 길을 여기 하나로 모읍니다. */
     public static void logout() {
         Session.logout();
+        GroupSession.get().shutdown();   // 방을 연 채 로그아웃해도 서버·소켓·비컨이 남지 않게
         GroupSession.get().setGuest(false);
         show("SafeFood 로그인", "login.fxml");
     }

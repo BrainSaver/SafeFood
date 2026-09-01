@@ -13,6 +13,12 @@ public final class InviteCode {
 
     public static final int LENGTH = ADDRESS_LENGTH + SECRET_LENGTH;
 
+    /** 화면 표기와 입력칸이 함께 쓰는 묶음 크기 — 14자를 5-5-4 로 끊습니다. */
+    private static final int GROUP_SIZE = 5;
+
+    /** 묶음 사이에 넣는 글자. 읽을 때는 {@link #normalize} 가 그냥 지웁니다. */
+    public static final char SEPARATOR = '-';
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final String code;
@@ -136,14 +142,33 @@ public final class InviteCode {
                 ? normalized : normalized.substring(0, ADDRESS_LENGTH);
     }
 
+    /**
+     * 사람이 읽기 좋게 다섯 자씩 끊어 줍니다 — 다 채운 코드는 5-5-4 가 됩니다.
+     *
+     * <p>아직 다 채우지 않은 입력도 채운 만큼만 끊어 주므로, 입력칸의 실시간 서식으로도
+     * 그대로 씁니다 ({@link #caretAfter} 와 짝).
+     */
     public static String format(String code) {
         String normalized = normalize(code);
-        if (normalized.length() != LENGTH) {
-            return normalized;
+        StringBuilder grouped = new StringBuilder(normalized.length() + 2);
+        for (int i = 0; i < normalized.length(); i++) {
+            if (i > 0 && i % GROUP_SIZE == 0) {
+                grouped.append(SEPARATOR);
+            }
+            grouped.append(normalized.charAt(i));
         }
-        return normalized.substring(0, 5) + "-"
-                + normalized.substring(5, ADDRESS_LENGTH) + "-"
-                + normalized.substring(ADDRESS_LENGTH);
+        return grouped.toString();
+    }
+
+    /**
+     * {@link #format} 이 만든 문자열에서, 코드 {@code typed} 글자를 친 뒤 캐럿이 설 자리.
+     *
+     * <p>묶음 경계에서는 붙임표 <b>뒤</b>를 가리킵니다 — 앞에 세워 두면 백스페이스가 서식이
+     * 방금 넣은 붙임표만 지우고 제자리로 돌아와, 눌러도 아무 일이 없는 것처럼 보입니다.
+     */
+    public static int caretAfter(String formatted, int typed) {
+        int bounded = Math.max(0, typed);
+        return Math.min(bounded + bounded / GROUP_SIZE, formatted.length());
     }
 
     private static long checksum(long payload) {
