@@ -892,6 +892,7 @@ mkdir -p target/jpackage-input && cp target/safefood.jar target/jpackage-input/
 jpackage --type app-image --name SafeFood --app-version 1.2 --vendor SafeFood \
   --input target/jpackage-input --main-jar safefood.jar --main-class com.safefood.MainLauncher \
   --dest dist \
+  --icon data/public/icon/SafeFood.ico \
   --add-modules java.se,jdk.localedata,jdk.charsets,jdk.jsobject,jdk.xml.dom,jdk.unsupported,jdk.zipfs,jdk.accessibility \
   --java-options "-Dfile.encoding=UTF-8" \
   --java-options "--enable-native-access=ALL-UNNAMED" \
@@ -903,6 +904,29 @@ jpackage --type app-image --name SafeFood --app-version 1.2 --vendor SafeFood \
 
 - `--type app-image`라 **WiX 설치가 필요 없습니다.** 설치 마법사(msi/exe 인스톨러)까지
   원할 때만 WiX를 깔고 `--type exe`로 바꾸면 됩니다.
+- `--icon`을 빼면 exe에 **자바 기본 아이콘**이 붙습니다. `data/public/icon/SafeFood.ico`는
+  앱 로고(`data/public/icon/logo.png`)에서 만든 다중 크기 아이콘으로, 16·24·32는 `Safefood`
+  글자를 뺀 **원형 배지**를, 48부터는 **로고 전체**를 씁니다 — 작은 크기에서는 글자가 뭉개져
+  읽히지 않기 때문입니다. 로고를 바꿨다면 아래로 다시 만드세요 (Pillow 필요).
+
+  ```python
+  from PIL import Image
+  src = Image.open("data/public/icon/logo.png").convert("RGBA")
+
+  def square(img):                      # 투명 여백을 자르고 정사각형으로 맞춥니다
+      img = img.crop(img.getbbox())
+      side = max(img.size)
+      out = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+      out.paste(img, ((side - img.width) // 2, (side - img.height) // 2))
+      return out
+
+  full, badge = square(src), square(src.crop((0, 0, src.width, 269)))   # 269 = 글자 윗선
+  sizes = [16, 24, 32, 48, 64, 128, 256]
+  frames = [(badge if n <= 32 else full).resize((n, n), Image.LANCZOS) for n in sizes]
+  frames[-1].save("data/public/icon/SafeFood.ico", format="ICO",
+                  sizes=[(n, n) for n in sizes], append_images=frames[:-1])
+  ```
+
 - `--input`에 준 폴더가 통째로 들어가므로 jar만 담은 `target/jpackage-input`을 씁니다
   (`target/`을 그대로 주면 클래스 파일까지 다 딸려 들어갑니다).
 - dist 빌드 후 `clean` 없이 일반 빌드해도 안전합니다 — 매 빌드 시작 때 이전 빌드가
