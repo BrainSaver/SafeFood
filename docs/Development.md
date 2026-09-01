@@ -889,7 +889,7 @@ mvn -Pdist -DskipTests package
 
 ```bash
 mkdir -p target/jpackage-input && cp target/safefood.jar target/jpackage-input/
-jpackage --type app-image --name SafeFood --app-version 1.2 --vendor SafeFood \
+jpackage --type app-image --name SafeFood --app-version 1.2.1 --vendor SafeFood \
   --input target/jpackage-input --main-jar safefood.jar --main-class com.safefood.MainLauncher \
   --dest dist \
   --icon data/public/icon/SafeFood.ico \

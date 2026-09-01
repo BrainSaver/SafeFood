@@ -7,7 +7,7 @@
 
     <groupId>com.safefood</groupId>
     <artifactId>safefood</artifactId>
-    <version>1.2</version>
+    <version>1.2.1</version>
     <packaging>jar</packaging>
 
     <name>SafeFood</name>
