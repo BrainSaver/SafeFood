@@ -85,7 +85,7 @@
                 <Label fx:id="guestError" styleClass="error-text" wrapText="true"
                        visible="false" managed="false"/>
 
-                <Button text="방으로 입장 →" styleClass="primary-2" maxWidth="Infinity"
+                <Button text="방으로 입장" styleClass="primary-2" maxWidth="Infinity"
                         onAction="#handleGuest"/>
             </VBox>
         </HBox>

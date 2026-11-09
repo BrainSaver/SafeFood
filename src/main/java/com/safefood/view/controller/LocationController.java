@@ -80,14 +80,14 @@ public class LocationController {
         checkCoordinates();
     }
 
-    /** 지금 등록돼 있는 위치 — 세션에 사본이 없으면 DB에서 한 번 읽어 옵니다. */
+    /** 지금 등록돼 있는 위치: 세션에 사본이 없으면 DB에서 한 번 읽어 옵니다. */
     private LocationDto myLocation() {
         LocationDto cached = Session.getMyLocation();
         if (cached != null) {
             return cached;
         }
         if (!Session.isMember()) {
-            return null;   // 게스트 — 세션에 없으면 없는 것입니다
+            return null;   // 게스트: 세션에 없으면 없는 것입니다
         }
         LocationDto saved = locationService.getMyLocation(Session.currentUserId());
         Session.setMyLocation(saved);
@@ -243,7 +243,7 @@ public class LocationController {
         }
     }
 
-    /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다 — 저장은 아직입니다. */
+    /** 누르는 순간 이름·주소·좌표가 대표 지점의 값으로 바뀝니다: 저장은 아직입니다. */
     private void pick(UiConstants.Place place) {
         labelField.setText(place.name());
         cancelLookup();
@@ -291,7 +291,7 @@ public class LocationController {
         }
         if (!LocationService.isInKorea(latitude, longitude)) {
             markCoordTag("확인 필요", "warn");
-            hint("국내 좌표 범위를 벗어났어요 — 위도와 경도가 바뀌지 않았는지 확인해 주세요.");
+            hint("국내 좌표 범위를 벗어났어요: 위도와 경도가 바뀌지 않았는지 확인해 주세요.");
             return;
         }
         markCoordTag("확인됨", "accent");
@@ -305,7 +305,7 @@ public class LocationController {
         if (isLookingUp()) {
             saveWhenFound = true;
             Widgets.hideError(errorLabel);
-            hint("좌표를 찾고 있어요 — 다 찾으면 바로 저장할게요.");
+            hint("좌표를 찾고 있어요: 다 찾으면 바로 저장할게요.");
             return;
         }
 
@@ -357,7 +357,7 @@ public class LocationController {
         notifyCaller();
         AppNav.close(root);
 
-        AppNav.success("위치를 등록했어요 — " + location.describe());
+        AppNav.success("위치를 등록했어요: " + location.describe());
         if (!location.hasCoordinates()) {
             AppNav.warn("좌표가 없어 거리 계산에는 아직 쓰이지 않아요.");
         }

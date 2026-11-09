@@ -38,7 +38,7 @@ public class RestaurantDetailController {
     @FXML private ToggleButton favoriteButton;
     @FXML private javafx.scene.control.Button eatButton;
 
-    /** 카카오맵 링크 — 별도 키가 필요 없고, PC·모바일에 맞춰 알아서 열립니다. */
+    /** 카카오맵 링크: 별도 키가 필요 없고, PC·모바일에 맞춰 알아서 열립니다. */
     private static final String KAKAO_MAP_LINK = "https://map.kakao.com/link";
 
     private RecommendationCard item;
@@ -46,7 +46,7 @@ public class RestaurantDetailController {
     private final FavoriteDao favoriteDao = new FavoriteDao();
     private final AsyncLoader loader = new AsyncLoader();
 
-    /** {@link #bindFavorite} 로 받기 전에는 0 — 저장하지 않고 안내만 합니다. */
+    /** {@link #bindFavorite} 로 받기 전에는 0: 저장하지 않고 안내만 합니다. */
     private int menuId;
     private int restaurantId;
 
@@ -91,7 +91,7 @@ public class RestaurantDetailController {
     private void toggleFavorite() {
         if (!Session.isMember() || menuId <= 0) {
             favoriteButton.setSelected(false);
-            AppNav.info("게스트는 찜을 저장할 수 없어요 — 회원으로 로그인하면 남길 수 있습니다.");
+            AppNav.info("게스트는 찜을 저장할 수 없어요: 회원으로 로그인하면 남길 수 있습니다.");
             return;
         }
         // 저장도 왕복이라 화면 스레드에서 하면 누르는 순간 창이 멎습니다
@@ -221,7 +221,7 @@ public class RestaurantDetailController {
                 });
     }
 
-    /** FX 스레드 전용 — 좌표가 없으면 null 을 넘겨 {@code displayMap} 이 "표시 안 함"으로 처리합니다. */
+    /** FX 스레드 전용: 좌표가 없으면 null 을 넘겨 {@code displayMap} 이 "표시 안 함"으로 처리합니다. */
     private static void drawMap(WebEngine engine, RecommendationCard card, LocationDto myLoc) {
         boolean hasMine = myLoc != null && myLoc.hasCoordinates();
         callDisplayMap(engine,
@@ -309,7 +309,7 @@ public class RestaurantDetailController {
     @FXML
     private void handleEat() {
         if (!Session.isMember()) {
-            AppNav.info("게스트는 식사 기록을 남길 수 없어요 — 회원으로 로그인하면 저장됩니다.");
+            AppNav.info("게스트는 식사 기록을 남길 수 없어요: 회원으로 로그인하면 저장됩니다.");
             return;
         }
         if (menuId <= 0) {
@@ -330,7 +330,7 @@ public class RestaurantDetailController {
                         AppNav.error("식사 기록을 저장하지 못했습니다. 데이터베이스 연결을 확인해 주세요.");
                         return;
                     }
-                    AppNav.success(menu + "(으)로 정했어요 — 기록에 남기고 다음 추천에서 제외합니다");
+                    AppNav.success(menu + "(으)로 정했어요: 기록에 남기고 다음 추천에서 제외합니다");
                     onEatAction.run();
                     AppNav.close(root);
                 },

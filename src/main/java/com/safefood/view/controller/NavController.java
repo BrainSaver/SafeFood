@@ -15,7 +15,7 @@ import javafx.scene.control.Label;
  */
 public class NavController {
 
-    /** 지금 보고 있는 화면 — 그 버튼만 강조합니다. */
+    /** 지금 보고 있는 화면: 그 버튼만 강조합니다. */
     public enum Tab {
         MAIN, PROFILE, HISTORY, MEAL, NONE
     }
@@ -63,7 +63,7 @@ public class NavController {
 
     @FXML
     private void handleMain() {
-        AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
+        AppNav.show("SafeFood: 맞춤 맛집 추천", "main.fxml");
     }
 
     @FXML

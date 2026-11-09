@@ -74,10 +74,10 @@ public class MainController {
     /** 어제/최근 먹은 메뉴를 빼고 볼지 */
     private boolean excludeEaten = true;
 
-    /** 내정보의 음식 취향 — 화면이 열릴 때 읽어 옵션 초기값과 조회 조건에 씁니다. 없으면 null. */
+    /** 내정보의 음식 취향: 화면이 열릴 때 읽어 옵션 초기값과 조회 조건에 씁니다. 없으면 null. */
     private PreferenceDto myPreference;
 
-    /** 내정보의 선호 카테고리 — 단일 선택 콤보에 못 담으므로 추천 가산점(+20점)으로 반영합니다. */
+    /** 내정보의 선호 카테고리: 단일 선택 콤보에 못 담으므로 추천 가산점(+20점)으로 반영합니다. */
     private List<String> myCategories = List.of();
 
     /** 취향을 옵션에 옮겨 담는 동안에는 리스너가 조회를 띄우지 않게 막습니다. */
@@ -246,7 +246,7 @@ public class MainController {
         };
     }
 
-    /** 취향의 최대 거리를 거리 옵션 라벨로 — 프로필 화면과 같은 눈금입니다. */
+    /** 취향의 최대 거리를 거리 옵션 라벨로: 프로필 화면과 같은 눈금입니다. */
     private static String distanceLabelFor(int meters) {
         return switch (meters) {
             case 500 -> "500m";
@@ -275,7 +275,7 @@ public class MainController {
         }
     }
 
-    /** 안내 문구 갱신. FX 스레드 전용이라 DB 를 만지지 않습니다 — 메뉴 이름은 load()가 넘겨 줍니다. */
+    /** 안내 문구 갱신. FX 스레드 전용이라 DB 를 만지지 않습니다: 메뉴 이름은 load()가 넘겨 줍니다. */
     private void renderExcludeNotice(String lastEatenMenu) {
         String name = lastEatenMenu == null ? "이전에 먹은 메뉴" : lastEatenMenu;
         excludeLabel.setText(excludeEaten
@@ -462,7 +462,7 @@ public class MainController {
         loader.load(() -> load(query), this::apply);
     }
 
-    /** 받아 온 한 판을 화면에 옮깁니다. <b>FX 스레드 전용</b> — 여기서는 DB 를 만지지 않습니다. */
+    /** 받아 온 한 판을 화면에 옮깁니다. <b>FX 스레드 전용</b>: 여기서는 DB 를 만지지 않습니다. */
     private void apply(Loaded loaded) {
         cardBox.getChildren().clear();
         if (blockedBox != null) {
@@ -564,7 +564,7 @@ public class MainController {
         eat.getStyleClass().add("primary");
         eat.setOnAction(event -> {
             if (!Session.isMember()) {
-                AppNav.info("게스트는 식사 기록을 남길 수 없어요 — 회원으로 로그인하면 저장됩니다.");
+                AppNav.info("게스트는 식사 기록을 남길 수 없어요: 회원으로 로그인하면 저장됩니다.");
                 return;
             }
             if (menuId <= 0) {
@@ -581,7 +581,7 @@ public class MainController {
                             AppNav.error("식사 기록을 저장하지 못했습니다. 데이터베이스 연결을 확인해 주세요.");
                             return;
                         }
-                        AppNav.success(item.menu() + "(으)로 정했어요 — 기록에 남기고 다음 추천에서 제외합니다");
+                        AppNav.success(item.menu() + "(으)로 정했어요: 기록에 남기고 다음 추천에서 제외합니다");
                         fillCards();   // 안내 문구도 여기서 같이 새로 받아 옵니다
                     },
                     error -> {
@@ -599,7 +599,7 @@ public class MainController {
             if (!Session.isMember() || menuId <= 0) {
                 favorite.setSelected(false);
                 favorite.setText("♡");
-                AppNav.info("게스트는 찜을 저장할 수 없어요 — 회원으로 로그인하면 남길 수 있습니다.");
+                AppNav.info("게스트는 찜을 저장할 수 없어요: 회원으로 로그인하면 남길 수 있습니다.");
                 return;
             }
             boolean wantFavorite = favorite.isSelected();
@@ -635,7 +635,7 @@ public class MainController {
         Button map = new Button("가게·지도 보기");
         map.getStyleClass().add("ghost");
         map.setOnAction(event -> AppNav.dialog(
-                item.menu() + " — 맛집 상세", "restaurant-detail.fxml",
+                item.menu() + ": 맛집 상세", "restaurant-detail.fxml",
                 (RestaurantDetailController controller) -> {
                     controller.setItem(item, menuId, restId);
                     // 상세 창의 찜 버튼도 같은 행을 만집니다 — 거기서 바꾸면 카드 하트도 따라갑니다
@@ -659,7 +659,7 @@ public class MainController {
         return card;
     }
 
-    /** 차단된 메뉴 — 왜 빠졌는지와 대체 메뉴만 한 줄로 보여 줍니다. */
+    /** 차단된 메뉴: 왜 빠졌는지와 대체 메뉴만 한 줄로 보여 줍니다. */
     private HBox blockedRow(RecommendationCard item) {
         Label struck = new Label(item.menu() + " · " + item.restaurant());
         struck.getStyleClass().add("strike");
@@ -671,7 +671,7 @@ public class MainController {
                 Widgets.tag(item.safety().label, Widgets.Variant.DANGER),
                 struck,
                 Widgets.sub(item.alternative() == null
-                        ? "" : "대체 — " + item.alternative()),
+                        ? "" : "대체: " + item.alternative()),
                 Widgets.hSpacer(),
                 why);
         row.setAlignment(Pos.CENTER_LEFT);
