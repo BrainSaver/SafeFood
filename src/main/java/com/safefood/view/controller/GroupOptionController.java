@@ -90,7 +90,7 @@ public class GroupOptionController {
         updatePreview("");
     }
 
-    /** 로그인 화면에서 이미 받아 둔 코드를 채워 둡니다: 게스트가 두 번 적지 않게. */
+    /** 로그인 화면에서 이미 받아 둔 코드를 채워 둡니다 — 게스트가 두 번 적지 않게. */
     public void prefillCode(String code) {
         if (code == null || code.isBlank()) {
             return;
@@ -151,7 +151,7 @@ public class GroupOptionController {
         ClipboardContent content = new ClipboardContent();
         content.putString(codeField.getText());
         Clipboard.getSystemClipboard().setContent(content);
-        AppNav.success("초대 코드를 복사했어요: 일행에게 그대로 전달하세요");
+        AppNav.success("초대 코드를 복사했어요 — 일행에게 그대로 전달하세요");
     }
 
     @FXML
@@ -166,7 +166,7 @@ public class GroupOptionController {
 
     // ══ 참여 ════════════════════════════════════════════════════
 
-    /** 입력 중 실시간 안내: 다 입력하면 코드에서 꺼낸 방장 주소를 보여 줍니다. */
+    /** 입력 중 실시간 안내 — 다 입력하면 코드에서 꺼낸 방장 주소를 보여 줍니다. */
     private void updatePreview(String text) {
         String code = InviteCode.normalize(text);
         if (code.length() < InviteCode.LENGTH) {
@@ -177,7 +177,7 @@ public class GroupOptionController {
             return;
         }
         try {
-            previewLabel.setText("✓ 코드 확인: 방장 주소 " + InviteCode.parse(code).address()
+            previewLabel.setText("✓ 코드 확인 — 방장 주소 " + InviteCode.parse(code).address()
                     + " 을(를) 찾았어요");
             previewLabel.getStyleClass().remove("error-text");
         } catch (IllegalArgumentException e) {
@@ -216,7 +216,7 @@ public class GroupOptionController {
     private void connect(InviteCode invite) {
         try {
             open(invite.host(), invite.port(), invite.code());
-            return;   // 1차 성공: 이후는 JOINED/ERROR 응답이 판정합니다
+            return;   // 1차 성공 — 이후는 JOINED/ERROR 응답이 판정합니다
         } catch (IOException direct) {
             if (cancelled) {
                 return;
@@ -238,7 +238,7 @@ public class GroupOptionController {
 
         InetSocketAddress host = found.get();
         String moved = host.getAddress().getHostAddress() + ":" + host.getPort();
-        Platform.runLater(() -> status("방을 찾았습니다: " + moved + " 로 접속합니다."));
+        Platform.runLater(() -> status("방을 찾았습니다 — " + moved + " 로 접속합니다."));
         try {
             open(host.getAddress().getHostAddress(), host.getPort(), invite.code());
         } catch (IOException e) {
@@ -251,7 +251,7 @@ public class GroupOptionController {
     private void open(String host, int port, String code) throws IOException {
         session.joinRoom(host, port);
         if (cancelled) {
-            session.shutdown();   // 붙는 사이에 창이 닫혔습니다: 방금 연 소켓을 도로 정리합니다
+            session.shutdown();   // 붙는 사이에 창이 닫혔습니다 — 방금 연 소켓을 도로 정리합니다
             return;
         }
         session.setInviteCode(code);
@@ -289,7 +289,7 @@ public class GroupOptionController {
     private void succeed() {
         responseTimeout.stop();
         if (!session.isConnected()) {
-            return;   // 응답 직전에 X로 취소한 경우: 죽은 세션으로 진행하지 않습니다
+            return;   // 응답 직전에 X로 취소한 경우 — 죽은 세션으로 진행하지 않습니다
         }
         setBusy(false);
         session.setUiListener(null);   // 다음 화면이 자기 리스너를 답니다

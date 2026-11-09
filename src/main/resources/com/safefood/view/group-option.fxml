@@ -22,7 +22,7 @@
 
     <VBox spacing="4">
         <Label text="같이 먹기" styleClass="page-title"/>
-        <Label text="초대 코드 하나면 됩니다. 접속 주소는 코드에서 자동으로 찾아요."
+        <Label text="초대 코드 하나면 됩니다 — 접속 주소는 코드에서 자동으로 찾아요."
                styleClass="page-subtitle" wrapText="true"/>
     </VBox>
 
@@ -55,7 +55,7 @@
             <Label fx:id="addressLabel" styleClass="micro" wrapText="true"/>
             <Label fx:id="discoveryLabel" styleClass="micro" wrapText="true"/>
             <HBox alignment="CENTER_RIGHT">
-                <Button text="대기실 입장" styleClass="primary" onAction="#handleEnter"/>
+                <Button text="대기실 입장 →" styleClass="primary" onAction="#handleEnter"/>
             </HBox>
         </VBox>
     </VBox>

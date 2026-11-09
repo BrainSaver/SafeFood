@@ -23,7 +23,7 @@ public enum Theme {
     ORGANIC("오가닉", "따뜻한 테라코타. 기본값이에요.", null,
             "#F5EAD8", "#EBDDC5", "#C67139"),
 
-    MIDNIGHT("미드나잇", "어두운 바탕, 밤에 눈이 덜 부셔요.", "theme/midnight.css",
+    MIDNIGHT("미드나잇", "어두운 바탕 — 밤에 눈이 덜 부셔요.", "theme/midnight.css",
             "#1B1917", "#262320", "#E08A4C"),
 
     OCEAN("오션", "차분한 바다색. 오래 봐도 담담해요.", "theme/ocean.css",

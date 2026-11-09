@@ -47,7 +47,7 @@
                    editable="false" focusTraversable="false"/>
         <TextField fx:id="detailField" promptText="상세 주소 (예: 3층 301호)"/>
 
-        <TextField fx:id="labelField" promptText="장소 이름 (예: 집, 회사) (비워도 됩니다)"/>
+        <TextField fx:id="labelField" promptText="장소 이름 — 집 · 회사처럼 (비워도 됩니다)"/>
     </VBox>
 
     <!-- ── 좌표 ────────────────────────────────────────────── -->

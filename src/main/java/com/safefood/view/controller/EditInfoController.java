@@ -37,7 +37,7 @@ public class EditInfoController {
     private final AuthService authService = new AuthService();
     private final PauseTransition nicknameSettle = new PauseTransition(SETTLE);
 
-    /** 마지막 조회 결과: 조회 전이면 null. 지금 쓰는 닉네임이면 true 로 봅니다. */
+    /** 마지막 조회 결과 — 조회 전이면 null. 지금 쓰는 닉네임이면 true 로 봅니다. */
     private Boolean nicknameAvailable;
 
     /** 저장이 끝났음을 부른 화면에 알립니다 (프로필이 닉네임 라벨을 다시 그립니다). */

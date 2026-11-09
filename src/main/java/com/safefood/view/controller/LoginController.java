@@ -81,7 +81,7 @@ public class LoginController {
                 ? loginId : user.getNickname();
         GroupSession.get().setDisplayName(displayName);
         GroupSession.get().setGuest(false);
-        AppNav.show("SafeFood: 맞춤 맛집 추천", "main.fxml");
+        AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
     }
 
     @FXML

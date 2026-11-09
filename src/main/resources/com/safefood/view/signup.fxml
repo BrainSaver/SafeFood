@@ -65,7 +65,7 @@
         <Label fx:id="errorLabel" styleClass="error-text" wrapText="true"
                visible="false" managed="false"/>
 
-        <Button text="가입하고 취향 알려주기" styleClass="primary"
+        <Button text="가입하고 취향 알려주기 →" styleClass="primary"
                 maxWidth="Infinity" onAction="#handleSubmit"/>
 
         <HBox alignment="CENTER">

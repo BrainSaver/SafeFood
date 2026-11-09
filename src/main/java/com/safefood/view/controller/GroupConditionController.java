@@ -75,14 +75,14 @@ public class GroupConditionController {
     private void loadFromProfile() {
         // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
         if (!Session.isMember()) {
-            sourceLabel.setText("게스트는 저장된 프로필이 없어 기본값으로 시작해요: 바꿀 것만 눌러 고치세요.");
+            sourceLabel.setText("게스트는 저장된 프로필이 없어 기본값으로 시작해요 — 바꿀 것만 눌러 고치세요.");
             budgetBox.setValue("10,000원 이하");
             spicySlider.setValue(2);
             return;
         }
 
         UserDto me = Session.getCurrentUser();
-        sourceLabel.setText("내 프로필에서 가져왔어요: 바꿀 것만 눌러 고치세요.");
+        sourceLabel.setText("내 프로필에서 가져왔어요 — 바꿀 것만 눌러 고치세요.");
         ProfileService profileService = new ProfileService();
 
         Map<String, Integer> myAllergies = profileService.getMyAllergies(me.getId());
@@ -178,7 +178,7 @@ public class GroupConditionController {
             client.sendReady();
         }
         AppNav.close(root);
-        AppNav.show("SafeFood: 그룹 대기실", "waiting-room.fxml");
+        AppNav.show("SafeFood — 그룹 대기실", "waiting-room.fxml");
     }
 
     /** "10,000원 이하" → 10000, "제한없음" → 0 */

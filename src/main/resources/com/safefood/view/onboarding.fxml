@@ -41,9 +41,9 @@
 
                 <HBox spacing="6" alignment="CENTER_LEFT">
                     <Label fx:id="name1" text="취향" styleClass="sub"/>
-                    <Label text="›" styleClass="sub"/>
+                    <Label text="→" styleClass="sub"/>
                     <Label fx:id="name2" text="알레르기" styleClass="sub"/>
-                    <Label text="›" styleClass="sub"/>
+                    <Label text="→" styleClass="sub"/>
                     <Label fx:id="name3" text="예산·거리" styleClass="sub"/>
                 </HBox>
 
@@ -102,7 +102,7 @@
                 <Button fx:id="prevButton" text="← 이전" styleClass="ghost"
                         onAction="#handlePrev"/>
                 <Region HBox.hgrow="ALWAYS"/>
-                <Button fx:id="nextButton" text="다음" styleClass="primary"
+                <Button fx:id="nextButton" text="다음 →" styleClass="primary"
                         onAction="#handleNext"/>
             </HBox>
         </VBox>

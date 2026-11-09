@@ -1,67 +1,75 @@
 /*
-  SafeFood 기본 테마
+  SafeFood — Organic 리디자인 테마
+  claude.ai/design 프로젝트 "Safefood UI mockups" / 디자인 시스템 organic-18042edb 를 JavaFX로 옮긴 것.
 
-  색은 .root 의 looked-up color 토큰으로 모아 두고, 테마 파일(theme/*.css)은 이 토큰만 덮어씁니다.
-  설정 마법사(setup-wizard.css)와 같은 초록 계열을 기본색으로 씁니다.
-  모서리는 버튼·입력칸 8px, 카드 12px, 칩 6px로 통일합니다.
+  웹 토큰 → JavaFX 대응 규칙
+    --color-*      → .root 의 looked-up color (아래 토큰 블록)
+    color-mix()    → rgba() 리터럴 또는 derive()
+    border-radius  → -fx-background-radius / -fx-border-radius (버튼·입력·칩은 999 = pill)
+    box-shadow     → -fx-effect: dropshadow(...)
+    :focus-visible → :focused
+
+  제목 글꼴 주의 — 원본 디자인의 Caprasimo 는 한글 글리프가 없습니다.
+  화면 문구가 전부 한글이라 그대로 쓰면 어차피 폴백되므로, 제목은 본문과 같은
+  한글 글꼴을 굵게 쓰는 것으로 대체했습니다.
 */
 
 .root {
 
  /* ── 바탕과 잉크 ─────────────────────────────────────────── */
- -bg: #F4F6F5;
- -surface: #FFFFFF;
- -ink: #1B2B25;
- -ink-muted: rgba(27, 43, 37, 0.58);
- -ink-soft: rgba(27, 43, 37, 0.74);
- -divider: rgba(27, 43, 37, 0.14);
+ -bg: #F5EAD8;
+ -surface: #EBDDC5;
+ -ink: #201E1D;
+ -ink-muted: rgba(32, 30, 29, 0.55);
+ -ink-soft: rgba(32, 30, 29, 0.70);
+ -divider: rgba(32, 30, 29, 0.16);
 
  /* 잉크를 옅게 깐 겹 — 버튼 hover/pressed, 입력칸 hover 테두리.
     어두운 테마에서는 이 값이 통째로 뒤집혀야 해서 토큰으로 뽑아 뒀습니다
     (여기에 rgba 를 직접 박으면 미드나잇에서 눌러도 아무 반응이 안 보입니다). */
- -ink-wash: rgba(27, 43, 37, 0.06);
- -ink-wash-strong: rgba(27, 43, 37, 0.12);
- -ink-line: rgba(27, 43, 37, 0.40);
+ -ink-wash: rgba(32, 30, 29, 0.07);
+ -ink-wash-strong: rgba(32, 30, 29, 0.14);
+ -ink-line: rgba(32, 30, 29, 0.45);
 
  /* ── 뉴트럴 램프 (100 → 900) ──────────────────────────────── */
- -n100: #FAFBFB;
- -n200: #EEF1F0;
- -n300: #DDE5E1;
- -n400: #C3CEC9;
- -n500: #9AA8A2;
- -n600: #76857E;
- -n700: #56645E;
- -n800: #3A4641;
- -n900: #232D29;
+ -n100: #F9F4ED;
+ -n200: #EEE7DB;
+ -n300: #DCD3C4;
+ -n400: #C0B6A5;
+ -n500: #A19786;
+ -n600: #82796A;
+ -n700: #645C50;
+ -n800: #474238;
+ -n900: #2E2B25;
 
- /* ── 초록 (주 강조) ───────────────────────────────────── */
- -accent: #2E7D5B;
- -accent-100: #ECF6F1;
- -accent-200: #D3EBDF;
- -accent-300: #A9D5BF;
- -accent-400: #6DB394;
- -accent-500: #3F9270;
- -accent-600: #256B4D;
- -accent-700: #1D573F;
- -accent-800: #15402E;
+ /* ── 테라코타 (주 강조) ───────────────────────────────────── */
+ -accent: #C67139;
+ -accent-100: #FFF2EB;
+ -accent-200: #FFE1D0;
+ -accent-300: #FFC6A5;
+ -accent-400: #F6A06B;
+ -accent-500: #D67F48;
+ -accent-600: #B2622D;
+ -accent-700: #8C491A;
+ -accent-800: #643312;
 
- /* ── 주황 (제2 강조) ────────────────────────────────────── */
- -accent2: #E08A2C;
- -accent2-100: #FDF3E7;
- -accent2-200: #FAE2C4;
- -accent2-300: #F4C690;
- -accent2-400: #EBA65A;
- -accent2-700: #9A5A14;
- -accent2-800: #6E400E;
+ /* ── 세이지 (제2 강조) ────────────────────────────────────── */
+ -accent2: #7A8A5E;
+ -accent2-100: #F0FAE1;
+ -accent2-200: #E1EECC;
+ -accent2-300: #CCDBB2;
+ -accent2-400: #AEBF92;
+ -accent2-700: #56633F;
+ -accent2-800: #3D472B;
 
  /* ── 상태색 (목업의 경고·차단 칩에서 가져옴) ─────────────── */
- -warn-bg: #FBF1D8;
- -warn-fg: #7A5B0B;
- -danger-bg: #FBE3E0;
- -danger-fg: #A12D1F;
+ -warn-bg: #F6E8C4;
+ -warn-fg: #6E5410;
+ -danger-bg: #F4D9CD;
+ -danger-fg: #7C2D1C;
 
  -fx-background-color: -bg;
- -fx-font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+ -fx-font-family: "Figtree", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
  -fx-font-size: 14px;
  -fx-text-fill: -ink;
 
@@ -180,11 +188,11 @@
  -fx-max-width: 1;
 }
 
-/* ══ 버튼 ═════════════════════════════════════════ */
+/* ══ 버튼 — 전부 pill ═════════════════════════════════════════ */
 
 .button, .toggle-button {
- -fx-background-radius: 8;
- -fx-border-radius: 8;
+ -fx-background-radius: 999;
+ -fx-border-radius: 999;
  -fx-padding: 9 18 9 18;
  -fx-cursor: hand;
  -fx-font-size: 14px;
@@ -282,8 +290,8 @@
  -fx-min-height: 36;
  -fx-pref-width: 36;
  -fx-pref-height: 36;
- -fx-background-radius: 8;
- -fx-border-radius: 8;
+ -fx-background-radius: 999;
+ -fx-border-radius: 999;
  -fx-font-size: 14px;
 }
 
@@ -296,7 +304,7 @@
  -fx-pref-width: 40;
  -fx-pref-height: 40;
  -fx-padding: 0;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-font-size: 15px;
 }
 
@@ -318,12 +326,12 @@
 
 /* 선택 가능한 칩 (ToggleButton) */
 .chip {
- -fx-background-color: -surface;
+ -fx-background-color: -n100;
  -fx-text-fill: -n800;
- -fx-border-color: -n300;
+ -fx-border-color: transparent;
  -fx-border-width: 1;
- -fx-background-radius: 6;
- -fx-border-radius: 6;
+ -fx-background-radius: 999;
+ -fx-border-radius: 999;
  -fx-padding: 7 15 7 15;
  -fx-font-size: 13px;
  -fx-cursor: hand;
@@ -335,7 +343,7 @@
 
 .chip:selected {
  -fx-background-color: -accent;
- -fx-text-fill: white;
+ -fx-text-fill: -bg;
  -fx-border-color: transparent;
  -fx-font-weight: bold;
 }
@@ -353,7 +361,7 @@
 /* 읽기 전용 라벨 태그 (Label) */
 .tag {
  -fx-padding: 4 11 4 11;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-font-size: 11px;
  -fx-background-color: -n100;
  -fx-text-fill: -n800;
@@ -370,7 +378,7 @@
  -fx-background-color: transparent;
  -fx-border-color: -accent;
  -fx-border-width: 1;
- -fx-border-radius: 8;
+ -fx-border-radius: 999;
  -fx-text-fill: -accent-700;
 }
 
@@ -405,17 +413,17 @@
 }
 
 .seg-opt.first {
- -fx-background-radius: 8 0 0 8;
- -fx-border-radius: 8 0 0 8;
+ -fx-background-radius: 999 0 0 999;
+ -fx-border-radius: 999 0 0 999;
 }
 
 .seg-opt.last {
- -fx-background-radius: 0 8 8 0;
- -fx-border-radius: 0 8 8 0;
+ -fx-background-radius: 0 999 999 0;
+ -fx-border-radius: 0 999 999 0;
  -fx-border-width: 1;
 }
 
-/* 예전 이름 — 남아 있는 화면도 같은 모양으로 유지 */
+/* 예전 이름 — 남아 있는 화면이 있어도 pill 로 보이게 유지 */
 .tab-toggle {
  -fx-background-color: transparent;
  -fx-text-fill: -ink-soft;
@@ -432,8 +440,8 @@
  -fx-font-weight: bold;
 }
 
-.tab-toggle.first { -fx-background-radius: 8 0 0 8; -fx-border-radius: 8 0 0 8; }
-.tab-toggle.last { -fx-background-radius: 0 8 8 0; -fx-border-radius: 0 8 8 0; }
+.tab-toggle.first { -fx-background-radius: 999 0 0 999; -fx-border-radius: 999 0 0 999; }
+.tab-toggle.last { -fx-background-radius: 0 999 999 0; -fx-border-radius: 0 999 999 0; }
 
 /* ══ 입력 ═════════════════════════════════════════════════════ */
 
@@ -444,8 +452,8 @@
  -fx-background-color: -surface;
  -fx-border-color: -divider;
  -fx-border-width: 1;
- -fx-background-radius: 8;
- -fx-border-radius: 8;
+ -fx-background-radius: 999;
+ -fx-border-radius: 999;
  -fx-padding: 8 14 8 14;
  -fx-font-size: 14px;
 }
@@ -454,15 +462,15 @@
  -fx-background-color: -surface;
  -fx-border-color: -divider;
  -fx-border-width: 1;
- -fx-background-radius: 12;
- -fx-border-radius: 12;
+ -fx-background-radius: 20;
+ -fx-border-radius: 20;
  -fx-padding: 4;
  -fx-font-size: 14px;
 }
 
 .text-area .content {
  -fx-background-color: -surface;
- -fx-background-radius: 12;
+ -fx-background-radius: 18;
 }
 
 .text-field:hover,
@@ -507,8 +515,8 @@
 
 .combo-box-popup .list-view {
  -fx-background-color: -bg;
- -fx-background-radius: 12;
- -fx-border-radius: 12;
+ -fx-background-radius: 16;
+ -fx-border-radius: 16;
  -fx-border-color: -divider;
  -fx-effect: dropshadow(gaussian, rgba(46, 43, 37, 0.22), 24, 0, 0, 10);
 }
@@ -546,14 +554,14 @@
  -fx-font-size: 12px;
  -fx-background-color: -n100;
  -fx-text-fill: -n800;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-padding: 5 12 5 12;
 }
 
 /* 비밀번호 강도 막대 */
 .strength-bar {
  -fx-background-color: -n200;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-pref-height: 4;
  -fx-min-height: 4;
 }
@@ -564,7 +572,7 @@
 
 /* ══ 슬라이더 ═════════════════════════════════════════════════ */
 
-/* 트랙 반경은 pill(8)로 두면 안 됩니다 — SliderSkin 이 트랙 길이에
+/* 트랙 반경은 pill(999)로 두면 안 됩니다 — SliderSkin 이 트랙 길이에
    반경을 양쪽으로 더해 늘리기 때문에, 트랙이 창 전체로 삐져나갑니다.
    높이가 5px이므로 3이면 이미 완전히 둥급니다. */
 .slider .track {
@@ -575,7 +583,7 @@
 
 .slider .thumb {
  -fx-background-color: -accent;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-pref-width: 18;
  -fx-pref-height: 18;
  -fx-effect: dropshadow(gaussian, rgba(46, 43, 37, 0.14), 3, 0, 0, 1);
@@ -590,9 +598,9 @@
 
 .card {
  -fx-background-color: -surface;
- -fx-background-radius: 12;
+ -fx-background-radius: 32;
  -fx-border-color: transparent;
- -fx-border-radius: 12;
+ -fx-border-radius: 32;
  -fx-padding: 20 22 20 22;
 }
 
@@ -633,13 +641,13 @@
 /* 차단 축약 행 — 카드가 아니라 한 줄 pill */
 .blocked-row {
  -fx-background-color: -n200;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-padding: 12 22 12 22;
 }
 
 .reason-panel {
  -fx-background-color: -accent2-100;
- -fx-background-radius: 12;
+ -fx-background-radius: 20;
  -fx-padding: 14 18 14 18;
 }
 
@@ -649,7 +657,7 @@
 
 .panel {
  -fx-background-color: -n100;
- -fx-background-radius: 12;
+ -fx-background-radius: 24;
  -fx-padding: 16 18 16 18;
 }
 
@@ -674,8 +682,8 @@
 
 .theme-option {
  -fx-background-color: -bg;
- -fx-background-radius: 12;
- -fx-border-radius: 12;
+ -fx-background-radius: 20;
+ -fx-border-radius: 20;
  -fx-border-color: -divider;
  -fx-border-width: 2;
  -fx-padding: 12;
@@ -694,8 +702,8 @@
 /* 미니 화면 — 바탕 위에 표면 두 줄과 강조 알약을 얹은 축소판.
    테두리가 없으면 '지금 쓰는 테마' 칸은 바탕에 묻혀 미리보기가 안 보입니다. */
 .theme-preview {
- -fx-background-radius: 12;
- -fx-border-radius: 12;
+ -fx-background-radius: 14;
+ -fx-border-radius: 14;
  -fx-border-color: -divider;
  -fx-border-width: 1;
  -fx-padding: 10;
@@ -706,7 +714,7 @@
 }
 
 .theme-preview .bar {
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
 }
 
 .theme-option .name {
@@ -719,7 +727,7 @@
 .brand-mark {
  -fx-background-color: -accent;
  -fx-text-fill: -bg;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-min-width: 34; -fx-min-height: 34;
  -fx-pref-width: 34; -fx-pref-height: 34;
  -fx-alignment: center;
@@ -736,7 +744,7 @@
 .rank-circle {
  -fx-background-color: -accent;
  -fx-text-fill: -bg;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-min-width: 52; -fx-min-height: 52;
  -fx-pref-width: 52; -fx-pref-height: 52;
  -fx-alignment: center;
@@ -750,7 +758,7 @@
 .avatar {
  -fx-background-color: -n300;
  -fx-text-fill: -n900;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-min-width: 40; -fx-min-height: 40;
  -fx-pref-width: 40; -fx-pref-height: 40;
  -fx-alignment: center;
@@ -773,7 +781,7 @@
 .step-dot {
  -fx-background-color: -n200;
  -fx-text-fill: -ink-soft;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-min-width: 26; -fx-min-height: 26;
  -fx-pref-width: 26; -fx-pref-height: 26;
  -fx-alignment: center;
@@ -799,7 +807,7 @@
 
 .badge {
  -fx-padding: 4 11 4 11;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-font-size: 11px;
  -fx-font-weight: bold;
  -fx-text-fill: -bg;
@@ -811,7 +819,7 @@
 
 .safety {
  -fx-padding: 4 11 4 11;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-font-size: 11px;
  -fx-font-weight: bold;
 }
@@ -824,7 +832,7 @@
  -fx-font-size: 11px;
  -fx-font-weight: bold;
  -fx-padding: 4 11 4 11;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-background-color: -n100;
  -fx-text-fill: -n800;
 }
@@ -848,13 +856,13 @@
 .bubble {
  -fx-padding: 9 14 9 14;
  -fx-font-size: 14px;
- -fx-background-radius: 12 18 18 6;
+ -fx-background-radius: 18 18 18 6;
  -fx-background-color: -n100;
  -fx-text-fill: -ink;
 }
 
 .bubble.mine {
- -fx-background-radius: 12 18 6 18;
+ -fx-background-radius: 18 18 6 18;
  -fx-background-color: -accent;
  -fx-text-fill: -bg;
 }
@@ -869,7 +877,7 @@
 .system-pill {
  -fx-background-color: -n100;
  -fx-text-fill: -n800;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-padding: 5 14 5 14;
  -fx-font-size: 11px;
 }
@@ -900,12 +908,12 @@
 
 .progress-bar > .track {
  -fx-background-color: -n200;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
 }
 
 .progress-bar > .bar {
  -fx-background-color: -accent;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-padding: 0;
 }
 
@@ -934,7 +942,7 @@
 .map-pin {
  -fx-background-color: -accent;
  -fx-text-fill: -bg;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-min-width: 44; -fx-min-height: 44;
  -fx-pref-width: 44; -fx-pref-height: 44;
  -fx-alignment: center;
@@ -987,7 +995,7 @@
 .list-view {
  -fx-background-color: transparent;
  -fx-border-color: transparent;
- -fx-background-radius: 12;
+ -fx-background-radius: 24;
 }
 
 .list-cell {
@@ -1006,7 +1014,7 @@
 .table-view {
  -fx-background-color: -n100;
  -fx-border-color: transparent;
- -fx-background-radius: 12;
+ -fx-background-radius: 24;
 }
 
 .table-view .column-header,
@@ -1035,8 +1043,8 @@
 
 .console {
  -fx-background-color: -n900;
- -fx-background-radius: 12;
- -fx-border-radius: 12;
+ -fx-background-radius: 20;
+ -fx-border-radius: 20;
  -fx-font-family: "Consolas", "D2Coding", "Malgun Gothic", monospace;
  -fx-font-size: 11px;
 }
@@ -1065,7 +1073,7 @@
 
 .titled-pane > .title {
  -fx-background-color: -n200;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
  -fx-padding: 6 14 6 14;
  -fx-font-size: 12px;
 }
@@ -1095,7 +1103,7 @@
 .toast {
  -fx-background-color: -n900;
  -fx-text-fill: -bg;
- -fx-background-radius: 12;   /* 한 줄이면 pill, 여러 줄이면 둥근 카드 */
+ -fx-background-radius: 24;   /* 한 줄이면 pill, 여러 줄이면 둥근 카드 */
  -fx-padding: 13 24 13 24;
  -fx-font-size: 13px;
  -fx-cursor: hand;
@@ -1139,8 +1147,8 @@
 }
 
 .dialog-pane .button-bar .button {
- -fx-background-radius: 8;
- -fx-border-radius: 8;
+ -fx-background-radius: 999;
+ -fx-border-radius: 999;
 }
 
 /* ══ 스크롤 ═══════════════════════════════════════════════════ */
@@ -1162,7 +1170,7 @@
 
 .scroll-bar .thumb {
  -fx-background-color: -n400;
- -fx-background-radius: 8;
+ -fx-background-radius: 999;
 }
 
 .scroll-bar .thumb:hover {
