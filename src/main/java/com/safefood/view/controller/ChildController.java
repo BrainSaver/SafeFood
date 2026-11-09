@@ -241,7 +241,7 @@ public class ChildController {
 
     private void renderPickedSchool() {
         pickedSchoolLabel.setText(schulNm == null || schulNm.isBlank()
-                ? "아직 고르지 않았어요" : "선택 — " + schulNm);
+                ? "아직 고르지 않았어요" : "선택: " + schulNm);
     }
 
     private void hideSchoolList() {

@@ -43,7 +43,7 @@ import java.util.Map;
  */
 public class ProfileController {
 
-    /** 값이 멎었다고 볼 시간 — 이만큼 조용하면 저장합니다. */
+    /** 값이 멎었다고 볼 시간: 이만큼 조용하면 저장합니다. */
     private static final Duration SETTLE = Duration.millis(500);
 
     @FXML private FlowPane ownedPane;
@@ -71,7 +71,7 @@ public class ProfileController {
 
     private final PauseTransition preferenceSettle = new PauseTransition(SETTLE);
 
-    /** 초기 로딩 중에는 저장하지 않습니다 — 값을 채우는 것도 '변경'으로 잡히기 때문입니다. */
+    /** 초기 로딩 중에는 저장하지 않습니다: 값을 채우는 것도 '변경'으로 잡히기 때문입니다. */
     private boolean loading = true;
 
     @FXML
@@ -88,7 +88,7 @@ public class ProfileController {
         // 게스트도 Session 에 UserDto 가 들어 있으므로(id = Session.GUEST_ID) null 검사로는 못 거릅니다
         if (!Session.isMember()) {
             // 게스트는 저장할 계정이 없습니다 — 화면은 보여 주되 자동 저장은 끕니다
-            autoSaveTag.setText("게스트 — 저장되지 않아요");
+            autoSaveTag.setText("게스트: 저장되지 않아요");
             autoSaveTag.getStyleClass().remove("accent2");
             autoSaveTag.getStyleClass().add("neutral");
             renderPriceLabel();
@@ -130,7 +130,7 @@ public class ProfileController {
         loading = false;
     }
 
-    /** 값이 바뀌면 저장으로 이어지도록 묶습니다 — 로딩이 끝난 뒤에 붙입니다. */
+    /** 값이 바뀌면 저장으로 이어지도록 묶습니다: 로딩이 끝난 뒤에 붙입니다. */
     private void wireAutoSave() {
         priceMax.valueProperty().addListener((observable, before, after) -> {
             // 1000원 단위로 스냅 — 라벨과 저장값이 같은 눈금을 쓰게
@@ -191,7 +191,7 @@ public class ProfileController {
 
     // ── 알레르기 칩 ─────────────────────────────────────────────
 
-    /** 칩 하나가 이름 + 심각도 선택 + 삭제를 다 갖습니다 — 따로 심각도 칸을 두지 않습니다. */
+    /** 칩 하나가 이름 + 심각도 선택 + 삭제를 다 갖습니다: 따로 심각도 칸을 두지 않습니다. */
     private void renderOwned() {
         ownedPane.getChildren().clear();
         if (owned.isEmpty()) {
@@ -279,7 +279,7 @@ public class ProfileController {
         return chip;
     }
 
-    /** 입력칸으로 추가 — 검색 결과가 하나로 좁혀졌으면 그것을, 아니면 어떻게 좁힐지 알려 줍니다. */
+    /** 입력칸으로 추가: 검색 결과가 하나로 좁혀졌으면 그것을, 아니면 어떻게 좁힐지 알려 줍니다. */
     @FXML
     private void handleAddAllergy() {
         String keyword = searchField.getText().trim();
@@ -298,7 +298,7 @@ public class ProfileController {
         } else if (found.isEmpty()) {
             hint("'" + keyword + "'와(과) 맞는 알레르기가 없습니다. 식약처 고시 19종 중에서 골라 주세요.");
         } else {
-            hint("'" + keyword + "'에 걸리는 항목이 " + found.size() + "개입니다 — 아래에서 눌러 골라 주세요.");
+            hint("'" + keyword + "'에 걸리는 항목이 " + found.size() + "개입니다: 아래에서 눌러 골라 주세요.");
         }
     }
 
@@ -308,7 +308,7 @@ public class ProfileController {
             return;
         }
 
-        owned.put(name, 3);   // 기본 '보통' — 칩에서 바로 바꿀 수 있습니다
+        owned.put(name, 3);   // 기본 '보통': 칩에서 바로 바꿀 수 있습니다
         searchField.clear();  // 검색어를 비워 목록을 전체로 되돌립니다
         Widgets.hideError(allergyHint);
         renderOwned();
@@ -334,13 +334,13 @@ public class ProfileController {
             return;
         }
         if (!Session.isMember()) {
-            return;   // 게스트 — 저장할 계정이 없습니다
+            return;   // 게스트: 저장할 계정이 없습니다
         }
         // 실패를 조용히 넘기면 '자동 저장' 배지만 보고 저장된 줄 압니다 — 알레르기는 특히 위험합니다
         if (!new ProfileService().updateAllergiesOnly(
                 Session.currentUserId(), new java.util.LinkedHashMap<>(owned))) {
             AppNav.error("알레르기를 저장하지 못했습니다. "
-                    + "이전에 등록한 목록은 그대로 남아 있습니다 — 연결을 확인한 뒤 다시 시도해 주세요.");
+                    + "이전에 등록한 목록은 그대로 남아 있습니다: 연결을 확인한 뒤 다시 시도해 주세요.");
         }
     }
 
@@ -375,11 +375,11 @@ public class ProfileController {
     // ── 라벨 ────────────────────────────────────────────────────
 
     private void renderPriceLabel() {
-        priceLabel.setText(String.format("한 끼 예산 상한 — %,d원", (int) priceMax.getValue()));
+        priceLabel.setText(String.format("한 끼 예산 상한: %,d원", (int) priceMax.getValue()));
     }
 
     private void renderSpicyLabel() {
-        spicyLabel.setText("선호 맵기 — " + (int) spicySlider.getValue() + "단계");
+        spicyLabel.setText("선호 맵기: " + (int) spicySlider.getValue() + "단계");
     }
 
     // ── 내 위치 ─────────────────────────────────────────────────
@@ -433,7 +433,7 @@ public class ProfileController {
         renderThemeTag();
     }
 
-    /** 테마 한 칸 — 축소판 미리보기 + 이름 + 한 줄 설명. */
+    /** 테마 한 칸: 축소판 미리보기 + 이름 + 한 줄 설명. */
     private VBox themeOption(Theme option) {
         VBox card = new VBox(8,
                 themePreview(option),

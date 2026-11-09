@@ -151,7 +151,7 @@ public class OnboardingController {
     }
 
     private VBox severityCard(String allergy, int current) {
-        Label title = Widgets.label(allergy + " — 얼마나 심한가요?", "section-title");
+        Label title = Widgets.label(allergy + ": 얼마나 심한가요?", "section-title");
 
         ToggleGroup group = new ToggleGroup();
         HBox seg = new HBox();
@@ -191,7 +191,7 @@ public class OnboardingController {
         if (com.safefood.dto.Session.isGuest()) {
             AppNav.dialog("같이 먹기", "group-option.fxml");
         } else {
-            AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
+            AppNav.show("SafeFood: 맞춤 맛집 추천", "main.fxml");
         }
     }
 
@@ -210,7 +210,7 @@ public class OnboardingController {
         if (com.safefood.dto.Session.isGuest()) {
             AppNav.dialog("같이 먹기", "group-option.fxml");
         } else {
-            AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
+            AppNav.show("SafeFood: 맞춤 맛집 추천", "main.fxml");
         }
     }
 
@@ -232,7 +232,7 @@ public class OnboardingController {
         paintName(name3, 3);
 
         prevButton.setDisable(step == 1);
-        nextButton.setText(step == LAST_STEP ? "추천 시작하기 →" : "다음 →");
+        nextButton.setText(step == LAST_STEP ? "추천 시작하기" : "다음");
     }
 
     private void paintDot(Label dot, int index) {
@@ -317,7 +317,7 @@ public class OnboardingController {
                     currentUserId, spicyLevel, priceMax, maxDistance, preferredCategories);
         }
 
-        newUserId = null;   // 다 썼습니다 — 다음 사람 차례에 남아 있으면 안 됩니다
+        newUserId = null;   // 다 썼습니다: 다음 사람 차례에 남아 있으면 안 됩니다
     }
 
     private String selectedDistance() {

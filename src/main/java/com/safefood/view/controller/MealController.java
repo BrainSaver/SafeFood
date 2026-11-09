@@ -186,7 +186,7 @@ public class MealController {
 
         if (period.stale()) {
             summaryBox.getChildren().add(banner(Widgets.Variant.WARN,
-                    "최신 정보를 불러오지 못해 예전에 받아 둔 내용을 보여 드립니다 — "
+                    "최신 정보를 불러오지 못해 예전에 받아 둔 내용을 보여 드립니다: "
                             + describeFetched(period.fetchedOn()) + ". 새로고침을 눌러 다시 시도해 보세요."));
         }
 
@@ -194,7 +194,7 @@ public class MealController {
         if (!risky.isEmpty()) {
             String days = String.join(", ", risky.stream().map(d -> shortDay(d.date())).toList());
             summaryBox.getChildren().add(banner(Widgets.Variant.DANGER,
-                    "이번 주 " + risky.size() + "일 주의 — " + days));
+                    "이번 주 " + risky.size() + "일 주의: " + days));
         }
         if (!summaryBox.getChildren().isEmpty()) {
             summaryBox.setVisible(true);
@@ -217,7 +217,7 @@ public class MealController {
         }
     }
 
-    /** 급식이 없는 날 — 지난 날은 '급식 없음', 앞으로의 날은 '아직 등록 전'입니다. */
+    /** 급식이 없는 날: 지난 날은 '급식 없음', 앞으로의 날은 '아직 등록 전'입니다. */
     private VBox missingDay(LocalDate date, LocalDate today) {
         boolean past = date.isBefore(today);
         VBox card = new VBox(4,

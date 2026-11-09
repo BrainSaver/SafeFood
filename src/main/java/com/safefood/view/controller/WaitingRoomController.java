@@ -91,7 +91,7 @@ public class WaitingRoomController implements GroupClient.Listener {
                 case CANDIDATES, VOTE_STATUS -> renderCandidates();
                 case RESULT -> {
                     renderCandidates();
-                    AppNav.success("최종 메뉴가 확정되었어요 — " + session.result());
+                    AppNav.success("최종 메뉴가 확정되었어요: " + session.result());
                 }
                 case CLOSED -> {
                     if (!session.isOwner()) {
@@ -118,12 +118,12 @@ public class WaitingRoomController implements GroupClient.Listener {
         goHome();
     }
 
-    /** 게스트에게는 방을 나가는 것이 곧 세션 종료입니다 — 남은 정보가 다음 사람에게 보이지 않게. */
+    /** 게스트에게는 방을 나가는 것이 곧 세션 종료입니다: 남은 정보가 다음 사람에게 보이지 않게. */
     private void goHome() {
         if (session.isGuest()) {
             AppNav.logout();
         } else {
-            AppNav.show("SafeFood — 맞춤 맛집 추천", "main.fxml");
+            AppNav.show("SafeFood: 맞춤 맛집 추천", "main.fxml");
         }
     }
 
@@ -161,7 +161,7 @@ public class WaitingRoomController implements GroupClient.Listener {
         }
     }
 
-    /** 새로 생긴 사건만 이어 붙입니다 — 통째로 다시 그리면 스크롤이 튑니다. */
+    /** 새로 생긴 사건만 이어 붙입니다: 통째로 다시 그리면 스크롤이 튑니다. */
     private void renderEvents() {
         List<GroupSession.Event> events = session.events();
         for (int i = renderedEventCount; i < events.size(); i++) {
@@ -268,7 +268,7 @@ public class WaitingRoomController implements GroupClient.Listener {
             return;
         }
 
-        voteTitle.setText("투표 — " + session.members().size() + "표 중 " + total + "표");
+        voteTitle.setText("투표: " + session.members().size() + "표 중 " + total + "표");
 
         int leadingNo = leadingNo(list);
         for (GroupSession.CandidateView candidate : list) {
@@ -277,9 +277,9 @@ public class WaitingRoomController implements GroupClient.Listener {
 
         String leadingMenu = menuOf(list, leadingNo);
         if (finished) {
-            resultButton.setText("확정됨 — " + session.result());
+            resultButton.setText("확정됨: " + session.result());
         } else {
-            resultButton.setText(total == 0 ? "최종 확정" : "최종 확정 — " + leadingMenu);
+            resultButton.setText(total == 0 ? "최종 확정" : "최종 확정: " + leadingMenu);
         }
     }
 
