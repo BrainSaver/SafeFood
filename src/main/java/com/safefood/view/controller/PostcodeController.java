@@ -43,7 +43,7 @@ public class PostcodeController {
      */
     private static final double MIN_HEIGHT = 260;
 
-    /** 창이 화면 밖으로 자라지 않게 하는 상한 — 넘으면 페이지 안에서 굴려 봅니다. */
+    /** 창이 화면 밖으로 자라지 않게 하는 상한: 넘으면 페이지 안에서 굴려 봅니다. */
     private static final double MAX_HEIGHT = 640;
 
     /** 우편번호 서비스가 돌려주는 주소 한 건. */
@@ -93,7 +93,7 @@ public class PostcodeController {
         engine.load(page.toExternalForm());
     }
 
-    /** 문서가 준비된 뒤 — bridge 를 심고 위젯을 띄웁니다. */
+    /** 문서가 준비된 뒤: bridge 를 심고 위젯을 띄웁니다. */
     @SuppressWarnings("removal")   // JSObject 는 JavaFX 21 에서 WebView 와 주고받는 유일한 길입니다
     private void startWidget(WebEngine engine) {
         try {
@@ -159,7 +159,7 @@ public class PostcodeController {
             Platform.runLater(() -> AppNav.close(root));
         }
 
-        /** 위젯이 필요한 높이를 알려 오는 자리 — 화면이 바뀔 때마다 다시 불립니다. */
+        /** 위젯이 필요한 높이를 알려 오는 자리: 화면이 바뀔 때마다 다시 불립니다. */
         public void onResize(double height) {
             Platform.runLater(() -> fitHeight(height));
         }
